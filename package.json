@@ -1,0 +1,11 @@
+{
+  "name": "review-inbox",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Airbnb / Booking.com の通知メールを分類してレビュー対応を管理する PWA",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "serve": "npx --yes serve -l 8080 ."
+  }
+}
