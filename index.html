@@ -687,7 +687,12 @@ try {
     fetchTitles(r.ids);
     const it = r.ids.length ? find(r.ids[0]) : state.items.find(i => norm(i.url) === norm(u));
     setTimeout(() => toast(r.added ? '保存しました。元のタブは閉じてOK' : 'もう保存済みでした', it ? '分類・メモ' : '', () => it && openEdit(it)), 50);
-    if (!r.ids.length && it) flash = [it.id];
+    if (!r.ids.length && it) {
+      flash = [it.id];
+      // 保存済みでタイトルがURLのままなら、送られてきた本物のタイトルで上書きする
+      const t = (p.get('title') || '').trim();
+      if (t && isAutoTitle(it)) { it.title = t; save(); setTimeout(() => toast('タイトルを更新しました', '分類・メモ', () => openEdit(it)), 60); }
+    }
     history.replaceState(null, '', location.pathname);
   }
 } catch (e) {}
