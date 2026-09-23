@@ -189,19 +189,13 @@ dialog textarea.field{min-height:90px;resize:vertical}
     <details id="howto">
       <summary>Safariのタブをまとめて持ってくる</summary>
       <div class="in">
-        <h3>iPhone / iPad</h3>
         <ol>
-          <li>タブ一覧を開いて、下の「◯個のタブ」をタップ</li>
-          <li>「新規タブグループ（◯個のタブ）を作成」でいったんグループにする</li>
-          <li>そのグループを<b>長押し → 「リンクをコピー」</b></li>
-          <li>上の貼り付け欄に貼って「追加」</li>
+          <li>Safariで右下の<b>タブボタン</b>（四角が2つ重なったアイコン）をタップしてタブ一覧を開く</li>
+          <li>画面下の真ん中「<b>◯個のタブ</b>」をタップ →「<b>◯個のタブを含む新規タブグループ</b>」で、今のタブをまるごとグループにする（名前は何でもOK）</li>
+          <li>同じメニューに出てくるそのグループ名を<b>長押し →「リンクをコピー」</b></li>
+          <li>このページに戻って、上の欄を長押し →「ペースト」→「追加」</li>
         </ol>
-        <h3>Mac</h3>
-        <ol>
-          <li>サイドバーのタブグループを右クリック →「リンクをコピー」<br>（または <span class="kbd">⌘</span>/<span class="kbd">⇧</span>クリックでタブを複数選んで右クリック →「リンクをコピー」）</li>
-          <li>貼り付け欄にペーストして「追加」</li>
-        </ol>
-        <p>取り込めたら、Safari側のタブはぜんぶ閉じてOK。</p>
+        <p>取り込めたら、Safari側はそのタブグループごと閉じてOK（グループを長押し →「削除」）。</p>
       </div>
     </details>
 
@@ -210,9 +204,11 @@ dialog textarea.field{min-height:90px;resize:vertical}
       <div class="in">
         <p>見ているページを1タップでここに送れるブックマークです。送ったらそのタブは閉じてOK。</p>
         <ol>
-          <li>このページを普通にブックマークする（名前は「タブ置き場に送る」など）</li>
-          <li>ブックマークを編集して、アドレス欄を下のコードに置き換える</li>
-          <li>保存したいページでそのブックマークをタップ</li>
+          <li>下の「コードをコピー」を押しておく</li>
+          <li>このページで共有ボタン（□に↑）→「<b>ブックマークを追加</b>」→ 名前を「タブ置き場に送る」にして保存</li>
+          <li>Safari下の本のアイコン（ブックマーク）→「<b>編集</b>」→ いま作ったブックマークをタップ</li>
+          <li>アドレス欄（URLが書いてある方）を全部消して、コピーしたコードをペースト →「完了」</li>
+          <li>残したいページを見ているときに、本のアイコン →「タブ置き場に送る」をタップ</li>
         </ol>
         <textarea class="code" id="bmkCode" readonly></textarea>
         <div class="row"><button class="btn" id="bmkCopy">コードをコピー</button></div>
@@ -271,7 +267,8 @@ const NONE = '';          // 未分類
 const ALL = '\u0000all';
 const $ = id => document.getElementById(id);
 
-let state = { items: [], cats: ['調べ物', 'あとで読む', '買いたい', '行きたい'], lastBackup: 0 };
+let state = { v: 2, items: [], cats: ['LaRa', 'Make Your Hotel', '調べ物', 'あとで読む', '買いたい', '行きたい'], lastBackup: 0 };
+const ADDED_CATS = { 2: ['LaRa', 'Make Your Hotel'] };  // 後から増やした分類（既存データにも足す）
 let view = { cur: ALL, q: '', showDone: false };
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -292,7 +289,15 @@ function seed() {
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && Array.isArray(s.items)) { state = Object.assign(state, s); return; }
+    if (s && Array.isArray(s.items)) {
+      state = Object.assign(state, s, { v: s.v || 1 });
+      for (let v = state.v + 1; ADDED_CATS[v]; v++) {
+        ADDED_CATS[v].slice().reverse().forEach(c => { if (!state.cats.includes(c)) state.cats.unshift(c); });
+        state.v = v;
+      }
+      save();
+      return;
+    }
   } catch (e) {}
   seed();
 }
