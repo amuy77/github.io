@@ -67,6 +67,8 @@ h1 small{display:block;font:400 13px/1.5 var(--body);color:var(--muted);letter-s
 .add textarea{width:100%;min-height:76px;resize:vertical;border:1px dashed var(--line);border-radius:10px;background:var(--sunk);padding:10px 12px;font:13px/1.5 var(--mono)}
 .add textarea:focus{border-style:solid;border-color:var(--accent);outline:none}
 .add-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.opt{display:flex;gap:6px;align-items:center;font:12px var(--body)!important;color:var(--muted)!important;cursor:pointer}
+.fetching{color:var(--accent)}
 .add-row .hint{flex:1 1 160px;font-size:12px;color:var(--faint)}
 select,.field{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 10px;min-width:0}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 14px;cursor:pointer;font-weight:600;font-size:14px}
@@ -167,6 +169,7 @@ dialog textarea.field{min-height:90px;resize:vertical}
       <span class="hint" id="addHint">1行に1つずつ。タイトル付きの行やMarkdownリンクも読めます。</span>
       <button class="btn primary" id="addBtn" disabled>追加</button>
     </div>
+    <label class="opt"><input type="checkbox" id="autoTitle" checked> URLだけのときはページのタイトルを自動で取ってくる</label>
   </section>
 
   <div id="banner"></div>
@@ -178,7 +181,7 @@ dialog textarea.field{min-height:90px;resize:vertical}
     </div>
     <div class="chips" id="chips" role="toolbar" aria-label="分類で絞り込む"></div>
     <div class="subbar">
-      <span id="showing"></span>
+      <span><span id="showing"></span> <span class="fetching" id="fetchStatus"></span></span>
       <label><input type="checkbox" id="showDone"> 済みも表示</label>
     </div>
   </div>
@@ -268,7 +271,7 @@ const NONE = '';          // 未分類
 const ALL = '\u0000all';
 const $ = id => document.getElementById(id);
 
-let state = { v: 2, items: [], cats: ['LaRa', 'Make Your Hotel', '調べ物', 'あとで読む', '買いたい', '行きたい'], lastBackup: 0 };
+let state = { v: 2, items: [], cats: ['LaRa', 'Make Your Hotel', '調べ物', 'あとで読む', '買いたい', '行きたい'], lastBackup: 0, autoTitle: true };
 const ADDED_CATS = { 2: ['LaRa', 'Make Your Hotel'] };  // 後から増やした分類（既存データにも足す）
 let view = { cur: ALL, q: '', showDone: false };
 
@@ -439,9 +442,56 @@ function renderBanner() {
   const b = $('banner');
   if (state.items.some(i => i.sample)) {
     b.innerHTML = `<div class="note-banner"><span>いま表示しているのはサンプルです。最初のURLを追加すると自動で消えます。</span><button class="btn" id="clearSample">サンプルを消す</button></div>`;
+  } else if (!fetching && autoTitleCount()) {
+    b.innerHTML = `<div class="note-banner"><span>タイトルがURLのままの項目が${autoTitleCount()}件あります。</span><button class="btn" id="getTitles">タイトルを取ってくる</button></div>`;
   } else if (state.items.length >= 5 && Date.now() - (state.lastBackup || 0) > 14 * 864e5) {
     b.innerHTML = `<div class="note-banner"><span>しばらくバックアップしていません。ブラウザのデータが消えても大丈夫なように、書き出しておく？</span><button class="btn" id="goBackup">バックアップへ</button></div>`;
   } else b.innerHTML = '';
+}
+
+/* ---------- automatic titles ---------- */
+// ブラウザから他サイトの中身は直接読めないので、公開のプレビューAPIにURLを渡してタイトルだけ受け取る
+const isAutoTitle = i => !i.sample && (!i.title || i.title === i.url || i.title === fallbackTitle(i.url));
+const autoTitleCount = () => state.items.filter(isAutoTitle).length;
+async function getJson(url, opts) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
+  try { const r = await fetch(url, { ...opts, signal: ctl.signal }); if (!r.ok) throw 0; return await r.json(); }
+  finally { clearTimeout(t); }
+}
+const TITLE_SOURCES = [
+  async u => (await getJson('https://api.microlink.io/?url=' + encodeURIComponent(u))).data?.title,
+  async u => (await getJson('https://r.jina.ai/' + u, { headers: { Accept: 'application/json' } })).data?.title,
+];
+async function lookupTitle(u) {
+  for (const src of TITLE_SOURCES) {
+    try { const t = (await src(u) || '').replace(/\s+/g, ' ').trim(); if (t && !/^(just a moment|access denied|attention required)/i.test(t)) return t; } catch (e) {}
+  }
+  return '';
+}
+let fetching = false; const titleQueue = [];
+async function fetchTitles(ids, announce) {
+  if (!state.autoTitle) return;
+  ids.forEach(id => { if (!titleQueue.includes(id)) titleQueue.push(id); });
+  if (fetching) return;
+  fetching = true; renderBanner();
+  let got = 0, tried = 0;
+  const status = () => { $('fetchStatus').textContent = titleQueue.length ? `タイトル取得中…あと${titleQueue.length}件` : ''; };
+  status();
+  while (titleQueue.length) {
+    const batch = titleQueue.splice(0, 3);
+    await Promise.all(batch.map(async id => {
+      const it = find(id);
+      if (!it || !isAutoTitle(it)) return;
+      tried++;
+      const t = await lookupTitle(it.url);
+      const now = find(id);
+      if (t && now && isAutoTitle(now)) { now.title = t; got++; }
+    }));
+    save(); render(); status();
+  }
+  fetching = false; $('fetchStatus').textContent = ''; renderBanner();
+  if (got) toast(`${got}件のタイトルを取ってきました`);
+  else if (tried && announce) toast('タイトルを取れませんでした。少し時間をおいて試すか、✎から手で直してください');
 }
 
 /* ---------- toast ---------- */
@@ -459,6 +509,20 @@ function refreshAddCat() {
   const prev = $('addCat').value;
   catOptions($('addCat'), view.cur !== ALL ? view.cur : (state.cats.includes(prev) || prev === NONE ? prev : state.cats[0] ?? NONE));
 }
+$('autoTitle').addEventListener('change', e => { state.autoTitle = e.target.checked; save(); });
+// コピー元がリンクの見出しも渡してくれる場合は、それをタイトルとして使う
+$('paste').addEventListener('paste', e => {
+  const html = e.clipboardData && e.clipboardData.getData('text/html');
+  if (!html) return;
+  const links = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('a[href^="http"]')]
+    .map(a => ({ href: a.href, text: a.textContent.replace(/\s+/g, ' ').trim() }))
+    .filter(l => l.text && l.text !== l.href);
+  if (!links.length) return;
+  e.preventDefault();
+  const ta = $('paste');
+  ta.setRangeText(links.map(l => `${l.text} ${l.href}`).join('\n'), ta.selectionStart, ta.selectionEnd, 'end');
+  ta.dispatchEvent(new Event('input'));
+});
 $('paste').addEventListener('input', () => {
   const n = parse($('paste').value).length;
   $('addBtn').disabled = !n;
@@ -472,6 +536,7 @@ $('addBtn').addEventListener('click', () => {
   $('paste').value = ''; $('paste').dispatchEvent(new Event('input'));
   if (view.cur !== ALL && view.cur !== cat) view.cur = ALL;
   render(r.ids);
+  fetchTitles(r.ids);
   toast(r.added ? `${r.added}件を「${cat || '未分類'}」に追加しました` + (r.dup ? `（${r.dup}件は登録済み）` : '') : `${r.dup}件とも登録済みでした`);
 });
 
@@ -513,6 +578,7 @@ $('groups').addEventListener('click', e => {
 });
 $('banner').addEventListener('click', e => {
   if (e.target.id === 'clearSample') { state.items = state.items.filter(i => !i.sample); save(); render(); }
+  if (e.target.id === 'getTitles') { state.autoTitle = true; $('autoTitle').checked = true; save(); fetchTitles(state.items.filter(isAutoTitle).map(i => i.id), true); }
   if (e.target.id === 'goBackup') { $('backup').open = true; $('backup').scrollIntoView({ behavior: 'smooth' }); }
 });
 
@@ -583,7 +649,7 @@ function importText(text) {
   try { data = JSON.parse(text); } catch (e) {
     const list = parse(text);
     if (!list.length) { toast('読み込めませんでした。バックアップの中身かURLを貼ってください'); return; }
-    const r = addMany(list, NONE); render(r.ids); toast(`${r.added}件を「未分類」に追加しました`); return;
+    const r = addMany(list, NONE); render(r.ids); fetchTitles(r.ids); toast(`${r.added}件を「未分類」に追加しました`); return;
   }
   const items = Array.isArray(data) ? data : data.items;
   if (!Array.isArray(items)) { toast('バックアップの形式ではないようです'); return; }
@@ -610,6 +676,7 @@ $('impFile').addEventListener('change', e => {
 /* ---------- boot ---------- */
 load();
 refreshAddCat();
+$('autoTitle').checked = state.autoTitle !== false;
 let flash = [];
 try {
   const p = new URLSearchParams(location.search);
@@ -617,6 +684,7 @@ try {
   if (u && /^https?:/i.test(u)) {
     const r = addMany([{ url: u, title: (p.get('title') || '').trim() }], NONE);
     flash = r.ids;
+    fetchTitles(r.ids);
     const it = r.ids.length ? find(r.ids[0]) : state.items.find(i => norm(i.url) === norm(u));
     setTimeout(() => toast(r.added ? '保存しました。元のタブは閉じてOK' : 'もう保存済みでした', it ? '分類・メモ' : '', () => it && openEdit(it)), 50);
     if (!r.ids.length && it) flash = [it.id];
