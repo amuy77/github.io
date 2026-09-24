@@ -155,7 +155,9 @@ dialog.sheet::backdrop{background:rgba(8,10,14,.42)}
 .sheet-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .sheet-title h2{font:700 20px var(--display);margin:0}
 .x{width:32px;height:32px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;color:var(--muted)}
-.sheet-body{overflow:auto;-webkit-overflow-scrolling:touch;padding:6px 18px 22px;display:grid;gap:14px;align-content:start}
+.sheet-body{overflow:auto;-webkit-overflow-scrolling:touch;padding:6px 18px 22px;display:flex;flex-direction:column;gap:14px}
+.sheet-body > *{flex-shrink:0}
+.grab:focus{outline:none}
 .sheet-foot{padding:12px 18px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);display:flex;gap:10px}
 .sec{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.04em;margin:6px 2px -4px}
 .field{width:100%;border:1px solid var(--line2);background:var(--surface2);border-radius:14px;padding:11px 13px;font-size:16px}
@@ -284,8 +286,8 @@ details.mini[open] summary{margin-bottom:8px}
 
 <!-- 追加 -->
 <dialog class="sheet" id="addSheet" aria-labelledby="addTitle">
-  <div class="sheet-head"><div class="grab"></div>
-    <div class="sheet-title"><h2 id="addTitle">リンクを追加</h2><button class="x" data-close aria-label="閉じる" autofocus></button></div>
+  <div class="sheet-head"><div class="grab" tabindex="-1" autofocus></div>
+    <div class="sheet-title"><h2 id="addTitle">リンクを追加</h2><button class="x" data-close aria-label="閉じる"></button></div>
   </div>
   <div class="sheet-body">
     <button class="paste-big" id="pasteBtn">
@@ -303,8 +305,8 @@ details.mini[open] summary{margin-bottom:8px}
 
 <!-- 項目 -->
 <dialog class="sheet" id="itemSheet" aria-label="項目の詳細">
-  <div class="sheet-head"><div class="grab"></div>
-    <div class="sheet-title"><span></span><button class="x" data-close aria-label="閉じる" autofocus></button></div>
+  <div class="sheet-head"><div class="grab" tabindex="-1" autofocus></div>
+    <div class="sheet-title"><span></span><button class="x" data-close aria-label="閉じる"></button></div>
   </div>
   <div class="sheet-body">
     <div class="it-head">
@@ -331,8 +333,8 @@ details.mini[open] summary{margin-bottom:8px}
 
 <!-- 振り分け -->
 <dialog class="sheet" id="sortSheet" aria-labelledby="sortTitle">
-  <div class="sheet-head"><div class="grab"></div>
-    <div class="sheet-title"><h2 id="sortTitle">振り分け</h2><button class="x" data-close aria-label="閉じる" autofocus></button></div>
+  <div class="sheet-head"><div class="grab" tabindex="-1" autofocus></div>
+    <div class="sheet-title"><h2 id="sortTitle">振り分け</h2><button class="x" data-close aria-label="閉じる"></button></div>
     <div class="progress"><i id="sBar"></i></div>
   </div>
   <div class="sheet-body" id="sBody"></div>
@@ -341,8 +343,8 @@ details.mini[open] summary{margin-bottom:8px}
 
 <!-- 設定 -->
 <dialog class="sheet" id="setSheet" aria-labelledby="setTitle">
-  <div class="sheet-head"><div class="grab"></div>
-    <div class="sheet-title"><h2 id="setTitle">設定と使い方</h2><button class="x" data-close aria-label="閉じる" autofocus></button></div>
+  <div class="sheet-head"><div class="grab" tabindex="-1" autofocus></div>
+    <div class="sheet-title"><h2 id="setTitle">設定と使い方</h2><button class="x" data-close aria-label="閉じる"></button></div>
   </div>
   <div class="sheet-body">
     <p class="sec">分類</p>
@@ -403,8 +405,8 @@ details.mini[open] summary{margin-bottom:8px}
       <details class="guide" id="backup">
         <summary>書き出し・読み込み<span class="chev"></span></summary>
         <div class="in">
-          <p>データはこのiPhoneの中だけに保存されています。<b>ホーム画面に追加</b>して使うと消えにくくなります。ときどき書き出してメモアプリなどに貼っておくと安心。</p>
-          <div class="btns"><button class="btn" id="expJson">バックアップを作る</button><button class="btn" id="expMd">リスト形式でコピー</button></div>
+          <p>データはこのiPhoneの中だけに保存されています。<b>ホーム画面に追加</b>して使うと消えにくくなります。ときどき「バックアップをコピー」して、メモアプリなどに貼っておくと安心。</p>
+          <div class="btns"><button class="btn" id="expJson">バックアップをコピー</button><button class="btn" id="expMd">リスト形式でコピー</button></div>
           <textarea class="code" id="expOut" readonly hidden></textarea>
           <div class="btns" id="expActs" hidden><button class="btn" id="expCopy">コピー</button><button class="btn" id="expSave">ファイルに保存</button></div>
           <p><b>読み込み</b>：バックアップの中身を貼るか、ファイルを選んでください。今のデータに足し合わせます。</p>
@@ -902,7 +904,7 @@ $('top').addEventListener('click', e => {
   if (d === 'sort') openSort();
   if (d === 'clearSample') { state.items = state.items.filter(i => !i.sample); save(); render(); }
   if (d === 'getTitles') fetchTitles(state.items.filter(isAutoTitle).map(i => i.id), true);
-  if (d === 'goBackup') { openSettings(); $('backup').open = true; }
+  if (d === 'goBackup') quickBackup();
   if (d === 'hideTip') { state.tipSwipe = false; save(); renderTop(); }
 });
 let sw = null, suppressClick = false;
@@ -1000,9 +1002,9 @@ document.querySelectorAll('.chev').forEach(s => s.innerHTML = svg('chev', 18));
 const base = location.origin + location.pathname;
 const bmk = `javascript:location.href='${base}?url='+encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title)`;
 $('bmkCode').value = bmk;
-function copy(text, el) {
+function copy(text, el, msg = 'コピーしました') {
   const fallback = () => { if (el) { el.hidden = false; el.focus(); el.select(); } toast('選択したので、コピーしてね'); };
-  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('コピーしました'), fallback); else fallback();
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast(msg), fallback); else fallback();
 }
 $('bmkCopy').addEventListener('click', () => copy(bmk, $('bmkCode')));
 
@@ -1020,7 +1022,16 @@ function showExport(kind) {
   if (kind === 'json') { state.lastBackup = Date.now(); save(); renderTop(); }
   return out;
 }
-$('expJson').addEventListener('click', () => showExport('json'));
+$('expJson').addEventListener('click', () => copy(showExport('json'), $('expOut'), 'バックアップをコピーしました。メモアプリに貼っておいてね'));
+// お知らせの「バックアップする」：その場でコピーまで済ませる
+function quickBackup() {
+  const text = showExport('json');
+  const openIt = () => { openSettings(); $('backup').open = true; setTimeout(() => $('backup').scrollIntoView({ block: 'start', behavior: 'smooth' }), 350); };
+  if (!navigator.clipboard) { openIt(); return; }
+  navigator.clipboard.writeText(text).then(
+    () => toast('バックアップをコピーしました。メモアプリに貼っておいてね'),
+    () => { openIt(); toast('下の「コピー」を押してね'); });
+}
 $('expMd').addEventListener('click', () => copy(showExport('md'), $('expOut')));
 $('expCopy').addEventListener('click', () => copy($('expOut').value, $('expOut')));
 $('expSave').addEventListener('click', () => {
