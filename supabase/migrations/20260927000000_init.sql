@@ -211,3 +211,9 @@ create policy "photos_update_own" on storage.objects for update to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid()::text));
 create policy "photos_delete_own" on storage.objects for delete to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid()::text));
+
+-- ===== 強化（Supabase Security Advisor の WARN 対応） =====
+-- トリガー関数は API（/rest/v1/rpc）から呼べないようにする。トリガーの発火には EXECUTE 権限は不要。
+alter function public.set_updated_at() set search_path = '';
+revoke execute on function public.check_allowed_email() from public, anon, authenticated;
+revoke execute on function public.seed_default_genres() from public, anon, authenticated;
