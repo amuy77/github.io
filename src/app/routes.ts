@@ -1,0 +1,17 @@
+export const paths = {
+  home: '/',
+  login: '/login',
+  clips: '/clips',
+  clip: (id: string) => `/clips/${id}`,
+  add: '/add',
+  recipes: '/recipes',
+  recipeNew: '/recipes/new',
+  recipe: (id: string) => `/recipes/${id}`,
+  recipeEdit: (id: string) => `/recipes/${id}/edit`,
+  menu: '/menu',
+  menuDay: (date: string) => `/menu/${date}`,
+  menuStats: '/menu/stats',
+  inbox: '/inbox',
+  settings: '/settings',
+  devUi: '/dev/ui',
+} as const

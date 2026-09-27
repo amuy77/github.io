@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/* ===== LaRa デザイントークン（C 案: おしゃれカフェ×遊び心） ===== */
+@theme {
+  --font-sans: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-display: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
+
+  --color-oat-50: #F5F0E8;
+  --color-oat-100: #EDE6DA;
+  --color-oat-200: #E3DACB;
+  --color-line: #DCD3C6;
+  --color-paper: #FFFFFF;
+  --color-green-500: #3E7565;
+  --color-green-600: #2F5D50;
+  --color-green-700: #244A40;
+  --color-mustard-300: #EFC978;
+  --color-mustard-400: #D9A441;
+  --color-mustard-500: #B9872A;
+  --color-brick-400: #CC7A63;
+  --color-brick-500: #B8573E;
+  --color-plum-400: #8A7BB0;
+  --color-espresso-700: #4A3F37;
+  --color-espresso-900: #1F1A16;
+  --color-muted: #6E6259;
+  --color-wood-300: #C9A27A;
+  --color-wood-600: #8B6B55;
+
+  --radius-card: 14px;
+  --radius-chip: 999px;
+  --shadow-card: 0 1px 0 var(--color-line), 0 8px 24px rgba(31, 26, 22, 0.06);
+  --shadow-sheet: 0 -8px 32px rgba(31, 26, 22, 0.12);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root {
+  color-scheme: light;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 64px;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-oat-50);
+  color: var(--color-espresso-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS のホーム画面アプリでテキスト選択やダブルタップズームを抑える */
+button, a, [role="button"] { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+input, textarea { font: inherit; }
+
+/* 見出しは明朝 */
+.font-display { font-family: var(--font-display); }
+h1, h2, h3 { text-wrap: balance; }
+
+/* スタンプ（破線の円） */
+.stamp {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px dashed currentColor; font-size: 10px; font-weight: 700; line-height: 1; transform: rotate(12deg);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* レシート風の破線区切り */
+.receipt-line { border: 0; border-top: 2px dashed var(--color-line); margin: 0; }
+
+/* 紙吹雪ドットのヘッダー装飾 */
+.confetti-bg {
+  background-image:
+    radial-gradient(var(--color-mustard-400) 3px, transparent 3.5px),
+    radial-gradient(var(--color-green-600) 2.5px, transparent 3px),
+    radial-gradient(var(--color-brick-500) 2px, transparent 2.5px);
+  background-size: 90px 70px, 110px 60px, 70px 80px;
+  background-position: 10px 20px, 40px 10px, 0 40px;
+  opacity: 0.35;
+}
+
+/* スクロールバーを控えめに */
+.scroll-x { overflow-x: auto; scrollbar-width: none; }
+.scroll-x::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
