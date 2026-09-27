@@ -83,10 +83,12 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 **注意: 2026-09-27 時点で LaRa はまだ公開されていない。** 公開 URL `https://amuy77.github.io/github.io/` には、以前作った「タブ置き場」（ブランチ `claude/safari-page-manager-gardrk` の `index.html`）が表示される。
 `.github/workflows/deploy.yml` は feature ブランチではビルドだけ行い、Pages へのデプロイは `main` に push されたときだけ実行する設計。LaRa のブランチはまだ `main` にマージされていない。
 
-公開するには次のどちらかを選ぶ:
+オーナーの選択で **A: LaRa をこの URL で公開し、タブ置き場は `/github.io/tabs/` に同居させる** ことにした。
 
-- **A. LaRa をこの URL で公開する**: `claude/lara-management-app-ny75zm` を `main` にマージする。Actions が `dist/` を Pages にデプロイする。リポジトリの Settings → Pages の Source が「Deploy from a branch」になっていたら「GitHub Actions」に切り替える。この場合タブ置き場は同じ URL から消えるので、残したければ LaRa の `public/` 配下（例: `public/tabs/index.html` → `/github.io/tabs/`）に移す
-- **B. タブ置き場をこのまま残す**: LaRa は別リポジトリ（例: `amuy77/lara`）で公開する。その場合は Supabase の Auth 設定（`site_url` と `uri_allow_list`）と `vite.config` の `base` を新しい URL に合わせて更新する
+- タブ置き場の `index.html` と `icon.png` を `public/tabs/` にコピーした。ビルド後は `https://amuy77.github.io/github.io/tabs/` で開ける。データは `localStorage`（同じオリジン）なので、そのまま引き継がれる
+- LaRa の Service Worker がタブ置き場をキャッシュしたり画面を横取りしたりしないよう、`vite.config.ts` の workbox に `globIgnores: ['tabs/**']` と `navigateFallbackDenylist: [/\/tabs\//]` を追加した
+- `claude/lara-management-app-ny75zm` を `main` にマージすると、Actions が `dist/` を Pages にデプロイする。リポジトリの Settings → Pages の Source が「Deploy from a branch」のままだとデプロイが失敗するので、その場合は「GitHub Actions」に切り替える
+- iPhone のホーム画面にタブ置き場を追加していた場合、そのアイコンは LaRa を開くようになる。タブ置き場は `/github.io/tabs/` から追加し直す
 
 公開できたら:
 

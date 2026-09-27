@@ -34,7 +34,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // public/tabs/ は別アプリ「タブ置き場」。LaRa の SW でキャッシュも横取りもしない
+        globIgnores: ['tabs/**'],
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/\/tabs\//],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {
