@@ -2,9 +2,10 @@ import * as THREE from 'three'
 
 /**
  * LaRa のフル 3D トゥーンフィギュア。
- * ロゴ（大きな丸い頭・猫のフード・三角の耳・ヒゲ・点の目・ペロッと舌・小さな体）を
- * プリミティブで組み、輪郭線は「法線方向に膨らませた裏面描画（inverted hull）」+ フードの縁は管で描く。
- * 足元が y=0、頭のてっぺん（耳の先）が y≈1.55。正面は +z。
+ * 設定: 猫の女の子。三日月の被り物をかぶり、尻尾は太陽のモチーフで、背後に小さな太陽が付いてくる。
+ * ロゴ（大きな丸い頭・三日月・ヒゲ・点の目・ペロッと舌・小さな体と足）をプリミティブで組み、
+ * 輪郭線は「法線方向に膨らませた裏面描画（inverted hull）」で描く。
+ * 足元が y=0、三日月の角の先が y≈1.5。正面は +z。
  */
 
 export interface LaraExpression { blink?: boolean; worried?: boolean; sleeping?: boolean }
@@ -35,9 +36,8 @@ export interface LaraFigure {
   dispose(): void
 }
 
-const COL = { cream: 0xffe7c2, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a }
+const COL = { cream: 0xffe7c2, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a, sunInk: 0xe0842a }
 const HEAD = { cx: 0, cy: 0.69, rx: 0.378, ry: 0.306, rz: 0.342 }
-const HOOD = { cx: 0, cy: 0.845, cz: -0.05, rx: 0.76, ry: 0.47, rz: 0.5, window: THREE.MathUtils.degToRad(78) }
 const LINE = 0.02
 
 let toneTex: THREE.DataTexture | null = null
@@ -49,50 +49,104 @@ function tone() {
   return toneTex
 }
 
+/** 折れ線と、origin から dir 方向へ伸びる半直線の最初の交点までの距離（無ければ null） */
+function rayHit(poly: THREE.Vector2[], origin: THREE.Vector2, dir: THREE.Vector2): number | null {
+  let best: number | null = null
+  for (let i = 0; i < poly.length - 1; i++) {
+    const a = poly[i], b = poly[i + 1]
+    const ex = b.x - a.x, ey = b.y - a.y
+    const den = dir.x * ey - dir.y * ex
+    if (Math.abs(den) < 1e-9) continue
+    const ox = a.x - origin.x, oy = a.y - origin.y
+    const t = (ox * ey - oy * ex) / den        // 半直線上の距離
+    const u = (ox * dir.y - oy * dir.x) / den  // 線分上の位置
+    if (t >= 0 && u >= -1e-6 && u <= 1 + 1e-6 && (best === null || t < best)) best = t
+  }
+  return best
+}
+
+/**
+ * 三日月の「ぬいぐるみ」: 正面の輪郭（外側・内側）を指定し、中心 origin からの放射方向に
+ * 楕円断面を並べて閉じた面にする。正面から見た形は輪郭そのもの、奥行きは丸い。
+ * inflate は輪郭線用に全体を太らせる量。
+ */
+function crescent(outer: THREE.Vector2[], inner: THREE.Vector2[], origin: THREE.Vector2, tip: THREE.Vector2, opts: { depth: number; maxDepth: number; inflate?: number; along?: number; around?: number }): THREE.BufferGeometry {
+  const { depth, maxDepth, inflate = 0, along = 80, around = 18 } = opts
+  const phiTip = Math.atan2(tip.x - origin.x, -(tip.y - origin.y))   // 真下から測った角度
+  const positions: number[] = [], index: number[] = []
+  const dir = new THREE.Vector2()
+  for (let i = 0; i <= along; i++) {
+    const phi = THREE.MathUtils.lerp(-phiTip, phiTip, i / along)
+    dir.set(Math.sin(phi), -Math.cos(phi))
+    const atTip = i === 0 || i === along
+    const ro = atTip ? tip.distanceTo(origin) : rayHit(outer, origin, dir), ri = atTip ? ro : rayHit(inner, origin, dir)
+    if (ro === null || ri === null) throw new Error('crescent: contour miss')
+    const hw = Math.max(0, (ro - ri) / 2) + inflate
+    const cd = Math.min(maxDepth, Math.max(0, (ro - ri) / 2) * depth) + inflate
+    const mid = atTip ? ro + inflate * 1.5 : (ro + ri) / 2
+    const cx = origin.x + dir.x * mid, cy = origin.y + dir.y * mid
+    for (let j = 0; j <= around; j++) {
+      const a = (j / around) * Math.PI * 2, c = Math.cos(a) * (atTip ? 0 : hw), s = Math.sin(a) * (atTip ? 0 : cd)
+      positions.push(cx + dir.x * c, cy + dir.y * c, s)
+    }
+  }
+  for (let i = 0; i < along; i++) for (let j = 0; j < around; j++) {
+    const a = i * (around + 1) + j, b = a + around + 1   // a→b は輪郭に沿う向き、a→a+1 は断面を +z へ回る向き。外向きの面になる順で結ぶ
+    index.push(a, b, a + 1, b, b + 1, a + 1)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  g.setIndex(index); g.computeVertexNormals()
+  return g
+}
+/** 制御点を通る曲線を折れ線にする（右半分を与えると左右対称に展開） */
+function contour(rightHalf: [number, number][], n = 60): THREE.Vector2[] {
+  const pts = [...rightHalf.slice(1).reverse().map(([x, y]) => new THREE.Vector3(-x, y, 0)), ...rightHalf.map(([x, y]) => new THREE.Vector3(x, y, 0))]
+  const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5)
+  return c.getPoints(n).map((p) => new THREE.Vector2(p.x, p.y))
+}
+
 export function buildLaraFigure(): LaraFigure {
   const group = new THREE.Group()
   const root = new THREE.Group(); group.add(root)
   const geos: THREE.BufferGeometry[] = []
   const mats: THREE.Material[] = []
   const G = <T extends THREE.BufferGeometry>(g: T) => { geos.push(g); return g }
-  const toonMat = (color: number, double = false) => { const m = new THREE.MeshToonMaterial({ color, gradientMap: tone(), side: double ? THREE.DoubleSide : THREE.FrontSide }); mats.push(m); return m }
-  const inkMat = () => { const m = new THREE.MeshBasicMaterial({ color: COL.ink }); mats.push(m); return m }
+  const toonMat = (color: number) => { const m = new THREE.MeshToonMaterial({ color, gradientMap: tone() }); mats.push(m); return m }
+  const inkMat = (color = COL.ink) => { const m = new THREE.MeshBasicMaterial({ color }); mats.push(m); return m }
   const hullMat = () => { const m = new THREE.MeshBasicMaterial({ color: COL.ink, side: THREE.BackSide }); mats.push(m); return m }
 
-  /** 輪郭線: 頂点を法線方向に d だけ押し出したコピーを裏面描画。scale=true は中心から拡大（円錐の先が毛羽立たない） */
-  const hull = (mesh: THREE.Mesh, d = LINE, apex = false) => {
+  /** 輪郭線: 頂点を法線方向に d だけ押し出したコピーを裏面描画 */
+  const hull = (mesh: THREE.Mesh, d = LINE) => {
     const g = G(mesh.geometry.clone())
     const pos = g.attributes.position as THREE.BufferAttribute
     const nor = g.attributes.normal as THREE.BufferAttribute
-    g.computeBoundingBox()
-    const top = g.boundingBox!.max.y
-    for (let i = 0; i < pos.count; i++) {
-      // 円錐の頂点は法線がばらけて毛羽立つので、1 点にまとめる
-      if (apex && pos.getY(i) > top - 1e-4) pos.setXYZ(i, 0, top + d, 0)
-      else pos.setXYZ(i, pos.getX(i) + nor.getX(i) * d, pos.getY(i) + nor.getY(i) * d, pos.getZ(i) + nor.getZ(i) * d)
-    }
+    for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) + nor.getX(i) * d, pos.getY(i) + nor.getY(i) * d, pos.getZ(i) + nor.getZ(i) * d)
     const h = new THREE.Mesh(g, hullMat())
     h.raycast = () => {}
     mesh.add(h)
     return h
   }
-  const solid = (geo: THREE.BufferGeometry, color: number, parent: THREE.Object3D, o: { line?: number; shadow?: boolean; double?: boolean; apex?: boolean } = {}) => {
-    const m = new THREE.Mesh(G(geo), toonMat(color, o.double))
+  const solid = (geo: THREE.BufferGeometry, color: number, parent: THREE.Object3D, o: { line?: number; shadow?: boolean } = {}) => {
+    const m = new THREE.Mesh(G(geo), toonMat(color))
     m.castShadow = o.shadow ?? true
     parent.add(m)
-    if (o.line !== 0) hull(m, o.line ?? LINE, o.apex)
+    if (o.line !== 0) hull(m, o.line ?? LINE)
     return m
   }
 
-  // ---------- 体 ----------
-  const bodyProfile = [[0, 0.06], [0.14, 0.06], [0.185, 0.1], [0.19, 0.18], [0.17, 0.27], [0.145, 0.35], [0.12, 0.42], [0, 0.44]].map(([r, y]) => new THREE.Vector2(r, y))
+  // ---------- 体・足・腕 ----------
+  const bodyProfile = [[0, 0.14], [0.12, 0.14], [0.17, 0.17], [0.19, 0.22], [0.18, 0.29], [0.155, 0.36], [0.125, 0.42], [0, 0.44]].map(([r, y]) => new THREE.Vector2(r, y))
   const bodyGeo = new THREE.LatheGeometry(bodyProfile, 28); bodyGeo.computeVertexNormals()
   solid(bodyGeo, COL.cream, root)
-  const feet: THREE.Mesh[] = []
+  // 足: 股のピボット（前後の振り）> カプセル。体の下に丸い足が 2 つ見える
+  const legs: { hip: THREE.Group; side: number }[] = []
   for (const s of [-1, 1]) {
-    const f = solid(new THREE.SphereGeometry(0.085, 16, 12), COL.cream, root)
-    f.position.set(s * 0.095, 0.075, 0.03); f.scale.set(1, 0.8, 1.05)
-    feet.push(f)
+    const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.22, 0.01); root.add(hip)
+    const leg = solid(new THREE.CapsuleGeometry(0.08, 0.08, 6, 14), COL.cream, hip, { line: 0.016 })
+    leg.position.y = -0.1
+    leg.rotation.z = -s * 0.1
+    legs.push({ hip, side: s })
   }
   // 腕: 肩のピボット（前後の振り）> 傾き（外下向き）> カプセル
   const arms: { pivot: THREE.Group; tilt: THREE.Group; side: number }[] = []
@@ -102,6 +156,30 @@ export function buildLaraFigure(): LaraFigure {
     const a = solid(new THREE.CapsuleGeometry(0.066, 0.2, 6, 14), COL.cream, tilt, { line: 0.014 })
     a.position.y = -0.13
     arms.push({ pivot, tilt, side: s })
+  }
+
+  // ---------- 太陽の尻尾 ----------
+  const tail = new THREE.Group(); root.add(tail)
+  {
+    const path = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.04, 0.2, -0.14), new THREE.Vector3(0.14, 0.28, -0.4), new THREE.Vector3(0.34, 0.72, -0.58),
+      new THREE.Vector3(0.58, 1.12, -0.56), new THREE.Vector3(0.68, 1.27, -0.52),
+    ], false, 'centripetal', 0.5)
+    const tube = solid(new THREE.TubeGeometry(path, 40, 0.035, 10, false), COL.cream, tail, { line: 0.012 })
+    tube.raycast = () => {}
+  }
+  const sun = new THREE.Group(); sun.position.set(0.7, 1.33, -0.5); tail.add(sun)
+  {
+    const disc = new THREE.Mesh(G(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 32)), toonMat(COL.sun))
+    disc.rotation.x = Math.PI / 2; disc.castShadow = true; sun.add(disc)
+    const tri = new THREE.Shape(); tri.moveTo(-0.045, 0); tri.lineTo(0.045, 0); tri.lineTo(0, 0.11); tri.closePath()
+    const rayGeo = G(new THREE.ExtrudeGeometry(tri, { depth: 0.03, bevelEnabled: false })); rayGeo.translate(0, 0.19, -0.015)
+    for (let i = 0; i < 8; i++) { const r = new THREE.Mesh(rayGeo, toonMat(COL.sun)); r.rotation.z = (i / 8) * Math.PI * 2; sun.add(r) }
+    const sp: THREE.Vector3[] = []
+    for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 3, rr = 0.015 + (i / 24) * 0.1; sp.push(new THREE.Vector3(Math.cos(a) * rr, Math.sin(a) * rr, 0.036)) }
+    const spiral = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp, false, 'centripetal', 0.5), 60, 0.011, 6, false)), inkMat(COL.sunInk))
+    spiral.raycast = () => {}
+    sun.add(spiral)
   }
 
   // ---------- 頭 ----------
@@ -155,7 +233,7 @@ export function buildLaraFigure(): LaraFigure {
   const curl: [number, number][] = []
   for (let i = 0; i <= 14; i++) { const a = (i / 14) * Math.PI * 1.7 + 0.6, r = 0.012 + (i / 14) * 0.045; curl.push([Math.cos(a) * r, 0.235 + Math.sin(a) * r * 0.8]) }
   faceLine(curl, 0.0095, headG, 0.012)
-  // ヒゲ（頬から扇状に。フードの上に出る）
+  // ヒゲ（頬から扇状に。三日月の手前に出る）
   for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
     const y0 = 0.0 - i * 0.05, y1 = 0.09 - i * 0.1
     const a = new THREE.Vector3(s * 0.3, y0, 0.24), b = new THREE.Vector3(s * 0.74, y1, 0.17)
@@ -167,64 +245,24 @@ export function buildLaraFigure(): LaraFigure {
     headG.add(w)
   }
 
-  // ---------- フード（猫の頭巾） ----------
-  // 楕円体を (phi, theta) の格子で作る。正面（phi = π/2）に顔の窓を開け、窓の上端は左右から中央へ V 字に下がる縁
-  const hood = new THREE.Group(); hood.position.set(HOOD.cx - HEAD.cx, HOOD.cy - HEAD.cy, HOOD.cz); headG.add(hood)
-  const W = HOOD.window
-  const vEdge = (phi: number) => {   // 窓の上端の theta（phi が窓の中にあるとき）。中央で尖る V
-    const d = Math.min(1, Math.abs(phi - Math.PI / 2) / W)
-    return THREE.MathUtils.degToRad(24) + THREE.MathUtils.degToRad(40) * Math.pow(1 - d, 0.8)
-  }
-  const pt = (phi: number, th: number) => new THREE.Vector3(-HOOD.rx * Math.cos(phi) * Math.sin(th), HOOD.ry * Math.cos(th), HOOD.rz * Math.sin(phi) * Math.sin(th))
+  // ---------- 三日月の被り物 ----------
+  // 頭の後ろに、角を上に向けた三日月。正面の輪郭（ロゴの三日月: 底 (0, 0.36)・最も広い所 (±0.76, 0.8)・角の先 (±0.43, 1.53)・内側の V (0, 1.05)）
+  // を指定し、丸い断面で膨らませる。頭がその手前に乗る
   {
-    const NT = 22
-    const positions: number[] = [], index: number[] = []
-    // 3 つの帯（左の殻・正面の V バンド・右の殻）を別々の格子にして、窓の縦の縁で面が引き伸ばされないようにする
-    const strip = (phi0: number, phi1: number, n: number, thEnd: (phi: number) => number) => {
-      const base = positions.length / 3
-      for (let i = 0; i <= n; i++) {
-        const phi = THREE.MathUtils.lerp(phi0, phi1, i / n), te = thEnd(phi)
-        for (let j = 0; j <= NT; j++) { const p = pt(phi, (j / NT) * te); positions.push(p.x, p.y, p.z) }
-      }
-      for (let i = 0; i < n; i++) for (let j = 0; j < NT; j++) {
-        const a = base + i * (NT + 1) + j, b = a + NT + 1
-        index.push(a, b, a + 1, b, b + 1, a + 1)
-      }
-    }
-    strip(Math.PI / 2 + W, Math.PI / 2 + Math.PI * 2 - W, 56, () => Math.PI)
-    strip(Math.PI / 2 - W, Math.PI / 2 + W, 32, vEdge)
-    const g = G(new THREE.BufferGeometry())
-    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-    g.setIndex(index); g.computeVertexNormals()
-    const m = new THREE.Mesh(g, toonMat(COL.cream, true)); m.castShadow = true; hood.add(m)
-    hull(m, LINE)
-    // 縁の管（左の窓枠 → V → 右の窓枠）
-    const edge: THREE.Vector3[] = []
-    const phiL = Math.PI / 2 + W, phiR = Math.PI / 2 - W
-    for (let k = 0; k <= 10; k++) edge.push(pt(phiL, THREE.MathUtils.lerp(Math.PI * 0.93, vEdge(phiL), k / 10)))
-    for (let k = 1; k < 40; k++) { const phi = THREE.MathUtils.lerp(phiL, phiR, k / 40); edge.push(pt(phi, vEdge(phi))) }
-    for (let k = 0; k <= 10; k++) edge.push(pt(phiR, THREE.MathUtils.lerp(vEdge(phiR), Math.PI * 0.93, k / 10)))
-    const tube = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge, false, 'centripetal', 0.5), 140, LINE * 0.9, 6, false)), inkMat())
-    tube.raycast = () => {}
-    hood.add(tube)
+    const cy = HEAD.cy
+    const outer = contour([[0, 0.36], [0.35, 0.4], [0.62, 0.55], [0.76, 0.8], [0.7, 1.05], [0.58, 1.3], [0.43, 1.53]].map(([x, y]) => [x, y - cy]))
+    const inner = contour([[0, 1.05], [0.15, 1.22], [0.3, 1.38], [0.43, 1.53]].map(([x, y]) => [x, y - cy]), 30)
+    const origin = new THREE.Vector2(0, 1.28 - cy), tip = new THREE.Vector2(0.43, 1.53 - cy)
+    const moon = new THREE.Group(); moon.position.set(0, 0, -0.24); moon.rotation.x = -0.12; headG.add(moon)
+    const m = new THREE.Mesh(G(crescent(outer, inner, origin, tip, { depth: 0.6, maxDepth: 0.21 })), toonMat(COL.cream)); m.castShadow = true; moon.add(m)
+    const h = new THREE.Mesh(G(crescent(outer, inner, origin, tip, { depth: 0.6, maxDepth: 0.21, inflate: LINE })), hullMat()); h.raycast = () => {}; moon.add(h)
   }
-  // 耳（フードの V の肩に乗る円錐）
-  const ears: THREE.Mesh[] = []
-  for (const s of [-1, 1]) {
-    const e = solid(new THREE.ConeGeometry(0.3, 0.56, 22, 1), COL.cream, hood, { apex: true })
-    e.position.set(s * 0.42, 0.44, 0.0)
-    e.scale.set(1, 1, 0.7)
-    e.rotation.z = -s * 0.2
-    e.rotation.x = -0.08
-    ears.push(e)
-  }
-  const earRest = (i: number) => (i === 0 ? 0.2 : -0.2)
 
   // ---------- 状態 ----------
   const ex: Required<LaraExpression> = { blink: false, worried: false, sleeping: false }
   let spinT = -1
   let faceY = 0
-  let earTwitchAt = 6, earTwitch = 0
+  let sway = 0
   const headTopV = new THREE.Vector3()
 
   const applyExpression = () => {
@@ -242,7 +280,7 @@ export function buildLaraFigure(): LaraFigure {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
     spin() { spinT = 0 },
-    headTop(out) { return out.copy(headTopV.set(0, 1.66, 0)).applyMatrix4(group.matrixWorld) },
+    headTop(out) { return out.copy(headTopV.set(0, 1.62, 0)).applyMatrix4(group.matrixWorld) },
     update(t, dt, m) {
       const reduced = !!m.reduced
       // 向き
@@ -262,6 +300,8 @@ export function buildLaraFigure(): LaraFigure {
       const sleeping = !!m.sleeping
       // 腕: tilt.rotation.z = side × 角度 で外側へ（正 = 右腕が右下、負 = 左腕が左下）
       const armRest = (a: (typeof arms)[number]) => { a.tilt.rotation.z = a.side * 1.05; a.pivot.rotation.x = 0 }
+      const legRest = () => { for (const l of legs) l.hip.rotation.x = 0 }
+      let wantSway = 0
       if (sleeping) {
         // クッションの上でうとうと: 頭を前と横に傾け、ゆっくり呼吸
         const b = reduced ? 0 : Math.sin(t * 1.1)
@@ -270,34 +310,35 @@ export function buildLaraFigure(): LaraFigure {
         headG.rotation.set(0.28 + b * 0.015, 0, 0.22)
         headG.position.y = HEAD.cy - 0.03 + b * 0.008
         for (const a of arms) armRest(a)
-        for (const f of feet) f.position.y = 0.075
+        legRest()
       } else if (m.walking && !reduced) {
         const w = t * 9
-        root.position.y = jump + Math.abs(Math.sin(w)) * 0.05
+        root.position.y = jump + Math.abs(Math.sin(w)) * 0.04
         root.rotation.z = Math.sin(w) * 0.05
         headG.rotation.set(0.05, 0, Math.sin(w) * 0.03)
         headG.position.y = HEAD.cy
         arms.forEach((a, i) => { a.tilt.rotation.z = a.side * 0.85; a.pivot.rotation.x = Math.sin(w + i * Math.PI) * 0.55 })
-        feet.forEach((f, i) => { f.position.y = 0.075 + Math.max(0, Math.sin(w + i * Math.PI)) * 0.06 })
+        legs.forEach((l, i) => { l.hip.rotation.x = Math.sin(w + i * Math.PI + Math.PI) * 0.6 })
+        wantSway = Math.sin(w * 0.5) * 0.18
       } else {
         const b = reduced ? 0 : Math.sin(t * 1.5)
         root.position.y = jump + b * 0.015
         root.rotation.z = 0
         headG.rotation.set(0, 0, m.worried ? 0.16 + b * 0.02 : b * 0.035)
         headG.position.y = HEAD.cy + b * 0.006
-        for (const f of feet) f.position.y = 0.075
+        legRest()
         for (const a of arms) {
           if (m.waving && a.side > 0 && !reduced) { a.tilt.rotation.z = 2.55 + Math.sin(t * 9) * 0.3; a.pivot.rotation.x = 0 }
           else if (m.brewing && !reduced) { a.tilt.rotation.z = a.side * 0.6; a.pivot.rotation.x = -0.9 + Math.sin(t * 5 + (a.side > 0 ? 0 : 1.5)) * 0.15 }
           else armRest(a)
         }
+        wantSway = b * 0.06
       }
-      // 耳ピクッ
-      if (!reduced && !sleeping) {
-        if (t >= earTwitchAt) { earTwitch = 0.35; earTwitchAt = t + 6 + Math.random() * 8 }
-        if (earTwitch > 0) { earTwitch -= dt; const k = Math.sin(((0.35 - earTwitch) / 0.35) * Math.PI) * 0.18; ears[0].rotation.z = earRest(0) + k; ears[1].rotation.z = earRest(1) - k * 0.4 }
-        else { ears[0].rotation.z = earRest(0); ears[1].rotation.z = earRest(1) }
-      }
+      // 尻尾と太陽: 少し遅れて揺れ、太陽はゆっくり回る（「付いてくる」感じ）
+      sway += (wantSway - sway) * Math.min(1, dt * 4)
+      tail.rotation.y = sway
+      tail.rotation.z = -sway * 0.3
+      if (!reduced) sun.rotation.z += dt * 0.35
     },
     dispose() { geos.forEach((g) => g.dispose()); mats.forEach((m) => m.dispose()) },
   }
