@@ -36,7 +36,7 @@ export interface LaraFigure {
   dispose(): void
 }
 
-const COL = { cream: 0xffe7c2, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a, sunInk: 0xe0842a }
+const COL = { cream: 0xffe7c2, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a }
 const HEAD = { cx: 0, cy: 0.69, rx: 0.378, ry: 0.306, rz: 0.342 }
 const LINE = 0.02
 
@@ -99,11 +99,11 @@ function crescent(outer: THREE.Vector2[], inner: THREE.Vector2[], origin: THREE.
   g.setIndex(index); g.computeVertexNormals()
   return g
 }
-/** 制御点を通る曲線を折れ線にする（右半分を与えると左右対称に展開） */
-function contour(rightHalf: [number, number][], n = 60): THREE.Vector2[] {
-  const pts = [...rightHalf.slice(1).reverse().map(([x, y]) => new THREE.Vector3(-x, y, 0)), ...rightHalf.map(([x, y]) => new THREE.Vector3(x, y, 0))]
-  const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5)
-  return c.getPoints(n).map((p) => new THREE.Vector2(p.x, p.y))
+/** 円の折れ線（閉じている） */
+function circle(cx: number, cy: number, r: number, n = 96): THREE.Vector2[] {
+  const pts: THREE.Vector2[] = []
+  for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2; pts.push(new THREE.Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r)) }
+  return pts
 }
 
 export function buildLaraFigure(): LaraFigure {
@@ -158,28 +158,27 @@ export function buildLaraFigure(): LaraFigure {
     arms.push({ pivot, tilt, side: s })
   }
 
-  // ---------- 太陽の尻尾 ----------
+  // ---------- 太陽みたいな尻尾 ----------
+  // オレンジの一本線。体の後ろから右へ伸びて渦を巻き、渦のまわりに短い光線（ロゴの右下の渦巻きと同じ）
   const tail = new THREE.Group(); root.add(tail)
+  const swirl = new THREE.Group(); swirl.position.set(0.6, 0.6, -0.3); tail.add(swirl)
   {
-    const path = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0.04, 0.2, -0.14), new THREE.Vector3(0.14, 0.28, -0.4), new THREE.Vector3(0.34, 0.72, -0.58),
-      new THREE.Vector3(0.58, 1.12, -0.56), new THREE.Vector3(0.68, 1.27, -0.52),
+    const sunMat = () => { const m = new THREE.MeshBasicMaterial({ color: COL.sun }); mats.push(m); return m }
+    // 付け根から渦の入口まで
+    const stem = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.05, 0.2, -0.14), new THREE.Vector3(0.24, 0.24, -0.3), new THREE.Vector3(0.42, 0.4, -0.32), new THREE.Vector3(0.6, 0.6, -0.3).add(new THREE.Vector3(-0.17, 0.0, 0)),
     ], false, 'centripetal', 0.5)
-    const tube = solid(new THREE.TubeGeometry(path, 40, 0.035, 10, false), COL.cream, tail, { line: 0.012 })
-    tube.raycast = () => {}
-  }
-  const sun = new THREE.Group(); sun.position.set(0.7, 1.33, -0.5); tail.add(sun)
-  {
-    const disc = new THREE.Mesh(G(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 32)), toonMat(COL.sun))
-    disc.rotation.x = Math.PI / 2; disc.castShadow = true; sun.add(disc)
-    const tri = new THREE.Shape(); tri.moveTo(-0.045, 0); tri.lineTo(0.045, 0); tri.lineTo(0, 0.11); tri.closePath()
-    const rayGeo = G(new THREE.ExtrudeGeometry(tri, { depth: 0.03, bevelEnabled: false })); rayGeo.translate(0, 0.19, -0.015)
-    for (let i = 0; i < 8; i++) { const r = new THREE.Mesh(rayGeo, toonMat(COL.sun)); r.rotation.z = (i / 8) * Math.PI * 2; sun.add(r) }
+    const stemMesh = new THREE.Mesh(G(new THREE.TubeGeometry(stem, 32, 0.024, 8, false)), sunMat()); stemMesh.raycast = () => {}; tail.add(stemMesh)
+    // 渦（外から内へ 1.75 周）
     const sp: THREE.Vector3[] = []
-    for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 3, rr = 0.015 + (i / 24) * 0.1; sp.push(new THREE.Vector3(Math.cos(a) * rr, Math.sin(a) * rr, 0.036)) }
-    const spiral = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp, false, 'centripetal', 0.5), 60, 0.011, 6, false)), inkMat(COL.sunInk))
-    spiral.raycast = () => {}
-    sun.add(spiral)
+    for (let i = 0; i <= 40; i++) { const t = i / 40, a = Math.PI + t * Math.PI * 3.5, rr = 0.17 - t * 0.15; sp.push(new THREE.Vector3(Math.cos(a) * rr, Math.sin(a) * rr, 0)) }
+    const spiral = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp, false, 'centripetal', 0.5), 80, 0.024, 8, false)), sunMat()); spiral.raycast = () => {}; swirl.add(spiral)
+    // 光線: 渦のまわりに短い線を 6 本
+    for (let i = 0; i < 6; i++) {
+      const a = -0.4 + (i / 6) * Math.PI * 2, r0 = 0.22, r1 = 0.3 + (i % 2) * 0.03
+      const g = G(new THREE.CylinderGeometry(0.014, 0.014, r1 - r0, 6)); g.translate(0, (r0 + r1) / 2, 0)
+      const ray = new THREE.Mesh(g, sunMat()); ray.rotation.z = a - Math.PI / 2; ray.raycast = () => {}; swirl.add(ray)
+    }
   }
 
   // ---------- 頭 ----------
@@ -246,16 +245,20 @@ export function buildLaraFigure(): LaraFigure {
   }
 
   // ---------- 三日月の被り物 ----------
-  // 頭の後ろに、角を上に向けた三日月。正面の輪郭（ロゴの三日月: 底 (0, 0.36)・最も広い所 (±0.76, 0.8)・角の先 (±0.43, 1.53)・内側の V (0, 1.05)）
-  // を指定し、丸い断面で膨らませる。頭がその手前に乗る
+  // 頭のてっぺんに、角を上に向けてちょこんと乗る小さめの三日月（外側の円から、少し上にずらした内側の円を抜いた形）。
+  // 外円: 中心 (0, 1.32) 半径 0.5 / 内円: 中心 (0, 1.45) 半径 0.4 → 底の厚み 0.23、角の先は (±0.29, 1.73)。
+  // 底の部分は頭に少し沈めて「かぶっている」感じにし、少し後ろへ傾ける
   {
     const cy = HEAD.cy
-    const outer = contour([[0, 0.36], [0.35, 0.4], [0.62, 0.55], [0.76, 0.8], [0.7, 1.05], [0.58, 1.3], [0.43, 1.53]].map(([x, y]) => [x, y - cy]))
-    const inner = contour([[0, 1.05], [0.15, 1.22], [0.3, 1.38], [0.43, 1.53]].map(([x, y]) => [x, y - cy]), 30)
-    const origin = new THREE.Vector2(0, 1.28 - cy), tip = new THREE.Vector2(0.43, 1.53 - cy)
-    const moon = new THREE.Group(); moon.position.set(0, 0, -0.24); moon.rotation.x = -0.12; headG.add(moon)
-    const m = new THREE.Mesh(G(crescent(outer, inner, origin, tip, { depth: 0.6, maxDepth: 0.21 })), toonMat(COL.cream)); m.castShadow = true; moon.add(m)
-    const h = new THREE.Mesh(G(crescent(outer, inner, origin, tip, { depth: 0.6, maxDepth: 0.21, inflate: LINE })), hullMat()); h.raycast = () => {}; moon.add(h)
+    const O = { x: 0, y: 1.32 - cy, r: 0.5 }, I = { x: 0, y: 1.45 - cy, r: 0.4 }
+    const d = I.y - O.y
+    const ty = (d * d + O.r * O.r - I.r * I.r) / (2 * d)            // 2 円の交点（角の先）
+    const tip = new THREE.Vector2(Math.sqrt(Math.max(0, O.r * O.r - ty * ty)), O.y + ty)
+    const origin = new THREE.Vector2(I.x, I.y)
+    const moon = new THREE.Group(); moon.position.set(0, 0, -0.1); moon.rotation.x = -0.3; headG.add(moon)
+    const opts = { depth: 1.0, maxDepth: 0.13 }
+    const m = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, opts)), toonMat(COL.cream)); m.castShadow = true; moon.add(m)
+    const h = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, { ...opts, inflate: LINE * 0.9 })), hullMat()); h.raycast = () => {}; moon.add(h)
   }
 
   // ---------- 状態 ----------
@@ -280,7 +283,7 @@ export function buildLaraFigure(): LaraFigure {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
     spin() { spinT = 0 },
-    headTop(out) { return out.copy(headTopV.set(0, 1.62, 0)).applyMatrix4(group.matrixWorld) },
+    headTop(out) { return out.copy(headTopV.set(0, 1.8, 0)).applyMatrix4(group.matrixWorld) },
     update(t, dt, m) {
       const reduced = !!m.reduced
       // 向き
@@ -334,11 +337,11 @@ export function buildLaraFigure(): LaraFigure {
         }
         wantSway = b * 0.06
       }
-      // 尻尾と太陽: 少し遅れて揺れ、太陽はゆっくり回る（「付いてくる」感じ）
+      // 尻尾: 少し遅れて揺れ、渦はゆっくり回る（「付いてくる」感じ）
       sway += (wantSway - sway) * Math.min(1, dt * 4)
       tail.rotation.y = sway
       tail.rotation.z = -sway * 0.3
-      if (!reduced) sun.rotation.z += dt * 0.35
+      if (!reduced) swirl.rotation.z -= dt * 0.4
     },
     dispose() { geos.forEach((g) => g.dispose()); mats.forEach((m) => m.dispose()) },
   }
