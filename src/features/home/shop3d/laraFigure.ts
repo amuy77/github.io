@@ -51,20 +51,53 @@ function tone() {
 
 /**
  * フードの殻: 楕円体（半径 rx, ry, rz）の正面（+z）に、丸い顔の窓（+z 軸からの角度 window まで）を開けたもの。
- * +z 軸まわりの極座標で格子を切るので、窓の縁がきれいな楕円になる。
+ * +z 軸まわりの極座標で格子を切るので、窓の縁がきれいな楕円になる。cut(x, y, z) が true の頂点を含む面は取り除く（三日月のくぼみ用）。
  */
-function hoodShell(rx: number, ry: number, rz: number, window: number, nu = 26, nv = 48): THREE.BufferGeometry {
-  const positions: number[] = [], index: number[] = []
+function hoodShell(rx: number, ry: number, rz: number, window: number, cut?: (x: number, y: number, z: number) => boolean, nu = 40, nv = 96): THREE.BufferGeometry {
+  const positions: number[] = [], index: number[] = [], removed: boolean[] = []
   for (let i = 0; i <= nu; i++) {
     const u = THREE.MathUtils.lerp(window, Math.PI, i / nu)   // 窓の縁 → 後頭部
     for (let j = 0; j <= nv; j++) {
       const v = (j / nv) * Math.PI * 2
-      positions.push(rx * Math.sin(u) * Math.cos(v), ry * Math.sin(u) * Math.sin(v), rz * Math.cos(u))
+      const x = rx * Math.sin(u) * Math.cos(v), y = ry * Math.sin(u) * Math.sin(v), z = rz * Math.cos(u)
+      positions.push(x, y, z); removed.push(!!cut && cut(x, y, z))
     }
   }
   for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
     const a = i * (nv + 1) + j, b = a + nv + 1
-    index.push(a, b, a + 1, b, b + 1, a + 1)
+    if (!(removed[a] || removed[b] || removed[a + 1])) index.push(a, b, a + 1)
+    if (!(removed[b] || removed[b + 1] || removed[a + 1])) index.push(b, b + 1, a + 1)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  g.setIndex(index); g.computeVertexNormals()
+  return g
+}
+
+/**
+ * 中心線（XY 平面）に沿って太さが変わる楕円断面を掃引した閉じた面（三日月の角用）。
+ * ctrl は [x, y, 半径]。端の半径を 0 にすると尖る。inflate は輪郭線用に太らせる量。
+ */
+function sweep(ctrl: [number, number, number][], depth: number, inflate = 0, along = 40, around = 16): THREE.BufferGeometry {
+  const curve = new THREE.CatmullRomCurve3(ctrl.map(([x, y]) => new THREE.Vector3(x, y, 0)), false, 'centripetal', 0.5)
+  const rCurve = new THREE.CatmullRomCurve3(ctrl.map(([, , r], i) => new THREE.Vector3(i / (ctrl.length - 1), r, 0)), false, 'centripetal', 0.5)
+  const positions: number[] = [], index: number[] = []
+  const P = new THREE.Vector3(), T = new THREE.Vector3()
+  for (let i = 0; i <= along; i++) {
+    const u = i / along
+    curve.getPoint(u, P); curve.getTangent(u, T).normalize()
+    const atEnd = i === 0 || i === along
+    const r = Math.max(0, rCurve.getPoint(u).y) + (atEnd && rCurve.getPoint(u).y <= 0 ? 0 : inflate)
+    if (inflate > 0 && atEnd) P.addScaledVector(T, i === 0 ? -inflate : inflate)
+    const nx = -T.y, ny = T.x
+    for (let j = 0; j <= around; j++) {
+      const a = (j / around) * Math.PI * 2, c = Math.cos(a) * r, s = Math.sin(a) * r * depth
+      positions.push(P.x + nx * c, P.y + ny * c, P.z + s)
+    }
+  }
+  for (let i = 0; i < along; i++) for (let j = 0; j < around; j++) {
+    const a = i * (around + 1) + j, b = a + around + 1
+    index.push(a, a + 1, b, b, a + 1, b + 1)
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
@@ -218,25 +251,33 @@ export function buildLaraFigure(): LaraFigure {
   }
 
   // ---------- 三日月（黄色いフード）の被り物 ----------
-  // 猫の耳ごと頭をすっぽり包む黄色いフード。頭より一回り大きい楕円体の正面に丸い顔の窓を開け、
-  // 顔がその窓から少し前に出る。上には猫の耳のとがり（三日月の角）が 2 つ。窓の縁は管で線を描く
+  // 頭をすっぽり包む黄色いフードだが、形は三日月: 頭より一回り大きい楕円体の正面に丸い顔の窓を開け、
+  // 上は V 字にくぼませて（三日月の内側の縁）、その両脇から三日月の角が上外へ伸びる。窓の縁と V の縁は管で線を描く
   {
     const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(55)
+    const vLine = (x: number) => 0.3 + 0.4 * Math.abs(x)   // 三日月の内側の縁（V）。中央 y 0.3 = 額のすぐ上
     const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); headG.add(hood)
     solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true })
+    const line = (pts: THREE.Vector3[], closed: boolean) => {
+      const t = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, closed, 'centripetal', 0.5), Math.max(48, pts.length * 2), LINE * 0.9, 8, closed)), inkMat())
+      t.raycast = () => {}
+      hood.add(t)
+    }
     // 窓の縁（フードの口）
     const rim: THREE.Vector3[] = []
     for (let i = 0; i <= 64; i++) { const v = (i / 64) * Math.PI * 2; rim.push(new THREE.Vector3(R.x * Math.sin(W) * Math.cos(v), R.y * Math.sin(W) * Math.sin(v), R.z * Math.cos(W))) }
-    const rimTube = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true, 'centripetal', 0.5), 96, LINE * 0.9, 8, true)), inkMat())
-    rimTube.raycast = () => {}
-    hood.add(rimTube)
-    // 耳（フードの上のとがり）
+    line(rim, true)
+    // 三日月の内側の縁（V）: フードの額の上に、角の付け根から付け根へ V 字の線を描く
+    const edge: THREE.Vector3[] = []
+    const onShell = (x: number) => { const y = vLine(x), k = 1 - (x / R.x) ** 2 - (y / R.y) ** 2; return k > 0 ? new THREE.Vector3(x, y, R.z * Math.sqrt(k) + 0.004) : null }
+    let xm = 0; for (let x = 0; x < R.x; x += 0.002) { if (onShell(x)) xm = x }
+    for (let i = 0; i <= 40; i++) { const p = onShell(THREE.MathUtils.lerp(-xm, xm, i / 40)); if (p) edge.push(p) }
+    line(edge, false)
+    // 三日月の角: 額の V の両端から上外へまっすぐ伸びて先が尖る（ロゴの角）
     for (const s of [-1, 1]) {
-      const e = solid(new THREE.ConeGeometry(0.15, 0.36, 20, 1), COL.moon, hood, { apex: true })
-      e.position.set(s * 0.24, 0.42, -0.02)
-      e.scale.set(1, 1, 0.65)
-      e.rotation.z = -s * 0.32
-      e.rotation.x = -0.12
+      const ctrl: [number, number, number][] = [[s * 0.3, 0.2, 0.22], [s * 0.42, 0.44, 0.15], [s * 0.5, 0.66, 0.07], [s * 0.55, 0.82, 0]]
+      const horn = new THREE.Mesh(G(sweep(ctrl, 0.6)), toonMat(COL.moon)); horn.castShadow = true; hood.add(horn)
+      const h = new THREE.Mesh(G(sweep(ctrl, 0.6, LINE * 0.9)), hullMat()); h.raycast = () => {}; hood.add(h)
     }
   }
 
