@@ -39,10 +39,28 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, created_at: ts(20), updated_at: ts(20) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000004', title: 'ハムチーズクロワッサン', genre_id: G.croissant, hero_image: null, ingredients: [{ name: 'クロワッサン', amount: '1個' }], steps: ['温める'], notes: '', source_clip_id: null, source_kind: 'ai_image', source_job_id: null, status: 'draft', favorite: false, created_at: ts(0), updated_at: ts(0) },
   ],
-  ai_jobs: [],
-  menu_logs: [],
+  ai_jobs: [
+    { id: 'e1000000-0000-4000-8000-000000000001', user_id: USER_ID, kind: 'recipe_from_image', status: 'pending', payload: { image_paths: ['x/a.jpg', 'x/b.jpg'], hint: '裏面あり' }, result: null, error: null, attempts: 0, started_at: null, finished_at: null, created_at: ts(0) },
+    { id: 'e1000000-0000-4000-8000-000000000002', user_id: USER_ID, kind: 'recipe_from_text', status: 'failed', payload: { text: '材料 食パン 2枚 …' }, result: null, error: 'レシピらしい内容が見つかりませんでした', attempts: 1, started_at: ts(1), finished_at: ts(1), created_at: ts(1) },
+  ],
+  menu_logs: Array.from({ length: 9 }, (_, i) => {
+    const d = daysAgo(i + (i > 4 ? 2 : 0))
+    const items = [
+      { id: `f${i}000000-0000-4000-8000-000000000001`, user_id: USER_ID, menu_log_id: `f${i}000000-0000-4000-8000-00000000000a`, recipe_id: 'd1000000-0000-4000-8000-000000000001', sold_count: 8 + i, created_at: ts(i) },
+      { id: `f${i}000000-0000-4000-8000-000000000002`, user_id: USER_ID, menu_log_id: `f${i}000000-0000-4000-8000-00000000000a`, recipe_id: 'd1000000-0000-4000-8000-000000000003', sold_count: 20, created_at: ts(i) },
+      ...(i % 3 === 0 ? [{ id: `f${i}000000-0000-4000-8000-000000000003`, user_id: USER_ID, menu_log_id: `f${i}000000-0000-4000-8000-00000000000a`, recipe_id: 'd1000000-0000-4000-8000-000000000002', sold_count: 4, created_at: ts(i) }] : []),
+    ]
+    return { id: `f${i}000000-0000-4000-8000-00000000000a`, user_id: USER_ID, log_date: iso(d), note: i === 0 ? '雨。BLT 早めに売り切れ' : '', created_at: ts(i), updated_at: ts(i), menu_log_items: items }
+  }),
   menu_log_items: [],
-  ai_insights: [],
+  ai_insights: [
+    { id: 'g1000000-0000-4000-8000-000000000001', user_id: USER_ID, week_start: iso(daysAgo(7)), model: 'claude-code', created_at: ts(0), insights: [
+      { kind: 'praise', emoji: '👏', title: '6日記録できた', body: '先週は6日分のメニューを記録。続いてます。' },
+      { kind: 'bias', emoji: '⚖️', title: 'アメリカンサンドが7割', body: '先週の出品はアメリカンサンドが14/20。クロワッサン系が2品だけでした。' },
+      { kind: 'popular', emoji: '🥇', title: 'BLTが一番', body: 'BLTサンドは6日連続で登場。定番として強いです。' },
+      { kind: 'suggestion', emoji: '💡', title: '1品だけ入れ替え', body: '木曜だけクロワッサンサンドを1品足すと、構成の偏りがやわらぎます。' },
+    ] },
+  ],
 }
 
 async function stubSupabase(page: Page) {
@@ -64,6 +82,8 @@ async function stubSupabase(page: Page) {
       if (status?.startsWith('eq.')) rows = rows.filter((r) => (r as { status?: string }).status === status.slice(3))
       const id = url.searchParams.get('id')
       if (id?.startsWith('eq.')) rows = rows.filter((r) => (r as { id: string }).id === id.slice(3))
+      const logDate = url.searchParams.get('log_date')
+      if (logDate?.startsWith('eq.')) rows = rows.filter((r) => (r as { log_date: string }).log_date === logDate.slice(3))
       const head = req.method() === 'HEAD'
       if (req.method() === 'POST' || req.method() === 'PATCH') {
         const body = req.postDataJSON() as object
@@ -76,7 +96,7 @@ async function stubSupabase(page: Page) {
   })
 }
 
-const routes = ['/', '/clips', '/clips/c1000000-0000-4000-8000-000000000001', '/add', '/recipes', '/recipes/d1000000-0000-4000-8000-000000000001', '/recipes/new', '/menu', '/inbox', '/settings']
+const routes = ['/', '/clips', '/clips/c1000000-0000-4000-8000-000000000001', '/add', '/recipes', '/recipes/d1000000-0000-4000-8000-000000000001', '/recipes/new', '/menu', `/menu/${iso(daysAgo(0))}`, '/menu/stats', '/inbox', '/settings']
 
 for (const r of routes) {
   test(`renders ${r}`, async ({ page }, info) => {
@@ -89,7 +109,7 @@ for (const r of routes) {
     const isPhone = info.project.name === 'phone'
     if (isPhone) await expect(page.getByRole('navigation', { name: 'メイン' }).last()).toBeVisible()
     else await expect(page.getByRole('navigation', { name: 'メイン' }).first()).toBeVisible()
-    const slug = r === '/' ? 'home' : r.replace(/\//g, '-').replace(/^-/, '').replace(/-[0-9a-f-]{36}$/, '-detail')
+    const slug = r === '/' ? 'home' : r.replace(/\//g, '-').replace(/^-/, '').replace(/-[0-9a-f-]{36}$/, '-detail').replace(/-\d{4}-\d{2}-\d{2}$/, '-day')
     await page.screenshot({ path: `screenshots/${info.project.name}-${slug}.png`, fullPage: r !== '/' })
     expect(errors, errors.join('\n')).toEqual([])
   })
