@@ -6,6 +6,7 @@ import { OfflineBanner } from './OfflineBanner'
 import { UpdateToast } from './UpdateToast'
 import { useCounts } from '@/features/home/useCounts'
 import { CountBadge } from '@/components/ui/Chip'
+import { useBadges } from '@/features/game/useBadges'
 
 const tabs = [
   { to: paths.home, label: 'ホーム', Icon: IconHome, end: true },
@@ -17,6 +18,7 @@ const tabs = [
 export function AppShell() {
   const loc = useLocation()
   const counts = useCounts()
+  useBadges()
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
   return (

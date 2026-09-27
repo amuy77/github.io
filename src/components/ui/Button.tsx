@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { cx } from '@/lib/cx'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'mustard'
@@ -11,6 +11,7 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   loading?: boolean
   icon?: ReactNode
   full?: boolean
+  ref?: Ref<HTMLButtonElement>
 }
 
 const variants: Record<Variant, string> = {

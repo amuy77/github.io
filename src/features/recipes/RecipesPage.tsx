@@ -1,10 +1,82 @@
-import { PageHeader, EmptyState } from '@/components/ui/Page'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
+import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
+import { Button } from '@/components/ui/Button'
+import { Chip } from '@/components/ui/Chip'
+import { IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
+import type { RecipeRow } from '@/lib/supabase/database.types'
+import { paths } from '@/app/routes'
+import { useGenres } from '@/features/genres/hooks'
+import { genreEmoji } from '@/features/genres/api'
+import { useRecipes, useUpdateRecipe } from './hooks'
+import { RecipeCard } from './RecipeCard'
 
 export function RecipesPage() {
+  const nav = useNavigate()
+  const recipes = useRecipes()
+  const genres = useGenres()
+  const update = useUpdateRecipe()
+  const [q, setQ] = useState('')
+  const [genreId, setGenreId] = useState<string | 'all' | 'none'>('all')
+  const [favOnly, setFavOnly] = useState(false)
+
+  const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return published.filter((r) => {
+      if (genreId === 'none' ? r.genre_id !== null : genreId !== 'all' && r.genre_id !== genreId) return false
+      if (favOnly && !r.favorite) return false
+      if (!needle) return true
+      return `${r.title} ${r.notes} ${r.ingredients.map((i) => i.name).join(' ')}`.toLowerCase().includes(needle)
+    })
+  }, [published, q, genreId, favOnly])
+
+  const sections = useMemo(() => {
+    const gs = genres.data ?? []
+    const by = new Map<string | null, RecipeRow[]>()
+    for (const r of filtered) { const k = r.genre_id && gs.some((g) => g.id === r.genre_id) ? r.genre_id : null; by.set(k, [...(by.get(k) ?? []), r]) }
+    const out = gs.filter((g) => by.has(g.id)).map((g) => ({ key: g.id, title: `${genreEmoji(g.name)} ${g.name}`, genre: g, items: by.get(g.id)! }))
+    if (by.has(null)) out.push({ key: 'none', title: '🍽️ ジャンルなし', genre: null as never, items: by.get(null)! })
+    return out
+  }, [filtered, genres.data])
+
+  const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
+  const total = published.length
+
   return (
     <>
-      <PageHeader title="レシピ図鑑" sub="ジャンル別に集める" />
-      <EmptyState emoji="📖" title="図鑑はまだ空っぽ" body="次のステップで、レシピカードを作れるようになります。" />
+      <PageHeader title="レシピ図鑑" sub={total ? `${total}品を収録` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(paths.recipeNew)}>作る</Button>} />
+      <div className="flex flex-col gap-3">
+        <label className="flex h-11 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
+          <IconSearch size={18} className="text-muted" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
+        </label>
+        <div className="scroll-x -mx-4 flex gap-2 px-4">
+          <Chip active={genreId === 'all'} onClick={() => setGenreId('all')} count={total}>すべて</Chip>
+          {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={published.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g.name)} {g.name}</Chip>)}
+          <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
+        </div>
+
+        {recipes.isLoading || genres.isLoading ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[4/5]" />)}</div>
+        ) : recipes.isError ? (
+          <EmptyState emoji="😵" title="読み込めませんでした" body={(recipes.error as Error).message} action={<Button size="sm" variant="secondary" onClick={() => recipes.refetch()}>もう一度</Button>} />
+        ) : total === 0 ? (
+          <EmptyState emoji="📖" title="図鑑はまだ空っぽ" body="手入力でも、テキスト貼り付けでも、写真を AI に任せても OK。最初の 1 品を登録しよう。" action={<Button onClick={() => nav(paths.recipeNew)} icon={<IconPlus size={16} />}>レシピを作る</Button>} />
+        ) : filtered.length === 0 ? (
+          <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
+        ) : (
+          sections.map((s) => (
+            <section key={s.key} className="flex flex-col gap-2">
+              <SectionTitle count={`${s.items.length}品`}>{s.title}</SectionTitle>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} />)}
+              </div>
+            </section>
+          ))
+        )}
+        <p className="pt-2 text-center text-xs text-muted">ジャンルの追加・並び替えは <button type="button" className="font-bold underline underline-offset-2" onClick={() => nav(paths.settings)}>設定</button> から</p>
+      </div>
     </>
   )
 }

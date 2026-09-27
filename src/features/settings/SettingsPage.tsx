@@ -4,14 +4,33 @@ import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { updateSettings, useSettings } from './useSettings'
 import { IconLogout } from '@/components/ui/icons'
+import { GenreManager } from '@/features/genres/GenreManager'
+import { useBadges } from '@/features/game/useBadges'
+import { BADGES } from '@/features/game/badges'
+import { cx } from '@/lib/cx'
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const { home3d } = useSettings()
+  const badges = useBadges()
+  const unlockedKeys = new Set(badges.unlocked.map((b) => b.key))
   return (
     <>
       <PageHeader title="設定" />
       <div className="flex flex-col gap-4">
+        <SectionTitle>ジャンル</SectionTitle>
+        <GenreManager />
+
+        <SectionTitle count={`${badges.unlocked.length} / ${BADGES.length}`}>バッジ</SectionTitle>
+        <Card className="grid grid-cols-4 gap-2 md:grid-cols-6">
+          {BADGES.map((b) => (
+            <div key={b.key} title={b.body} className={cx('flex flex-col items-center gap-1 rounded-[10px] p-2 text-center', unlockedKeys.has(b.key) ? 'bg-mustard-300/30' : 'opacity-35 grayscale')}>
+              <span className="text-2xl" aria-hidden>{b.emoji}</span>
+              <span className="text-[10px] font-bold leading-tight">{b.title}</span>
+            </div>
+          ))}
+        </Card>
+
         <SectionTitle>見た目</SectionTitle>
         <Card className="flex items-center gap-3">
           <div className="flex-1">
