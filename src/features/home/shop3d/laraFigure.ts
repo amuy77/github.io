@@ -252,28 +252,17 @@ export function buildLaraFigure(): LaraFigure {
 
   // ---------- 三日月（黄色いフード）の被り物 ----------
   // 頭をすっぽり包む黄色いフードだが、形は三日月: 頭より一回り大きい楕円体の正面に丸い顔の窓を開け、
-  // 上は V 字にくぼませて（三日月の内側の縁）、その両脇から三日月の角が上外へ伸びる。窓の縁と V の縁は管で線を描く
+  // 両脇から三日月の角が上外へ伸びる。線は外側のシルエットだけ（窓の縁や額の上には引かない）
   {
     const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(55)
-    const vLine = (x: number) => 0.3 + 0.4 * Math.abs(x)   // 三日月の内側の縁（V）。中央 y 0.3 = 額のすぐ上
     const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); headG.add(hood)
     solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true, line: 0 })
     // 輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない）
     const shellHull = new THREE.Mesh(G(hoodShell(R.x + LINE, R.y + LINE, R.z + LINE, W + THREE.MathUtils.degToRad(4))), hullMat())
     shellHull.raycast = () => {}
     hood.add(shellHull)
-    const line = (pts: THREE.Vector3[], closed: boolean) => {
-      const t = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, closed, 'centripetal', 0.5), Math.max(48, pts.length * 2), LINE * 0.9, 8, closed)), inkMat())
-      t.raycast = () => {}
-      hood.add(t)
-    }
-    // 顔の窓の縁には線を引かない（黒い枠に見えるため）。三日月の内側の縁（V）だけ描く: フードの額の上に、角の付け根から付け根へ V 字の線を描く
-    const edge: THREE.Vector3[] = []
-    const onShell = (x: number) => { const y = vLine(x), k = 1 - (x / R.x) ** 2 - (y / R.y) ** 2; return k > 0 ? new THREE.Vector3(x, y, R.z * Math.sqrt(k) + 0.004) : null }
-    let xm = 0; for (let x = 0; x < R.x; x += 0.002) { if (onShell(x)) xm = x }
-    for (let i = 0; i <= 40; i++) { const p = onShell(THREE.MathUtils.lerp(-xm, xm, i / 40)); if (p) edge.push(p) }
-    line(edge, false)
-    // 三日月の角: 額の V の両端から上外へまっすぐ伸びて先が尖る（ロゴの角）
+    // 顔の窓の縁と額の上には線を引かない（黒い枠や紐に見えるため）
+    // 三日月の角: フードの両脇から上外へまっすぐ伸びて先が尖る（ロゴの角）
     for (const s of [-1, 1]) {
       const ctrl: [number, number, number][] = [[s * 0.3, 0.2, 0.22], [s * 0.42, 0.44, 0.15], [s * 0.5, 0.66, 0.07], [s * 0.55, 0.82, 0]]
       const horn = new THREE.Mesh(G(sweep(ctrl, 0.6)), toonMat(COL.moon)); horn.castShadow = true; hood.add(horn)
