@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ShopScene, type Hotspot } from './shopScene'
 import { paths } from '@/app/routes'
 import { dayPart, formatMD, greeting, today } from '@/lib/dates'
-import { BRAND_IMAGES, LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
+import { LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
 
@@ -53,7 +53,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       },
     })
     scene.setMode(dayPart())
-    scene.setResident(BRAND_IMAGES)
+    scene.setResident(true)
     sceneRef.current = scene
     ;(window as unknown as { __lara?: ShopScene }).__lara = scene   // デバッグ用
     return () => { scene.dispose(); sceneRef.current = null }

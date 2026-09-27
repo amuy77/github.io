@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { DayPart } from '@/lib/dates'
+import { buildLaraFigure, type LaraFigure } from './laraFigure'
 
 export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident'
 export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number }
@@ -12,7 +13,6 @@ export interface ShopSceneOptions {
   /** ブランド素材（無ければ文字看板だけ） */
   assets?: { wordmark?: string; poster?: string }
 }
-export interface ResidentTextures { idle: string; blink?: string; sleep?: string; worried?: string }
 export type ResidentMood = 'idle' | 'worried'
 
 const C = {
@@ -76,11 +76,10 @@ export class ShopScene {
   private ndc = new THREE.Vector2()
   private tmp = new THREE.Vector3()
   private resident: THREE.Group | null = null
-  private residentPlane: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null = null
+  private figure: LaraFigure | null = null
   private residentTarget = new THREE.Vector3()
   private residentPath: THREE.Vector3[] = []
   private residentState: 'counter' | 'machine' | 'mailbox' | 'sleep' = 'counter'
-  private residentTex: Partial<Record<'idle' | 'blink' | 'sleep' | 'worried', THREE.Texture>> = {}
   private residentMood: ResidentMood = 'idle'
   private blinkAt = 4
   private blinkUntil = 0
@@ -143,63 +142,43 @@ export class ShopScene {
     this.needsRender = true
   }
 
-  /** ロゴから切り出した LaRa（背景透過）を紙人形としてお店に立たせる。null で撤去 */
-  setResident(urls: ResidentTextures | null) {
-    if (this.resident) { this.scene.remove(this.resident); this.hotspots = this.hotspots.filter((h) => h !== this.resident); this.resident = null; this.residentPlane = null }
-    if (!urls) return
-    const loadTex = (key: 'blink' | 'sleep' | 'worried') => { const u = urls[key]; if (!u) return; this.texLoader.load(u, (t) => { t.colorSpace = THREE.SRGBColorSpace; this.residentTex[key] = t }) }
-    this.texLoader.load(urls.idle, (tex) => {
-      if (this.disposed) return
-      tex.colorSpace = THREE.SRGBColorSpace
-      this.residentTex.idle = tex
-      loadTex('blink'); loadTex('sleep'); loadTex('worried')
-      const img = tex.image as { width: number; height: number }
-      const aspect = img && img.width && img.height ? img.width / img.height : 1
-      const h = 1.5   // カウンター（高さ 0.99）の後ろに立っても頭とフードが見える背丈
-      const g = new THREE.Group()
-      const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.35, roughness: 0.95, side: THREE.DoubleSide })
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(h * aspect, h), mat)
-      plane.position.y = h / 2 + 0.02
-      plane.castShadow = true
-      plane.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.35 })
-      g.add(plane)
-      // 小さな台座（紙人形のスタンド）
-      const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.03, 16), this.M(C.woodD))
-      stand.position.y = 0.015; stand.receiveShadow = true; g.add(stand)
-      g.userData.hot = 'resident'
-      g.traverse((o) => { o.userData.hotRoot = g })
-      this.hotspots.push(g)
-      this.scene.add(g)
-      this.resident = g; this.residentPlane = plane
-      this.residentState = 'counter'
-      g.position.copy(this.residentSpot('counter'))
-      this.updateResidentState(true)
-      this.needsRender = true
-    })
+  /** LaRa の 3D フィギュアをお店に住まわせる。false で撤去 */
+  setResident(enabled: boolean) {
+    if (this.resident) { this.scene.remove(this.resident); this.hotspots = this.hotspots.filter((h) => h !== this.resident); this.figure?.dispose(); this.resident = null; this.figure = null }
+    if (!enabled) return
+    const fig = buildLaraFigure()
+    const g = fig.group
+    g.userData.hot = 'resident'
+    g.traverse((o) => { o.userData.hotRoot = g })
+    this.hotspots.push(g)
+    this.scene.add(g)
+    this.resident = g; this.figure = fig
+    this.residentState = 'counter'
+    g.position.copy(this.residentSpot('counter'))
+    this.updateResidentState(true)
+    this.needsRender = true
   }
 
   /** 住人の気分（連続記録が途切れそうなときは心配顔） */
   setResidentMood(m: ResidentMood) { this.residentMood = m; this.needsRender = true }
 
-  private residentFace(t: number) {
-    if (!this.residentPlane) return
-    const sleeping = this.residentState === 'sleep'
+  private residentExpression(t: number) {
+    if (!this.figure) return
+    const sleeping = this.residentState === 'sleep' && this.residentPath.length <= 1
     if (!sleeping && !this.opts.reducedMotion) {
       if (t >= this.blinkAt) { this.blinkUntil = t + 0.14; this.blinkAt = t + 3 + Math.random() * 5 }
     }
-    const blinking = !sleeping && t < this.blinkUntil
-    const want = sleeping ? this.residentTex.sleep ?? this.residentTex.blink : blinking ? this.residentTex.blink : this.residentMood === 'worried' ? this.residentTex.worried : this.residentTex.idle
-    const tex = want ?? this.residentTex.idle
-    if (tex && this.residentPlane.material.map !== tex) { this.residentPlane.material.map = tex; this.residentPlane.material.needsUpdate = true; this.needsRender = true }
+    this.figure.setExpression({ blink: !sleeping && t < this.blinkUntil, worried: this.residentMood === 'worried', sleeping })
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, tex: Object.keys(this.residentTex) } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure } }
 
   /** 吹き出し表示用: 住人の頭上の画面座標 */
   residentScreenPos(): { x: number; y: number } | null {
-    if (!this.resident) return null
-    this.tmp.copy(this.resident.position); this.tmp.y += 1.7
+    if (!this.resident || !this.figure) return null
+    this.resident.updateMatrixWorld()
+    this.figure.headTop(this.tmp)
     this.tmp.project(this.camera)
     const r = this.el.getBoundingClientRect()
     return { x: r.left + ((this.tmp.x + 1) / 2) * r.width, y: r.top + ((1 - this.tmp.y) / 2) * r.height }
@@ -214,6 +193,7 @@ export class ShopScene {
       if (m.geometry) m.geometry.dispose()
     })
     this.mats.forEach((m) => m.dispose())
+    this.figure?.dispose()
     this.renderer.dispose()
     this.el.remove()
   }
@@ -404,7 +384,7 @@ export class ShopScene {
     }
 
     // 吊りランプ
-    const lamp = new THREE.Group(); room.add(lamp); lamp.position.set(-0.7, 3.05, 0.35)
+    const lamp = new THREE.Group(); room.add(lamp); lamp.position.set(-0.7, 3.05, 1.15)
     cyl(lamp, 0.01, 0.01, 0.7, C.ink, 0, -0.35, 0, { seg: 6 })
     cyl(lamp, 0.12, 0.3, 0.26, C.mustard, 0, -0.82, 0, { seg: 20, double: true })
     this.bulb = sph(lamp, 0.06, 0xffe9b0, 0, -0.9, 0, { emissive: 0xffd98a, ei: 0, seg: 10 })
@@ -412,6 +392,11 @@ export class ShopScene {
 
     // 夜用のクッション（住人が寝る場所。カウンターの左横）
     box(room, 0.7, 0.14, 0.5, C.plum, -2.55, 0.13, 0.95, { rough: 1 })
+
+    // カウンター裏の踏み板（住人が立つと顔がカウンター越しに見える高さ）と両端の段
+    box(room, 3.0, 0.6, 0.85, C.woodD, -0.7, 0.3, -0.475, { rough: 1 })
+    box(room, 0.35, 0.3, 0.85, C.woodD, 0.975, 0.15, -0.475, { rough: 1 })
+    box(room, 0.35, 0.3, 0.85, C.woodD, -2.375, 0.15, -0.475, { rough: 1 })
   }
 
   private buildSign(room: THREE.Group) {
@@ -474,12 +459,13 @@ export class ShopScene {
   }
 
   // ---------- resident (LaRa) ----------
+  /** 立ち位置（y は床の高さ: カウンター裏の踏み板 0.6、クッション天面 0.2） */
   private residentSpot(s: typeof this.residentState): THREE.Vector3 {
     switch (s) {
-      case 'machine': return new THREE.Vector3(-1.3, 0, -0.35)
+      case 'machine': return new THREE.Vector3(-1.3, 0.6, -0.35)
       case 'mailbox': return new THREE.Vector3(1.9, 0, 1.55)
-      case 'sleep': return new THREE.Vector3(-2.55, 0, 0.95)
-      default: return new THREE.Vector3(-0.2, 0, -0.35)
+      case 'sleep': return new THREE.Vector3(-2.55, 0.2, 0.95)
+      default: return new THREE.Vector3(-0.2, 0.6, -0.35)
     }
   }
   /** カウンターを突き抜けないように、端を回る経路（A: 右端の奥, B: 右前, C: 左端の奥） */
@@ -558,7 +544,9 @@ export class ShopScene {
     el.addEventListener('pointercancel', () => { this.dragging = false; this.pressed = null })
   }
   private tap(g: THREE.Group) {
-    this.bounces.push({ g, t: 0 }); this.needsRender = true
+    if (g === this.resident) this.figure?.spin()
+    else this.bounces.push({ g, t: 0 })
+    this.needsRender = true
     try { navigator.vibrate?.(10) } catch { /* noop */ }
     this.opts.onTap(g.userData.hot as Hotspot)
   }
@@ -589,29 +577,33 @@ export class ShopScene {
       }
       this.needsRender = true
     }
-    // 住人の移動・ゆらゆら・まばたき
-    if (this.resident && this.residentPlane) {
-      this.residentFace(t)
+    // 住人: 経路に沿って歩く → 着いたら場所ごとの仕草
+    if (this.resident && this.figure) {
+      this.residentExpression(t)
       const p = this.resident.position
-      const d = this.residentTarget.clone().sub(p); d.y = 0
+      const d = this.residentTarget.clone().sub(p)   // y も補間する（踏み板・クッションに上る）
       const dist = d.length()
+      let walking = false
+      let facing: number | null = null
       if (dist > 0.02) {
         const step = Math.min(dist, dt * 1.6)
+        facing = Math.atan2(d.x, d.z)
         p.add(d.normalize().multiplyScalar(step))
-        this.residentPlane.position.y = 0.77 + Math.abs(Math.sin(t * 9)) * 0.06
-        this.residentPlane.rotation.z = 0
-        this.needsRender = true
+        walking = true
       } else if (this.residentPath.length > 1) {
         this.residentPath.shift()
         this.residentTarget.copy(this.residentPath[0])
-        this.needsRender = true
-      } else if (!this.opts.reducedMotion) {
-        const sleeping = this.residentState === 'sleep'
-        this.residentPlane.rotation.z = sleeping ? -Math.PI / 2 + Math.sin(t * 1.2) * 0.02 : Math.sin(t * 1.5) * 0.035
-        this.residentPlane.position.y = sleeping ? 0.5 : 0.77 + Math.sin(t * 1.5) * 0.02
-        this.residentPlane.rotation.y = this.residentState === 'mailbox' ? Math.sin(t * 6) * 0.08 : 0
-        this.needsRender = true
+        walking = true
       }
+      const arrived = !walking
+      const s = this.residentState
+      if (arrived) facing = s === 'machine' ? -0.55 : this.yaw   // マシンの方 / カメラの方
+      this.figure.update(t, dt, {
+        walking, facing, reduced: !!this.opts.reducedMotion,
+        waving: arrived && s === 'mailbox', brewing: arrived && s === 'machine', sleeping: arrived && s === 'sleep',
+        worried: this.residentMood === 'worried',
+      })
+      this.needsRender = true
     }
     for (let i = this.bounces.length - 1; i >= 0; i--) {
       const b = this.bounces[i]; b.t += dt * 3
