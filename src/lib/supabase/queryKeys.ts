@@ -1,0 +1,13 @@
+export const qk = {
+  genres: ['genres'] as const,
+  clips: ['clips'] as const,
+  clip: (id: string) => ['clip', id] as const,
+  recipes: ['recipes'] as const,
+  recipe: (id: string) => ['recipe', id] as const,
+  menuLogs: (from: string, to: string) => ['menu-logs', from, to] as const,
+  menuLog: (date: string) => ['menu-log', date] as const,
+  activityDays: (since: string) => ['activity-days', since] as const,
+  aiJobs: ['ai-jobs'] as const,
+  aiInsights: ['ai-insights'] as const,
+  counts: ['counts'] as const,
+}

@@ -1,0 +1,72 @@
+import type { GenreColor, GenreRow, RecipeRow } from '@/lib/supabase/database.types'
+import type { MenuLogWithItems } from './api'
+import { addDays, parseIso, today } from '@/lib/dates'
+
+/** グラフ用の色（ブランド色より少し彩度高め。dataviz スキルの検証済み） */
+export const CHART_COLORS: Record<GenreColor | 'none', string> = {
+  green: '#2A8A66',
+  mustard: '#E39E2E',
+  brick: '#CC5A3B',
+  plum: '#8A6CD6',
+  wood: '#C2712A',
+  none: '#9A8F85',
+}
+
+export interface GenreShare { key: string; name: string; color: string; count: number; share: number }
+export interface RecipeFreq { recipe: RecipeRow; days: number; sold: number | null; lastServed: string }
+export interface NotServed { recipe: RecipeRow; lastServed: string | null; daysSince: number | null }
+
+export function genreShares(logs: MenuLogWithItems[], recipes: RecipeRow[], genres: GenreRow[]): GenreShare[] {
+  const byRecipe = new Map(recipes.map((r) => [r.id, r]))
+  const counts = new Map<string, number>()
+  for (const l of logs) for (const it of l.menu_log_items) {
+    const r = byRecipe.get(it.recipe_id)
+    const key = r?.genre_id && genres.some((g) => g.id === r.genre_id) ? r.genre_id : 'none'
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const total = [...counts.values()].reduce((a, b) => a + b, 0)
+  const out: GenreShare[] = genres.filter((g) => counts.has(g.id)).map((g) => ({ key: g.id, name: g.name, color: CHART_COLORS[g.color], count: counts.get(g.id)!, share: total ? counts.get(g.id)! / total : 0 }))
+  if (counts.has('none')) out.push({ key: 'none', name: 'ジャンルなし', color: CHART_COLORS.none, count: counts.get('none')!, share: total ? counts.get('none')! / total : 0 })
+  return out.sort((a, b) => b.count - a.count)
+}
+
+export function recipeFrequency(logs: MenuLogWithItems[], recipes: RecipeRow[], limit = 8): RecipeFreq[] {
+  const byRecipe = new Map(recipes.map((r) => [r.id, r]))
+  const agg = new Map<string, { days: number; sold: number | null; last: string }>()
+  for (const l of logs) for (const it of l.menu_log_items) {
+    const cur = agg.get(it.recipe_id) ?? { days: 0, sold: null, last: '' }
+    cur.days += 1
+    if (it.sold_count !== null) cur.sold = (cur.sold ?? 0) + it.sold_count
+    if (l.log_date > cur.last) cur.last = l.log_date
+    agg.set(it.recipe_id, cur)
+  }
+  return [...agg.entries()]
+    .flatMap(([id, a]) => { const r = byRecipe.get(id); return r ? [{ recipe: r, days: a.days, sold: a.sold, lastServed: a.last }] : [] })
+    .sort((a, b) => (b.sold ?? -1) - (a.sold ?? -1) || b.days - a.days)
+    .slice(0, limit)
+}
+
+export function notServedRecently(allLogs: MenuLogWithItems[], recipes: RecipeRow[], thresholdDays = 14): NotServed[] {
+  const last = new Map<string, string>()
+  for (const l of allLogs) for (const it of l.menu_log_items) if (!last.has(it.recipe_id) || l.log_date > last.get(it.recipe_id)!) last.set(it.recipe_id, l.log_date)
+  const t = parseIso(today()).getTime()
+  return recipes
+    .filter((r) => r.status === 'published')
+    .map((r) => { const ls = last.get(r.id) ?? null; const daysSince = ls ? Math.round((t - parseIso(ls).getTime()) / 86_400_000) : null; return { recipe: r, lastServed: ls, daysSince } })
+    .filter((x) => x.daysSince === null || x.daysSince >= thresholdDays)
+    .sort((a, b) => (b.daysSince ?? 9999) - (a.daysSince ?? 9999))
+    .slice(0, 8)
+}
+
+/** 期間の日付リスト（from〜to） */
+export function dateRange(from: string, to: string): string[] {
+  const out: string[] = []
+  for (let d = from; d <= to; d = addDays(d, 1)) out.push(d)
+  return out
+}
+
+/** その日の「主なジャンル」の色（カレンダーのドット用） */
+export function dominantColor(log: MenuLogWithItems, recipes: RecipeRow[], genres: GenreRow[]): string {
+  const shares = genreShares([log], recipes, genres)
+  return shares[0]?.color ?? CHART_COLORS.none
+}

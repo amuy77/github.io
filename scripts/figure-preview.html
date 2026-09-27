@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>LaRa figure preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body { margin: 0; background: #f5f0e8; font: 13px/1.4 system-ui, sans-serif; color: #1f1a16; }
+    #wrap { display: flex; align-items: flex-start; gap: 12px; padding: 12px; }
+    canvas { display: block; background: #f5f0e8; border: 1px solid #dcd3c6; border-radius: 12px; }
+    #ref { width: 260px; border: 1px solid #dcd3c6; border-radius: 12px; background: #fff; padding: 8px; }
+    #ref img { width: 100%; height: auto; display: block; }
+    .bar { display: flex; gap: 6px; padding: 0 12px 12px; flex-wrap: wrap; }
+    button { font: inherit; padding: 6px 10px; border-radius: 999px; border: 1px solid #dcd3c6; background: #fff; cursor: pointer; }
+    button.on { background: #2f5d50; color: #fff; border-color: #2f5d50; }
+  </style>
+</head>
+<body>
+  <!-- 開発用: `npm run dev` を起動して http://127.0.0.1:5173/github.io/scripts/figure-preview.html を開く
+       ?mode=shots で正面/正面(俯瞰)/斜め/横 の 4 面を並べ、?mode=turn で回して見る。&ex=worried|sleep &motion=walk|wave|brew -->
+  <div id="wrap">
+    <canvas id="c" width="1120" height="420"></canvas>
+    <div id="ref"><img src="/github.io/brand/lara.png" alt="logo" /><div>ロゴ（参照）</div></div>
+  </div>
+  <div class="bar" id="bar"></div>
+  <script type="module">
+    import * as THREE from 'three'
+    import { buildLaraFigure } from '/src/features/home/shop3d/laraFigure.ts'
+
+    const q = new URLSearchParams(location.search)
+    const mode = q.get('mode') || 'shots'
+    const canvas = document.getElementById('c')
+    if (mode === 'turn') { canvas.width = 560; canvas.height = 640 }
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2))
+    renderer.setSize(canvas.width, canvas.height, false)
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05
+    renderer.setScissorTest(true)
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf5f0e8)
+    scene.add(new THREE.HemisphereLight(0xeaf2ff, 0xc9a27a, 0.9))
+    const sun = new THREE.DirectionalLight(0xffffff, 1.7); sun.position.set(4, 7, 3); sun.castShadow = true
+    sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.near = 1; sun.shadow.camera.far = 25
+    Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 }); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02
+    scene.add(sun)
+    const fill = new THREE.DirectionalLight(0xfff1dc, 0.35); fill.position.set(-5, 3, 5); scene.add(fill)
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.2, 48), new THREE.MeshStandardMaterial({ color: 0xc9a27a, roughness: 1 }))
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor)
+
+    const fig = buildLaraFigure()
+    scene.add(fig.group)
+    const ex = q.get('ex'); const motion = q.get('motion')
+    fig.setExpression({ worried: ex === 'worried', sleeping: ex === 'sleep', blink: ex === 'blink' })
+    const m = { walking: motion === 'walk', waving: motion === 'wave', brewing: motion === 'brew', sleeping: ex === 'sleep', worried: ex === 'worried', facing: 0, reduced: q.has('still') }
+    window.__fig = fig
+
+    const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 50)
+    const target = new THREE.Vector3(0, 0.8, 0)
+    const look = (yaw, elev, r = 4.6) => { cam.position.set(target.x + r * Math.cos(elev) * Math.sin(yaw), target.y + r * Math.sin(elev), target.z + r * Math.cos(elev) * Math.cos(yaw)); cam.lookAt(target) }
+    const views = [
+      { name: '正面', yaw: 0, elev: 0.05 },
+      { name: '正面（お店のカメラの高さ）', yaw: 0, elev: 0.56 },
+      { name: '斜め（お店の見え方）', yaw: 0.62, elev: 0.56 },
+      { name: '横', yaw: Math.PI / 2, elev: 0.1 },
+    ]
+    let yaw = 0.4, drag = null
+    if (mode === 'turn') {
+      canvas.addEventListener('pointerdown', (e) => { drag = e.clientX })
+      window.addEventListener('pointermove', (e) => { if (drag != null) { yaw += (e.clientX - drag) * 0.01; drag = e.clientX } })
+      window.addEventListener('pointerup', () => { drag = null })
+      const bar = document.getElementById('bar')
+      const mk = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.onclick = () => { fn(); [...bar.children].forEach((x) => x.classList.toggle('on', x === b)) }; bar.appendChild(b) }
+      mk('ふつう', () => { fig.setExpression({ worried: false, sleeping: false }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: false, worried: false }) })
+      mk('歩く', () => { fig.setExpression({ worried: false, sleeping: false }); Object.assign(m, { walking: true, waving: false, brewing: false, sleeping: false, worried: false }) })
+      mk('手招き', () => { fig.setExpression({ worried: false, sleeping: false }); Object.assign(m, { walking: false, waving: true, brewing: false, sleeping: false, worried: false }) })
+      mk('淹れる', () => { fig.setExpression({ worried: false, sleeping: false }); Object.assign(m, { walking: false, waving: false, brewing: true, sleeping: false, worried: false }) })
+      mk('心配', () => { fig.setExpression({ worried: true, sleeping: false }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: false, worried: true }) })
+      mk('寝る', () => { fig.setExpression({ worried: false, sleeping: true }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: true, worried: false }) })
+      mk('タップ', () => fig.spin())
+    }
+    const clock = new THREE.Clock()
+    let blinkAt = 3, blinkUntil = 0
+    function frame() {
+      requestAnimationFrame(frame)
+      const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime
+      if (mode === 'turn' && !m.reduced) {
+        if (t > blinkAt) { blinkUntil = t + 0.14; blinkAt = t + 3 + Math.random() * 4 }
+        fig.setExpression({ blink: t < blinkUntil })
+      }
+      fig.update(t, dt, m)
+      const W = canvas.width, H = canvas.height
+      if (mode === 'turn') {
+        renderer.setViewport(0, 0, W, H); renderer.setScissor(0, 0, W, H)
+        cam.aspect = W / H; cam.updateProjectionMatrix(); look(yaw, 0.35, 4.4)
+        renderer.render(scene, cam)
+      } else {
+        const w = W / views.length
+        views.forEach((v, i) => {
+          renderer.setViewport(i * w, 0, w, H); renderer.setScissor(i * w, 0, w, H)
+          cam.aspect = w / H; cam.updateProjectionMatrix(); look(v.yaw, v.elev)
+          renderer.render(scene, cam)
+        })
+      }
+      window.__frames = (window.__frames || 0) + 1
+    }
+    frame()
+  </script>
+</body>
+</html>

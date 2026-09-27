@@ -1,0 +1,5 @@
+# Supabase CLI 用の最小設定（デプロイは MCP 経由でも可）
+project_id = "lara"
+
+[functions.link-preview]
+verify_jwt = true
