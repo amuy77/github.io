@@ -80,9 +80,18 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 ## オーナーが次にやること
 
-1. GitHub Pages が最新の `main` からビルドされたら、公開 URL `https://amuy77.github.io/github.io/` を開く
-2. `take2it4easy5@gmail.com` とパスワードでサインアップする（メール確認は不要。すぐログインできる）
-3. 初回ログイン時に初期ジャンル 4 件が自動で入っている
-4. 他のメールアドレスは `allowed_emails` に無い限りサインアップできない。追加したいときは SQL で `insert into public.allowed_emails (email) values ('…')`
+**注意: 2026-09-27 時点で LaRa はまだ公開されていない。** 公開 URL `https://amuy77.github.io/github.io/` には、以前作った「タブ置き場」（ブランチ `claude/safari-page-manager-gardrk` の `index.html`）が表示される。
+`.github/workflows/deploy.yml` は feature ブランチではビルドだけ行い、Pages へのデプロイは `main` に push されたときだけ実行する設計。LaRa のブランチはまだ `main` にマージされていない。
+
+公開するには次のどちらかを選ぶ:
+
+- **A. LaRa をこの URL で公開する**: `claude/lara-management-app-ny75zm` を `main` にマージする。Actions が `dist/` を Pages にデプロイする。リポジトリの Settings → Pages の Source が「Deploy from a branch」になっていたら「GitHub Actions」に切り替える。この場合タブ置き場は同じ URL から消えるので、残したければ LaRa の `public/` 配下（例: `public/tabs/index.html` → `/github.io/tabs/`）に移す
+- **B. タブ置き場をこのまま残す**: LaRa は別リポジトリ（例: `amuy77/lara`）で公開する。その場合は Supabase の Auth 設定（`site_url` と `uri_allow_list`）と `vite.config` の `base` を新しい URL に合わせて更新する
+
+公開できたら:
+
+1. 公開 URL を開き、`take2it4easy5@gmail.com` とパスワードでサインアップする（メール確認は不要。すぐログインできる）
+2. 初回ログイン時に初期ジャンル 4 件が自動で入っている
+3. 他のメールアドレスは `allowed_emails` に無い限りサインアップできない。追加したいときは SQL で `insert into public.allowed_emails (email) values ('…')`
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
