@@ -36,7 +36,7 @@ export function Button({ variant = 'primary', size = 'md', loading, icon, full, 
       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center rounded-chip font-bold select-none transition-colors',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-chip font-bold select-none transition-colors',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mustard-400 disabled:cursor-not-allowed disabled:opacity-70',
         variants[variant], sizes[size], full && 'w-full', className,
       )}

@@ -12,11 +12,11 @@ export function GenreDonut({ shares, size = 168 }: { shares: GenreShare[]; size?
   const r = size / 2 - 8, cx0 = size / 2, cy0 = size / 2, stroke = 22
   const circ = 2 * Math.PI * r
   const gap = 2
-  const offsets = shares.reduce<number[]>((acc, s, i) => { acc.push(i === 0 ? 0 : acc[i - 1] + shares[i - 1].share * circ); return acc }, [])
+  const offsets = shares.reduce<number[]>((acc, _s, i) => { acc.push(i === 0 ? 0 : acc[i - 1] + shares[i - 1].share * circ); return acc }, [])
   const active = shares.find((s) => s.key === hover) ?? null
   return (
-    <div className="flex items-center gap-4">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`ジャンル構成比。${shares.map((s) => `${s.name} ${Math.round(s.share * 100)}%`).join('、')}`}>
+    <div className="flex flex-col items-center gap-4 sm:flex-row">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" role="img" aria-label={`ジャンル構成比。${shares.map((s) => `${s.name} ${Math.round(s.share * 100)}%`).join('、')}`}>
         <circle cx={cx0} cy={cy0} r={r} fill="none" stroke="var(--color-oat-100)" strokeWidth={stroke} />
         {shares.map((s, i) => {
           const len = Math.max(0, s.share * circ - gap)
@@ -31,7 +31,7 @@ export function GenreDonut({ shares, size = 168 }: { shares: GenreShare[]; size?
         <text x={cx0} y={cy0 - 4} textAnchor="middle" className="fill-espresso-900 font-display" fontSize={26} fontWeight={800}>{active ? `${Math.round(active.share * 100)}%` : total}</text>
         <text x={cx0} y={cy0 + 16} textAnchor="middle" className="fill-muted" fontSize={11} fontWeight={700}>{active ? active.name : '提供回数'}</text>
       </svg>
-      <ul className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <ul className="flex w-full min-w-0 flex-1 flex-col gap-1.5">
         {shares.map((s) => (
           <li key={s.key} className={cx('flex items-center gap-2 rounded-[8px] px-1 text-[13px]', hover === s.key && 'bg-oat-50')} onMouseEnter={() => setHover(s.key)} onMouseLeave={() => setHover(null)}>
             <span className="size-3 shrink-0 rounded-[3px]" style={{ background: s.color }} aria-hidden />

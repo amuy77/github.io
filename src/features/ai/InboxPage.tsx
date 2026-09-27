@@ -73,9 +73,9 @@ export function InboxPage() {
                         <IconChevronRight className="text-muted" />
                       </Link>
                       {r.notes && <p className="line-clamp-2 rounded-[10px] bg-oat-50 px-3 py-2 text-xs text-espresso-700">{r.notes}</p>}
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <Button size="sm" icon={<IconCheck size={16} />} onClick={() => publish(r)}>図鑑に載せる</Button>
-                        <Link to={paths.recipeEdit(r.id)} className="inline-flex h-9 items-center rounded-chip border border-line bg-paper px-3 text-sm font-bold">直してから載せる</Link>
+                        <Link to={paths.recipeEdit(r.id)} className="inline-flex h-9 items-center whitespace-nowrap rounded-chip border border-line bg-paper px-3 text-sm font-bold">直してから載せる</Link>
                         <Button size="sm" variant="ghost" className="ml-auto text-muted" icon={<IconX size={16} />} onClick={() => discard(r)}>捨てる</Button>
                       </div>
                     </Card>
