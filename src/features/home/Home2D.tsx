@@ -8,7 +8,7 @@ import type { HomeCounts } from './useCounts'
 import { CountBadge } from '@/components/ui/Chip'
 
 /** 3D が使えないとき／オフ設定のときのホーム（タイル版） */
-export function Home2D({ counts, streak, loading }: { counts: HomeCounts; streak: number; loading?: boolean }) {
+export function Home2D({ counts, streak, loading, worried }: { counts: HomeCounts; streak: number; loading?: boolean; worried?: boolean }) {
   const tiles = [
     { to: paths.clips, em: '📌', name: 'ネタ帳', n: counts.clips, accent: 'mustard' as const },
     { to: paths.recipes, em: '📖', name: 'レシピ図鑑', n: counts.recipes, accent: 'green' as const },
@@ -30,7 +30,7 @@ export function Home2D({ counts, streak, loading }: { counts: HomeCounts; streak
           </div>
         </div>
       </div>
-      <MascotSays mood={loading ? 'thinking' : 'happy'}>{loading ? 'お店を準備中…' : `${greeting()} 今日は何を仕込む？`}</MascotSays>
+      <MascotSays mood={loading ? 'thinking' : worried ? 'worried' : 'happy'}>{loading ? 'お店を準備中…' : worried ? '今日の記録、まだだよ？' : `${greeting()} 今日は何を仕込む？`}</MascotSays>
       <div className="grid grid-cols-2 gap-3">
         {tiles.map((t) => (
           <Link key={t.to} to={t.to} className="block">

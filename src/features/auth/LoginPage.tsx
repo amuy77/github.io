@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router'
 import { useAuth } from './AuthProvider'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
-import { Mascot } from '@/components/mascot/Mascot'
+import { BRAND_IMAGE, WORDMARK } from '@/components/mascot/Mascot'
 import { paths } from '@/app/routes'
 
 export function LoginPage() {
@@ -35,9 +35,10 @@ export function LoginPage() {
     <div className="relative flex min-h-full flex-col items-center justify-center px-6 py-[calc(24px+var(--safe-top))]">
       <div className="confetti-bg pointer-events-none absolute inset-x-0 top-0 h-40" aria-hidden />
       <div className="relative w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <Mascot mood="happy" size={112} />
-          <h1 className="font-display text-3xl font-extrabold tracking-wide">LaRa</h1>
+        <div className="mb-6 flex flex-col items-center gap-2 text-center">
+          <img src={BRAND_IMAGE} alt="" width={168} height={156} className="h-auto w-[168px]" />
+          <h1><img src={WORDMARK} alt="LaRa" width={150} height={50} className="h-auto w-[150px]" /></h1>
+          <p className="text-[11px] font-bold tracking-[0.2em] text-muted">CAFE &amp; SWEETS LAB</p>
           <p className="text-sm text-muted">店主ノート。ネタ帳・レシピ図鑑・メニュー記録。</p>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-card border border-line bg-paper p-5 shadow-card">

@@ -15,7 +15,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['icons/*.png', 'icons/*.svg', 'brand/*'],
+      includeAssets: ['icons/*.png', 'icons/*.svg', 'brand/lara*.png', 'brand/wordmark.png', 'brand/logo-full.png'],
       manifest: {
         id: BASE,
         name: 'LaRa 店主ノート',

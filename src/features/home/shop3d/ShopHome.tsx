@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ShopScene, type Hotspot } from './shopScene'
 import { paths } from '@/app/routes'
 import { dayPart, formatMD, greeting, today } from '@/lib/dates'
-import { BRAND_IMAGE } from '@/components/mascot/Mascot'
+import { BRAND_IMAGES, LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
 
@@ -23,7 +23,7 @@ const RESIDENT_LINES: Record<'morning' | 'day' | 'evening' | 'night', string[]> 
   night: ['Zzz…', 'もう寝る時間…', 'おやすみ…'],
 }
 
-export function ShopHome({ counts, streak }: { counts: HomeCounts; streak: number }) {
+export function ShopHome({ counts, streak, worried = false }: { counts: HomeCounts; streak: number; worried?: boolean }) {
   const nav = useNavigate()
   const reduced = useReducedMotion()
   const ref = useRef<HTMLDivElement>(null)
@@ -32,6 +32,7 @@ export function ShopHome({ counts, streak }: { counts: HomeCounts; streak: numbe
   const [picked, setPicked] = useState<Exclude<Hotspot, 'resident'> | null>(null)
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number } | null>(null)
   const part = useMemo(() => dayPart(), [])
+  const worriedRef = useRef(worried)
 
   useEffect(() => {
     const el = ref.current
@@ -39,9 +40,10 @@ export function ShopHome({ counts, streak }: { counts: HomeCounts; streak: numbe
     const scene = new ShopScene(el, {
       reducedMotion: !!reduced,
       badgeEl: badgeRef.current,
+      assets: { wordmark: WORDMARK, poster: LOGO_FULL },
       onTap: (h) => {
         if (h === 'resident') {
-          const lines = RESIDENT_LINES[dayPart()]
+          const lines = worriedRef.current ? ['今日の記録、まだ？', 'メニュー、何出したっけ…', '記録したら安心して寝られる…'] : RESIDENT_LINES[dayPart()]
           const pos = scene.residentScreenPos()
           if (pos) setBubble({ text: lines[Math.floor(Math.random() * lines.length)], ...pos })
           window.setTimeout(() => setBubble(null), 2200)
@@ -51,14 +53,17 @@ export function ShopHome({ counts, streak }: { counts: HomeCounts; streak: numbe
       },
     })
     scene.setMode(dayPart())
-    scene.setResident(BRAND_IMAGE)
+    scene.setResident(BRAND_IMAGES)
     sceneRef.current = scene
+    ;(window as unknown as { __lara?: ShopScene }).__lara = scene   // デバッグ用
     return () => { scene.dispose(); sceneRef.current = null }
   }, [reduced])
 
   useEffect(() => {
     sceneRef.current?.setCounts({ books: Math.min(24, counts.recipes), cards: Math.min(12, counts.clips), leaves: Math.min(14, streak), chalk: Math.min(30, counts.menuLogs), inbox: counts.inbox })
   }, [counts, streak])
+
+  useEffect(() => { worriedRef.current = worried; sceneRef.current?.setResidentMood(worried ? 'worried' : 'idle') }, [worried])
 
   const info = picked ? HOT[picked] : null
 

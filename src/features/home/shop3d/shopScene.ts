@@ -9,7 +9,11 @@ export interface ShopSceneOptions {
   /** 郵便受けの上に重ねる HTML バッジ（位置はシーンが毎フレーム更新） */
   badgeEl?: HTMLElement | null
   reducedMotion?: boolean
+  /** ブランド素材（無ければ文字看板だけ） */
+  assets?: { wordmark?: string; poster?: string }
 }
+export interface ResidentTextures { idle: string; blink?: string; sleep?: string; worried?: string }
+export type ResidentMood = 'idle' | 'worried'
 
 const C = {
   wall: 0xefe6da, ink: 0x1f1a16, green: 0x2f5d50, greenD: 0x244a40, mustard: 0xd9a441, brick: 0xb8573e,
@@ -72,9 +76,15 @@ export class ShopScene {
   private ndc = new THREE.Vector2()
   private tmp = new THREE.Vector3()
   private resident: THREE.Group | null = null
-  private residentPlane: THREE.Mesh | null = null
+  private residentPlane: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshStandardMaterial> | null = null
   private residentTarget = new THREE.Vector3()
+  private residentPath: THREE.Vector3[] = []
   private residentState: 'counter' | 'machine' | 'mailbox' | 'sleep' = 'counter'
+  private residentTex: Partial<Record<'idle' | 'blink' | 'sleep' | 'worried', THREE.Texture>> = {}
+  private residentMood: ResidentMood = 'idle'
+  private blinkAt = 4
+  private blinkUntil = 0
+  private texLoader = new THREE.TextureLoader()
   private mode: DayPart = 'day'
   private disposed = false
   private ro: ResizeObserver
@@ -133,16 +143,19 @@ export class ShopScene {
     this.needsRender = true
   }
 
-  /** ロゴ画像（背景透過推奨）を紙人形としてお店に立たせる。null で撤去 */
-  setResident(url: string | null) {
-    if (this.resident) { this.scene.remove(this.resident); this.resident = null; this.residentPlane = null }
-    if (!url) return
-    new THREE.TextureLoader().load(url, (tex) => {
+  /** ロゴから切り出した LaRa（背景透過）を紙人形としてお店に立たせる。null で撤去 */
+  setResident(urls: ResidentTextures | null) {
+    if (this.resident) { this.scene.remove(this.resident); this.hotspots = this.hotspots.filter((h) => h !== this.resident); this.resident = null; this.residentPlane = null }
+    if (!urls) return
+    const loadTex = (key: 'blink' | 'sleep' | 'worried') => { const u = urls[key]; if (!u) return; this.texLoader.load(u, (t) => { t.colorSpace = THREE.SRGBColorSpace; this.residentTex[key] = t }) }
+    this.texLoader.load(urls.idle, (tex) => {
       if (this.disposed) return
       tex.colorSpace = THREE.SRGBColorSpace
+      this.residentTex.idle = tex
+      loadTex('blink'); loadTex('sleep'); loadTex('worried')
       const img = tex.image as { width: number; height: number }
       const aspect = img && img.width && img.height ? img.width / img.height : 1
-      const h = 1.15
+      const h = 1.5   // カウンター（高さ 0.99）の後ろに立っても頭とフードが見える背丈
       const g = new THREE.Group()
       const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.35, roughness: 0.95, side: THREE.DoubleSide })
       const plane = new THREE.Mesh(new THREE.PlaneGeometry(h * aspect, h), mat)
@@ -165,10 +178,28 @@ export class ShopScene {
     })
   }
 
+  /** 住人の気分（連続記録が途切れそうなときは心配顔） */
+  setResidentMood(m: ResidentMood) { this.residentMood = m; this.needsRender = true }
+
+  private residentFace(t: number) {
+    if (!this.residentPlane) return
+    const sleeping = this.residentState === 'sleep'
+    if (!sleeping && !this.opts.reducedMotion) {
+      if (t >= this.blinkAt) { this.blinkUntil = t + 0.14; this.blinkAt = t + 3 + Math.random() * 5 }
+    }
+    const blinking = !sleeping && t < this.blinkUntil
+    const want = sleeping ? this.residentTex.sleep ?? this.residentTex.blink : blinking ? this.residentTex.blink : this.residentMood === 'worried' ? this.residentTex.worried : this.residentTex.idle
+    const tex = want ?? this.residentTex.idle
+    if (tex && this.residentPlane.material.map !== tex) { this.residentPlane.material.map = tex; this.residentPlane.material.needsUpdate = true; this.needsRender = true }
+  }
+
+  /** デバッグ用の状態 */
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, tex: Object.keys(this.residentTex) } }
+
   /** 吹き出し表示用: 住人の頭上の画面座標 */
   residentScreenPos(): { x: number; y: number } | null {
     if (!this.resident) return null
-    this.tmp.copy(this.resident.position); this.tmp.y += 1.3
+    this.tmp.copy(this.resident.position); this.tmp.y += 1.7
     this.tmp.project(this.camera)
     const r = this.el.getBoundingClientRect()
     return { x: r.left + ((this.tmp.x + 1) / 2) * r.width, y: r.top + ((1 - this.tmp.y) / 2) * r.height }
@@ -379,27 +410,57 @@ export class ShopScene {
     this.bulb = sph(lamp, 0.06, 0xffe9b0, 0, -0.9, 0, { emissive: 0xffd98a, ei: 0, seg: 10 })
     this.lampLight.position.set(0, -0.95, 0); lamp.add(this.lampLight)
 
-    // 夜用のクッション（住人が寝る場所）
-    box(room, 0.7, 0.14, 0.5, C.plum, -2.2, 0.13, 0.6, { rough: 1 })
+    // 夜用のクッション（住人が寝る場所。カウンターの左横）
+    box(room, 0.7, 0.14, 0.5, C.plum, -2.55, 0.13, 0.95, { rough: 1 })
   }
 
   private buildSign(room: THREE.Group) {
+    const { wordmark, poster } = this.opts.assets ?? {}
+    // 壁の看板: クリーム色の板 + ロゴのワードマーク（無ければ文字を描く）
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 160
     const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace
     const draw = () => {
       const g = canvas.getContext('2d')!
-      g.fillStyle = '#1F1A16'; g.fillRect(0, 0, 512, 160)
+      g.fillStyle = '#FBF2E4'; g.fillRect(0, 0, 512, 160)
       g.strokeStyle = '#D9A441'; g.lineWidth = 6; g.strokeRect(14, 14, 484, 132)
-      g.fillStyle = '#D9A441'; g.textAlign = 'center'; g.textBaseline = 'middle'
-      g.font = '800 92px "Shippori Mincho B1", "Hiragino Mincho ProN", serif'; g.fillText('LaRa', 256, 78)
-      g.font = '500 20px "Zen Kaku Gothic New", sans-serif'; g.fillText('SANDWICH & DRINK', 256, 132)
+      g.fillStyle = '#3B2A20'; g.textAlign = 'center'; g.textBaseline = 'middle'
+      g.font = '800 92px "Shippori Mincho B1", "Hiragino Mincho ProN", serif'; g.fillText('LaRa', 256, 84)
       tex.needsUpdate = true; this.needsRender = true
     }
-    const ink = this.M(C.ink)
-    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 0.06), [ink, ink, ink, ink, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }), ink])
+    const frame = this.M(C.woodD)
+    const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 })
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 0.06), [frame, frame, frame, frame, face, frame])
     sign.position.set(0.2, 2.72, -2.57); sign.castShadow = true; room.add(sign)
     draw()
-    if (document.fonts?.load) document.fonts.load('800 92px "Shippori Mincho B1"').then(draw).catch(() => {})
+    if (wordmark) {
+      this.texLoader.load(wordmark, (wm) => {
+        if (this.disposed) return
+        wm.colorSpace = THREE.SRGBColorSpace
+        const g = canvas.getContext('2d')!
+        g.fillStyle = '#FBF2E4'; g.fillRect(0, 0, 512, 160)
+        g.strokeStyle = '#D9A441'; g.lineWidth = 6; g.strokeRect(14, 14, 484, 132)
+        const img = wm.image as HTMLImageElement
+        const scale = Math.min(400 / img.width, 110 / img.height)
+        g.drawImage(img, 256 - (img.width * scale) / 2, 80 - (img.height * scale) / 2, img.width * scale, img.height * scale)
+        tex.needsUpdate = true; this.needsRender = true
+      })
+    } else if (document.fonts?.load) document.fonts.load('800 92px "Shippori Mincho B1"').then(draw).catch(() => {})
+
+    // 左の壁のポスター: ロゴ全体
+    if (poster) {
+      this.texLoader.load(poster, (pt) => {
+        if (this.disposed) return
+        pt.colorSpace = THREE.SRGBColorSpace
+        const img = pt.image as { width: number; height: number }
+        const ph = 1.3, pw = ph * (img.width / img.height)
+        const fr = this.box(room, 0.04, ph + 0.1, pw + 0.1, C.woodD, -3.18, 1.85, 0.55)
+        fr.castShadow = false
+        const plane = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshStandardMaterial({ map: pt, roughness: 0.9 }))
+        plane.position.set(-3.155, 1.85, 0.55); plane.rotation.y = Math.PI / 2; plane.receiveShadow = true
+        room.add(plane)
+        this.needsRender = true
+      })
+    }
   }
 
   private buildLights() {
@@ -417,9 +478,23 @@ export class ShopScene {
     switch (s) {
       case 'machine': return new THREE.Vector3(-1.3, 0, -0.35)
       case 'mailbox': return new THREE.Vector3(1.9, 0, 1.55)
-      case 'sleep': return new THREE.Vector3(-2.2, 0, 0.6)
+      case 'sleep': return new THREE.Vector3(-2.55, 0, 0.95)
       default: return new THREE.Vector3(-0.2, 0, -0.35)
     }
+  }
+  /** カウンターを突き抜けないように、端を回る経路（A: 右端の奥, B: 右前, C: 左端の奥） */
+  private residentRoute(from: typeof this.residentState, to: typeof this.residentState): THREE.Vector3[] {
+    const A = new THREE.Vector3(1.15, 0, -0.35), B = new THREE.Vector3(1.4, 0, 1.15), Cc = new THREE.Vector3(-2.6, 0, -0.35)
+    const zone = (s: typeof this.residentState) => (s === 'mailbox' ? 'front' : s === 'sleep' ? 'side' : 'behind')
+    const zf = zone(from), zt = zone(to)
+    const via: THREE.Vector3[] = []
+    if (zf === 'behind' && zt === 'front') via.push(A, B)
+    else if (zf === 'front' && zt === 'behind') via.push(B, A)
+    else if (zf === 'behind' && zt === 'side') via.push(Cc)
+    else if (zf === 'side' && zt === 'behind') via.push(Cc)
+    else if (zf === 'front' && zt === 'side') via.push(B, A, Cc)
+    else if (zf === 'side' && zt === 'front') via.push(Cc, A, B)
+    return [...via, this.residentSpot(to)]
   }
   private updateResidentState(force = false) {
     if (!this.resident) return
@@ -428,8 +503,9 @@ export class ShopScene {
     else if (this.mode === 'night') s = 'sleep'
     else if (this.mode === 'morning') s = 'machine'
     if (s !== this.residentState || force) {
+      this.residentPath = force ? [this.residentSpot(s)] : this.residentRoute(this.residentState, s)
       this.residentState = s
-      this.residentTarget.copy(this.residentSpot(s))
+      this.residentTarget.copy(this.residentPath[0])
       this.needsRender = true
     }
   }
@@ -513,20 +589,26 @@ export class ShopScene {
       }
       this.needsRender = true
     }
-    // 住人の移動・ゆらゆら
+    // 住人の移動・ゆらゆら・まばたき
     if (this.resident && this.residentPlane) {
+      this.residentFace(t)
       const p = this.resident.position
       const d = this.residentTarget.clone().sub(p); d.y = 0
       const dist = d.length()
       if (dist > 0.02) {
         const step = Math.min(dist, dt * 1.6)
         p.add(d.normalize().multiplyScalar(step))
-        this.residentPlane.position.y = 0.6 + Math.abs(Math.sin(t * 9)) * 0.06
+        this.residentPlane.position.y = 0.77 + Math.abs(Math.sin(t * 9)) * 0.06
+        this.residentPlane.rotation.z = 0
+        this.needsRender = true
+      } else if (this.residentPath.length > 1) {
+        this.residentPath.shift()
+        this.residentTarget.copy(this.residentPath[0])
         this.needsRender = true
       } else if (!this.opts.reducedMotion) {
         const sleeping = this.residentState === 'sleep'
         this.residentPlane.rotation.z = sleeping ? -Math.PI / 2 + Math.sin(t * 1.2) * 0.02 : Math.sin(t * 1.5) * 0.035
-        this.residentPlane.position.y = sleeping ? 0.36 : 0.595 + Math.sin(t * 1.5) * 0.02
+        this.residentPlane.position.y = sleeping ? 0.5 : 0.77 + Math.sin(t * 1.5) * 0.02
         this.residentPlane.rotation.y = this.residentState === 'mailbox' ? Math.sin(t * 6) * 0.08 : 0
         this.needsRender = true
       }

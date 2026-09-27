@@ -4,8 +4,18 @@ import { cx } from '@/lib/cx'
 
 export type Mood = 'idle' | 'happy' | 'thinking' | 'sleepy' | 'party' | 'worried'
 
-/** ロゴ画像（public/brand/lara.png）が置かれていればそれを使う。無ければクロワッサンの線画 */
+/** ロゴから切り出した LaRa（public/brand/*.png）。表情差分は気分で切り替える */
 export const BRAND_IMAGE = `${import.meta.env.BASE_URL}brand/lara.png`
+export const BRAND_IMAGES = {
+  idle: BRAND_IMAGE,
+  blink: `${import.meta.env.BASE_URL}brand/lara-blink.png`,
+  sleep: `${import.meta.env.BASE_URL}brand/lara-sleep.png`,
+  worried: `${import.meta.env.BASE_URL}brand/lara-worried.png`,
+}
+export const LOGO_FULL = `${import.meta.env.BASE_URL}brand/logo-full.png`
+export const WORDMARK = `${import.meta.env.BASE_URL}brand/wordmark.png`
+
+const imageForMood = (m: Mood) => (m === 'sleepy' ? BRAND_IMAGES.sleep : m === 'worried' ? BRAND_IMAGES.worried : BRAND_IMAGES.idle)
 
 export function Mascot({ mood = 'idle', size = 72, className }: { mood?: Mood; size?: number; className?: string }) {
   const reduced = useReducedMotion()
@@ -15,7 +25,7 @@ export function Mascot({ mood = 'idle', size = 72, className }: { mood?: Mood; s
   return (
     <motion.div className={cx('relative inline-block shrink-0', className)} style={{ width: size, height: size }} animate={anim} transition={{ duration: dur, repeat: mood === 'party' ? 2 : Infinity, ease: 'easeInOut' }}>
       {imgOk ? (
-        <img src={BRAND_IMAGE} alt="LaRa" width={size} height={size} className="h-full w-full object-contain" onError={() => setImgOk(false)} />
+        <img src={imageForMood(mood)} alt="LaRa" width={size} height={size} className="h-full w-full object-contain" onError={() => setImgOk(false)} />
       ) : (
         <Croissant mood={mood} />
       )}
