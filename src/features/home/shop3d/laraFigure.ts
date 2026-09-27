@@ -36,7 +36,7 @@ export interface LaraFigure {
   dispose(): void
 }
 
-const COL = { cream: 0xffe7c2, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a }
+const COL = { cream: 0xffe7c2, moon: 0xffd95a, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a }
 const HEAD = { cx: 0, cy: 0.69, rx: 0.378, ry: 0.306, rz: 0.342 }
 const LINE = 0.02
 
@@ -245,19 +245,19 @@ export function buildLaraFigure(): LaraFigure {
   }
 
   // ---------- 三日月の被り物 ----------
-  // 頭のてっぺんに、角を上に向けてちょこんと乗る小さめの三日月（外側の円から、少し上にずらした内側の円を抜いた形）。
-  // 外円: 中心 (0, 1.32) 半径 0.5 / 内円: 中心 (0, 1.45) 半径 0.4 → 底の厚み 0.23、角の先は (±0.29, 1.73)。
-  // 底の部分は頭に少し沈めて「かぶっている」感じにし、少し後ろへ傾ける
+  // 頭がすっぽり入る黄色い三日月のフード（外側の円から、上にずらした内側の円を抜いた本物の三日月の形）。
+  // 外円: 中心 (0, 0.95) 半径 0.61 → 底はあご (0.34)、いちばん広い所で ±0.61 / 内円: 中心 (0, 1.2) 半径 0.455 → 頭の後ろに隠れる。
+  // 角の先は (±0.41, 1.39)。顔の両脇と頭の上に三日月が見え、頭がその中に収まる
   {
     const cy = HEAD.cy
-    const O = { x: 0, y: 1.32 - cy, r: 0.5 }, I = { x: 0, y: 1.45 - cy, r: 0.4 }
+    const O = { x: 0, y: 0.95 - cy, r: 0.61 }, I = { x: 0, y: 1.2 - cy, r: 0.455 }
     const d = I.y - O.y
     const ty = (d * d + O.r * O.r - I.r * I.r) / (2 * d)            // 2 円の交点（角の先）
     const tip = new THREE.Vector2(Math.sqrt(Math.max(0, O.r * O.r - ty * ty)), O.y + ty)
     const origin = new THREE.Vector2(I.x, I.y)
-    const moon = new THREE.Group(); moon.position.set(0, 0, -0.1); moon.rotation.x = -0.3; headG.add(moon)
-    const opts = { depth: 1.0, maxDepth: 0.13 }
-    const m = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, opts)), toonMat(COL.cream)); m.castShadow = true; moon.add(m)
+    const moon = new THREE.Group(); moon.position.set(0, 0, -0.16); moon.rotation.x = -0.1; headG.add(moon)
+    const opts = { depth: 0.8, maxDepth: 0.24 }
+    const m = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, opts)), toonMat(COL.moon)); m.castShadow = true; moon.add(m)
     const h = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, { ...opts, inflate: LINE * 0.9 })), hullMat()); h.raycast = () => {}; moon.add(h)
   }
 
@@ -283,7 +283,7 @@ export function buildLaraFigure(): LaraFigure {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
     spin() { spinT = 0 },
-    headTop(out) { return out.copy(headTopV.set(0, 1.8, 0)).applyMatrix4(group.matrixWorld) },
+    headTop(out) { return out.copy(headTopV.set(0, 1.5, 0)).applyMatrix4(group.matrixWorld) },
     update(t, dt, m) {
       const reduced = !!m.reduced
       // 向き
