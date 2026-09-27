@@ -32,6 +32,8 @@ jobs:
           path: dist
 
   deploy:
+    # github-pages 環境は既定で main からのデプロイだけを許可している
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:
