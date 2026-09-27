@@ -49,61 +49,27 @@ function tone() {
   return toneTex
 }
 
-/** 折れ線と、origin から dir 方向へ伸びる半直線の最初の交点までの距離（無ければ null） */
-function rayHit(poly: THREE.Vector2[], origin: THREE.Vector2, dir: THREE.Vector2): number | null {
-  let best: number | null = null
-  for (let i = 0; i < poly.length - 1; i++) {
-    const a = poly[i], b = poly[i + 1]
-    const ex = b.x - a.x, ey = b.y - a.y
-    const den = dir.x * ey - dir.y * ex
-    if (Math.abs(den) < 1e-9) continue
-    const ox = a.x - origin.x, oy = a.y - origin.y
-    const t = (ox * ey - oy * ex) / den        // 半直線上の距離
-    const u = (ox * dir.y - oy * dir.x) / den  // 線分上の位置
-    if (t >= 0 && u >= -1e-6 && u <= 1 + 1e-6 && (best === null || t < best)) best = t
-  }
-  return best
-}
-
 /**
- * 三日月の「ぬいぐるみ」: 正面の輪郭（外側・内側）を指定し、中心 origin からの放射方向に
- * 楕円断面を並べて閉じた面にする。正面から見た形は輪郭そのもの、奥行きは丸い。
- * inflate は輪郭線用に全体を太らせる量。
+ * フードの殻: 楕円体（半径 rx, ry, rz）の正面（+z）に、丸い顔の窓（+z 軸からの角度 window まで）を開けたもの。
+ * +z 軸まわりの極座標で格子を切るので、窓の縁がきれいな楕円になる。
  */
-function crescent(outer: THREE.Vector2[], inner: THREE.Vector2[], origin: THREE.Vector2, tip: THREE.Vector2, opts: { depth: number; maxDepth: number; inflate?: number; along?: number; around?: number }): THREE.BufferGeometry {
-  const { depth, maxDepth, inflate = 0, along = 80, around = 18 } = opts
-  const phiTip = Math.atan2(tip.x - origin.x, -(tip.y - origin.y))   // 真下から測った角度
+function hoodShell(rx: number, ry: number, rz: number, window: number, nu = 26, nv = 48): THREE.BufferGeometry {
   const positions: number[] = [], index: number[] = []
-  const dir = new THREE.Vector2()
-  for (let i = 0; i <= along; i++) {
-    const phi = THREE.MathUtils.lerp(-phiTip, phiTip, i / along)
-    dir.set(Math.sin(phi), -Math.cos(phi))
-    const atTip = i === 0 || i === along
-    const ro = atTip ? tip.distanceTo(origin) : rayHit(outer, origin, dir), ri = atTip ? ro : rayHit(inner, origin, dir)
-    if (ro === null || ri === null) throw new Error('crescent: contour miss')
-    const hw = Math.max(0, (ro - ri) / 2) + inflate
-    const cd = Math.min(maxDepth, Math.max(0, (ro - ri) / 2) * depth) + inflate
-    const mid = atTip ? ro + inflate * 1.5 : (ro + ri) / 2
-    const cx = origin.x + dir.x * mid, cy = origin.y + dir.y * mid
-    for (let j = 0; j <= around; j++) {
-      const a = (j / around) * Math.PI * 2, c = Math.cos(a) * (atTip ? 0 : hw), s = Math.sin(a) * (atTip ? 0 : cd)
-      positions.push(cx + dir.x * c, cy + dir.y * c, s)
+  for (let i = 0; i <= nu; i++) {
+    const u = THREE.MathUtils.lerp(window, Math.PI, i / nu)   // 窓の縁 → 後頭部
+    for (let j = 0; j <= nv; j++) {
+      const v = (j / nv) * Math.PI * 2
+      positions.push(rx * Math.sin(u) * Math.cos(v), ry * Math.sin(u) * Math.sin(v), rz * Math.cos(u))
     }
   }
-  for (let i = 0; i < along; i++) for (let j = 0; j < around; j++) {
-    const a = i * (around + 1) + j, b = a + around + 1   // a→b は輪郭に沿う向き、a→a+1 は断面を +z へ回る向き。外向きの面になる順で結ぶ
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+    const a = i * (nv + 1) + j, b = a + nv + 1
     index.push(a, b, a + 1, b, b + 1, a + 1)
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   g.setIndex(index); g.computeVertexNormals()
   return g
-}
-/** 円の折れ線（閉じている） */
-function circle(cx: number, cy: number, r: number, n = 96): THREE.Vector2[] {
-  const pts: THREE.Vector2[] = []
-  for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2; pts.push(new THREE.Vector2(cx + Math.cos(a) * r, cy + Math.sin(a) * r)) }
-  return pts
 }
 
 export function buildLaraFigure(): LaraFigure {
@@ -116,22 +82,29 @@ export function buildLaraFigure(): LaraFigure {
   const inkMat = (color = COL.ink) => { const m = new THREE.MeshBasicMaterial({ color }); mats.push(m); return m }
   const hullMat = () => { const m = new THREE.MeshBasicMaterial({ color: COL.ink, side: THREE.BackSide }); mats.push(m); return m }
 
-  /** 輪郭線: 頂点を法線方向に d だけ押し出したコピーを裏面描画 */
-  const hull = (mesh: THREE.Mesh, d = LINE) => {
+  /** 輪郭線: 頂点を法線方向に d だけ押し出したコピーを裏面描画。apex=true は円錐の先端（法線がばらけて毛羽立つ）を 1 点にまとめる */
+  const hull = (mesh: THREE.Mesh, d = LINE, apex = false) => {
     const g = G(mesh.geometry.clone())
     const pos = g.attributes.position as THREE.BufferAttribute
     const nor = g.attributes.normal as THREE.BufferAttribute
-    for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) + nor.getX(i) * d, pos.getY(i) + nor.getY(i) * d, pos.getZ(i) + nor.getZ(i) * d)
+    g.computeBoundingBox()
+    const top = g.boundingBox!.max.y
+    for (let i = 0; i < pos.count; i++) {
+      if (apex && pos.getY(i) > top - 1e-4) pos.setXYZ(i, 0, top + d, 0)
+      else pos.setXYZ(i, pos.getX(i) + nor.getX(i) * d, pos.getY(i) + nor.getY(i) * d, pos.getZ(i) + nor.getZ(i) * d)
+    }
     const h = new THREE.Mesh(g, hullMat())
     h.raycast = () => {}
     mesh.add(h)
     return h
   }
-  const solid = (geo: THREE.BufferGeometry, color: number, parent: THREE.Object3D, o: { line?: number; shadow?: boolean } = {}) => {
-    const m = new THREE.Mesh(G(geo), toonMat(color))
+  const solid = (geo: THREE.BufferGeometry, color: number, parent: THREE.Object3D, o: { line?: number; shadow?: boolean; apex?: boolean; double?: boolean } = {}) => {
+    const mat = toonMat(color)
+    if (o.double) mat.side = THREE.DoubleSide
+    const m = new THREE.Mesh(G(geo), mat)
     m.castShadow = o.shadow ?? true
     parent.add(m)
-    if (o.line !== 0) hull(m, o.line ?? LINE)
+    if (o.line !== 0) hull(m, o.line ?? LINE, o.apex)
     return m
   }
 
@@ -244,21 +217,27 @@ export function buildLaraFigure(): LaraFigure {
     headG.add(w)
   }
 
-  // ---------- 三日月の被り物 ----------
-  // 頭がすっぽり入る黄色い三日月のフード（外側の円から、上にずらした内側の円を抜いた本物の三日月の形）。
-  // 外円: 中心 (0, 0.95) 半径 0.61 → 底はあご (0.34)、いちばん広い所で ±0.61 / 内円: 中心 (0, 1.2) 半径 0.455 → 頭の後ろに隠れる。
-  // 角の先は (±0.41, 1.39)。顔の両脇と頭の上に三日月が見え、頭がその中に収まる
+  // ---------- 三日月（黄色いフード）の被り物 ----------
+  // 猫の耳ごと頭をすっぽり包む黄色いフード。頭より一回り大きい楕円体の正面に丸い顔の窓を開け、
+  // 顔がその窓から少し前に出る。上には猫の耳のとがり（三日月の角）が 2 つ。窓の縁は管で線を描く
   {
-    const cy = HEAD.cy
-    const O = { x: 0, y: 0.95 - cy, r: 0.61 }, I = { x: 0, y: 1.2 - cy, r: 0.455 }
-    const d = I.y - O.y
-    const ty = (d * d + O.r * O.r - I.r * I.r) / (2 * d)            // 2 円の交点（角の先）
-    const tip = new THREE.Vector2(Math.sqrt(Math.max(0, O.r * O.r - ty * ty)), O.y + ty)
-    const origin = new THREE.Vector2(I.x, I.y)
-    const moon = new THREE.Group(); moon.position.set(0, 0, -0.16); moon.rotation.x = -0.1; headG.add(moon)
-    const opts = { depth: 0.8, maxDepth: 0.24 }
-    const m = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, opts)), toonMat(COL.moon)); m.castShadow = true; moon.add(m)
-    const h = new THREE.Mesh(G(crescent(circle(O.x, O.y, O.r), circle(I.x, I.y, I.r), origin, tip, { ...opts, inflate: LINE * 0.9 })), hullMat()); h.raycast = () => {}; moon.add(h)
+    const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(55)
+    const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); headG.add(hood)
+    solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true })
+    // 窓の縁（フードの口）
+    const rim: THREE.Vector3[] = []
+    for (let i = 0; i <= 64; i++) { const v = (i / 64) * Math.PI * 2; rim.push(new THREE.Vector3(R.x * Math.sin(W) * Math.cos(v), R.y * Math.sin(W) * Math.sin(v), R.z * Math.cos(W))) }
+    const rimTube = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true, 'centripetal', 0.5), 96, LINE * 0.9, 8, true)), inkMat())
+    rimTube.raycast = () => {}
+    hood.add(rimTube)
+    // 耳（フードの上のとがり）
+    for (const s of [-1, 1]) {
+      const e = solid(new THREE.ConeGeometry(0.15, 0.36, 20, 1), COL.moon, hood, { apex: true })
+      e.position.set(s * 0.24, 0.42, -0.02)
+      e.scale.set(1, 1, 0.65)
+      e.rotation.z = -s * 0.32
+      e.rotation.x = -0.12
+    }
   }
 
   // ---------- 状態 ----------
@@ -283,7 +262,7 @@ export function buildLaraFigure(): LaraFigure {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
     spin() { spinT = 0 },
-    headTop(out) { return out.copy(headTopV.set(0, 1.5, 0)).applyMatrix4(group.matrixWorld) },
+    headTop(out) { return out.copy(headTopV.set(0, 1.55, 0)).applyMatrix4(group.matrixWorld) },
     update(t, dt, m) {
       const reduced = !!m.reduced
       // 向き
