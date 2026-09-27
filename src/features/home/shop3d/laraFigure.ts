@@ -257,17 +257,17 @@ export function buildLaraFigure(): LaraFigure {
     const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(55)
     const vLine = (x: number) => 0.3 + 0.4 * Math.abs(x)   // 三日月の内側の縁（V）。中央 y 0.3 = 額のすぐ上
     const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); headG.add(hood)
-    solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true })
+    solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true, line: 0 })
+    // 輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない）
+    const shellHull = new THREE.Mesh(G(hoodShell(R.x + LINE, R.y + LINE, R.z + LINE, W + THREE.MathUtils.degToRad(4))), hullMat())
+    shellHull.raycast = () => {}
+    hood.add(shellHull)
     const line = (pts: THREE.Vector3[], closed: boolean) => {
       const t = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, closed, 'centripetal', 0.5), Math.max(48, pts.length * 2), LINE * 0.9, 8, closed)), inkMat())
       t.raycast = () => {}
       hood.add(t)
     }
-    // 窓の縁（フードの口）
-    const rim: THREE.Vector3[] = []
-    for (let i = 0; i <= 64; i++) { const v = (i / 64) * Math.PI * 2; rim.push(new THREE.Vector3(R.x * Math.sin(W) * Math.cos(v), R.y * Math.sin(W) * Math.sin(v), R.z * Math.cos(W))) }
-    line(rim, true)
-    // 三日月の内側の縁（V）: フードの額の上に、角の付け根から付け根へ V 字の線を描く
+    // 顔の窓の縁には線を引かない（黒い枠に見えるため）。三日月の内側の縁（V）だけ描く: フードの額の上に、角の付け根から付け根へ V 字の線を描く
     const edge: THREE.Vector3[] = []
     const onShell = (x: number) => { const y = vLine(x), k = 1 - (x / R.x) ** 2 - (y / R.y) ** 2; return k > 0 ? new THREE.Vector3(x, y, R.z * Math.sqrt(k) + 0.004) : null }
     let xm = 0; for (let x = 0; x < R.x; x += 0.002) { if (onShell(x)) xm = x }
