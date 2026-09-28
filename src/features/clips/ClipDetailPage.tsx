@@ -17,6 +17,7 @@ import { ClipEditorSheet } from './ClipEditorSheet'
 import { RatingInput } from '@/components/ui/Rating'
 import { ClipReviewSheet } from '@/features/ai/ReviewSheet'
 import { AskLaraButton } from '@/features/ask/AskLaraButton'
+import { AiFixButton } from '@/features/ai/AiFixPanel'
 import { useClip, useDeleteClip, useUpdateClip } from './hooks'
 import { cx } from '@/lib/cx'
 
@@ -79,6 +80,7 @@ export function ClipDetailPage() {
             )}
           </Card>
         )}
+        {c.type !== 'idea' && c.images.length > 0 && <AiFixButton full target={{ type: 'clip', id: c.id, images: c.images }} />}
         <div className="flex items-center justify-between">
           <AskLaraButton q={`「${clipTitle(c)}」${c.shop_name ? `（${c.shop_name}）` : ''}のネタを LaRa のメニューに活かすなら？`} />
           <Button variant="ghost" size="sm" icon={<IconTrash size={16} />} className="text-brick-500" onClick={() => setConfirm(true)}>削除</Button>

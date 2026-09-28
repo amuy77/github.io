@@ -23,7 +23,7 @@ import { nextWorkerTime, WORKER_SCHEDULE_LABEL, type AutoResult } from './api'
 import { useAiJobs, useJobActions } from './hooks'
 import { cx } from '@/lib/cx'
 
-const KIND_LABEL: Record<AiJobRow['kind'], string> = { recipe_from_image: '📷 写真 → レシピ', recipe_from_text: '📋 テキスト → レシピ', clip_from_image: '📌 写真 → ネタ書き起こし', auto_from_image: '✨ 写真 → AI におまかせ', consult: '💬 LaRa に相談', weekly_insights: '📊 週次レポート' }
+const KIND_LABEL: Record<AiJobRow['kind'], string> = { recipe_from_image: '📷 写真 → レシピ', recipe_from_text: '📋 テキスト → レシピ', clip_from_image: '📌 写真 → ネタ書き起こし', auto_from_image: '✨ 写真 → AI におまかせ', redo: '✏️ AI に修正を依頼', consult: '💬 LaRa に相談', weekly_insights: '📊 週次レポート' }
 
 type ReviewItem = { kind: 'clip'; clip: ClipRow; at: string } | { kind: 'recipe'; recipe: RecipeRow; at: string }
 const STATUS: Record<AiJobRow['status'], { label: string; cls: string }> = {
@@ -136,9 +136,9 @@ function ReviewCard({ badge, thumb, title, sub, stars, onOpen }: { badge: string
 }
 
 function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCancel?: () => void; onRetry?: () => void; onOpenResult?: () => void }) {
-  const payload = (job.payload ?? {}) as { image_paths?: string[]; text?: string; hint?: string; escalate?: string; escalate_reason?: string }
+  const payload = (job.payload ?? {}) as { image_paths?: string[]; text?: string; hint?: string; escalate?: string; escalate_reason?: string; instruction?: string }
   // 一次（Sonnet）が自信なしと判断して Opus の精読に回したもの
-  const escalated = job.status === 'pending' && !!payload.escalate
+  const escalated = job.status === 'pending' && !!payload.escalate && job.kind !== 'redo'
   const st = escalated ? { label: 'Opus で精読待ち', cls: 'bg-plum-400/15 text-plum-400' } : STATUS[job.status]
   const detail = payload.image_paths?.length ? `写真 ${payload.image_paths.length} 枚` : payload.text ? payload.text.slice(0, 40) : ''
   const result = (job.status === 'done' ? job.result ?? {} : {}) as AutoResult
@@ -148,7 +148,7 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
     <Card className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-bold">{KIND_LABEL[job.kind]}</p>
-        <p className="truncate text-xs text-muted">{[detail, payload.hint, (payload as { question?: string }).question, relativeDay(job.created_at)].filter(Boolean).join(' ・ ')}</p>
+        <p className="truncate text-xs text-muted">{[payload.instruction ? `「${payload.instruction.slice(0, 30)}」` : detail, payload.hint, (payload as { question?: string }).question, relativeDay(job.created_at)].filter(Boolean).join(' ・ ')}</p>
         {job.status === 'failed' && job.error && <p className="mt-1 text-xs text-brick-500">{job.error}</p>}
         {escalated && <p className="mt-1 text-xs text-plum-400">より正確に読むため Opus に回しました{payload.escalate_reason ? `（${payload.escalate_reason}）` : ''}。毎時 20 分ごろに処理します。</p>}
         {link && (
@@ -156,6 +156,7 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
             {link.label}{result.summary ? `: ${result.summary}` : ''} <IconChevronRight size={14} />
           </Link>
         )}
+        {result.learned && <p className="mt-1 rounded-[8px] bg-green-600/10 px-2 py-1 text-[12px] font-bold text-green-700">📝 覚えたこと: {result.learned}</p>}
         {answer && <p className="mt-2 whitespace-pre-wrap rounded-[10px] bg-oat-50 px-3 py-2 text-[13px] leading-relaxed text-espresso-900">{answer}</p>}
       </div>
       <Tag className={cx('border-0', st.cls)}>{st.label}</Tag>

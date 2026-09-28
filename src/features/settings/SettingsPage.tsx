@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { updateSettings, useSettings } from './useSettings'
 import { IconLogout } from '@/components/ui/icons'
 import { GenreManager } from '@/features/genres/GenreManager'
+import { LearnedRules } from './LearnedRules'
 import { useBadges } from '@/features/game/useBadges'
 import { BADGES } from '@/features/game/badges'
 import { cx } from '@/lib/cx'
@@ -18,6 +19,8 @@ export function SettingsPage() {
     <>
       <PageHeader title="設定" />
       <div className="flex flex-col gap-4">
+        <SectionTitle>LaRa が覚えたこと</SectionTitle>
+        <LearnedRules />
         <SectionTitle>ジャンル</SectionTitle>
         <GenreManager />
 

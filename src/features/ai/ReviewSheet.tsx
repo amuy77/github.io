@@ -18,6 +18,7 @@ import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useDeleteRecipe, useRecipes, useUpdateRecipe } from '@/features/recipes/hooks'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from '@/features/recipes/family'
+import { AiFixPanel } from './AiFixPanel'
 
 const Footer = ({ onLater, onDiscard, onOk, okLabel, busy }: { onLater: () => void; onDiscard: () => void; onOk: () => void; okLabel: string; busy: boolean }) => (
   <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-line bg-paper px-4 pb-[calc(12px+var(--safe-bottom))] pt-3 md:pb-3">
@@ -66,6 +67,7 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
           {clip.images.map((im) => <ImageThumb key={im.path} src={photoUrl(im, 'full')} className="h-44 w-auto min-w-44 shrink-0 rounded-card" fit="cover" />)}
         </div>
       )}
+      <AiFixPanel collapsible target={{ type: 'clip', id: clip.id, images: clip.images }} onSent={onClose} />
       <RatingInput label="どのくらい気になる？" max={5} value={rating} onChange={setRating} disabled={busy} />
       <Input label="名前" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="クロックムッシュ ¥980" />
       <Input label="お店" value={shop} onChange={(e) => setShop(e.target.value)} placeholder="コーヒースタンド Y" />
@@ -133,6 +135,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   return (
     <div className="flex flex-col gap-4">
       {recipe.hero_image && <ImageThumb src={photoUrl(recipe.hero_image, 'full')} className="aspect-[4/3] rounded-card" />}
+      <AiFixPanel collapsible target={{ type: 'recipe', id: recipe.id, images: recipe.hero_image ? [recipe.hero_image] : [] }} onSent={onClose} />
       <RatingInput label="このレシピの評価" max={3} value={rating} onChange={setRating} disabled={busy} />
       <Input label="レシピ名" value={title} onChange={(e) => setTitle(e.target.value)} />
       <div className="flex flex-col gap-2">

@@ -58,17 +58,21 @@ limit 10;
 ## 手順
 
 1. 上の SQL で待ち行列を取る。0 件なら「ジョブなし」とだけ報告して終了。
-2. 各ジョブについて、先に `processing` にする（多重処理防止）。
+2. ジョブがあったら、そのユーザーの「覚えたこと」（店主の好み・ルール）を最初に読む。ユーザーごとに 1 回でよい。**以降のすべてのジョブで、ここに書かれたルールを必ず守る**（この手順書と食い違うときは、覚えたことのほうを優先する。ただし安全のルールは破らない）。
+   ```sql
+   select rule from public.ai_preferences where user_id = '<USER_ID>' and active order by created_at;
+   ```
+3. 各ジョブについて、先に `processing` にする（多重処理防止）。
    ```sql
    update public.ai_jobs set status = 'processing', started_at = now(), attempts = attempts + 1 where id = '<JOB_ID>' and status = 'pending';
    ```
-3. `kind` ごとに処理する（下記）。担当が `一次` で、読み取りに自信がないときは「精読へ回す」（下記）。
-4. 成功したら `done`、失敗したら `failed` に更新する。`error` には人が読んで分かる日本語を 1 行で。
+4. `kind` ごとに処理する（下記）。担当が `一次` で、読み取りに自信がないときは「精読へ回す」（下記）。
+5. 成功したら `done`、失敗したら `failed` に更新する。`error` には人が読んで分かる日本語を 1 行で。
    ```sql
    update public.ai_jobs set status = 'done', finished_at = now(), result = '<JSON>'::jsonb where id = '<JOB_ID>';
    update public.ai_jobs set status = 'failed', finished_at = now(), error = '<理由>' where id = '<JOB_ID>';
    ```
-5. 最後に、処理した件数と結果を短く報告する。
+6. 最後に、処理した件数と結果を短く報告する。
 
 ## 精読へ回す（担当: 一次 のときだけ）
 
@@ -235,6 +239,29 @@ returning id;
 
 それぞれ上の手順で作り、`result` に両方（`recipe_ids` と `clip_id`/`clip_ids`）を入れる。`decided` は件数が多いほう。
 
+## kind = redo（店主からの修正依頼）
+
+アプリの確認画面や詳細画面で、店主が「AI に直してもらう」から送った指示。最初から精読（Opus）に回っている。`payload`:
+- `target_type`: `clip` か `recipe`、`target_id`: 直す対象の id
+- `instruction`: 店主の指示（原文）。**これが最優先**
+- `images` / `image_paths`: 対象の写真
+- `no_learn`: true なら「覚えたこと」に追加しない
+
+手順:
+1. 対象を読む（`select * from public.clips where id = '<ID>' and user_id = '<USER_ID>'`、レシピなら `recipes`）。見つからなければ `failed`（error: 「直す対象が見つかりませんでした（削除済み？）」）。
+2. 写真を取得して、指示どおりに作り直す。よくある指示:
+   - **「レシピが書いてあるので 1 つずつレシピにして」**: 写真に写っているレシピを**全部**（上限なし。見開きに 6 つあれば 6 件）、`recipe_from_image` の手順で 1 件ずつ下書きにする。材料・分量・手順を 1 つずつ正確に文字起こしする。読めない箇所は空欄 + `notes` に明記。`hero_image` は対象の写真（`images[0]`）。同じ料理が図鑑にあれば `family_id` を付ける。全部作れたら、**元のネタ（対象の clips 行）1 件だけ**削除してよい（`delete from public.clips where id = '<TARGET_ID>' and user_id = '<USER_ID>'`。写真はレシピ側で使うので Storage は消さない）。
+   - **「ネタじゃなくてレシピ」「レシピじゃなくてネタ」**: 正しい側に作り直して、元の行を削除（上と同じく対象 1 件だけ）。レシピ → ネタにするときは `needs_review = true` の clip を作る。
+   - **「読み直して」「数字を正確に」「名前・お店を直して」**: 対象の行を `update` で直す（元の値は上書き）。clip なら `needs_review = true` のままにして、店主がもう一度確認できるようにする。
+   - それ以外: 指示の意図をくんで、いちばん店主が望みそうな形にする。どうしても実行できない指示は `failed` にして、`error` に理由を 1 行で。
+3. **学ぶ**（`no_learn` が true でなければ）: 指示から、**次からも通用する一般的なルール**を 1 文（60 字以内、「〜は〜する」の形）で書き、`ai_preferences` に入れる。その写真だけの話（「3 行目の数字は 20ml」など）なら学ばない。既に同じ意味のルールがあれば入れない。
+   ```sql
+   insert into public.ai_preferences (user_id, rule, example, source_job_id)
+   values ('<USER_ID>', '<ルール>', '<instruction の原文（120 字まで）>', '<JOB_ID>');
+   ```
+   例: 指示「レシピが書いてあるので 1 つずつ文字起こししてレシピとして保存して」→ ルール「手書きのレシピノートやレシピ帳の写真は、写っているレシピを 1 つずつすべてレシピの下書きにする」
+4. `result` は `{"recipe_ids":["…"],"clip_id":"…","summary":"カクテル 6 品をレシピにしました（Opus で精読）","learned":"<学んだルール。学ばなかったら省略>"}`（作った・直したものの id を入れる）。
+
 ## kind = consult
 
 アプリの「LaRa に聞く」で、Claude API キーが未設定だったときに預かった相談。`payload.question` に質問、`payload.recipe_id`（相談中のレシピ）、`payload.compare_with_id`（比べている版）が入っている（null もある）。
@@ -257,8 +284,8 @@ returning id;
 
 ## 安全のルール
 
-- 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`（`consult` では読むだけ）, `genres`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
-- `delete` / `drop` / `truncate` は絶対に実行しない。
+- 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`（`consult` では読むだけ）, `ai_preferences`（読む。`redo` のときだけ追加してよい）, `genres`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
+- `delete` / `drop` / `truncate` は実行しない。**唯一の例外**は `redo` で作り直したときの、対象の行 1 件だけの `delete`（`id` と `user_id` の両方で絞る）。
 - 1 回の実行で処理するジョブは最大 10 件。3 回失敗したジョブは放置する（`attempts < 3` の条件で除外される）。
 - SQL の文字列はシングルクォートを `''` にエスケープする。JSON の中の `'` も同様。
 - 同じジョブを二度処理しない（必ず `processing` への更新が 1 行成功したことを確認してから作業する）。
