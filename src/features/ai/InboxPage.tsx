@@ -14,11 +14,11 @@ import { useRecipes, useUpdateRecipe, useDeleteRecipe } from '@/features/recipes
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { celebrate } from '@/features/game/celebrate'
-import { nextWorkerTime, WORKER_TIMES } from './api'
+import { nextWorkerTime, WORKER_TIMES, type AutoResult } from './api'
 import { useAiJobs, useJobActions } from './hooks'
 import { cx } from '@/lib/cx'
 
-const KIND_LABEL: Record<AiJobRow['kind'], string> = { recipe_from_image: '📷 写真 → レシピ', recipe_from_text: '📋 テキスト → レシピ', clip_from_image: '📌 写真 → ネタ書き起こし', weekly_insights: '📊 週次レポート' }
+const KIND_LABEL: Record<AiJobRow['kind'], string> = { recipe_from_image: '📷 写真 → レシピ', recipe_from_text: '📋 テキスト → レシピ', clip_from_image: '📌 写真 → ネタ書き起こし', auto_from_image: '✨ 写真 → AI におまかせ', weekly_insights: '📊 週次レポート' }
 const STATUS: Record<AiJobRow['status'], { label: string; cls: string }> = {
   pending: { label: '順番待ち', cls: 'bg-mustard-300/40 text-mustard-500' },
   processing: { label: '処理中', cls: 'bg-green-600/15 text-green-700' },
@@ -38,7 +38,7 @@ export function InboxPage() {
 
   const drafts = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'draft'), [recipes.data])
   const active = useMemo(() => (jobs.data ?? []).filter((j) => j.status === 'pending' || j.status === 'processing' || j.status === 'failed'), [jobs.data])
-  const recent = useMemo(() => (jobs.data ?? []).filter((j) => j.status === 'done' || j.status === 'cancelled').slice(0, 5), [jobs.data])
+  const recent = useMemo(() => (jobs.data ?? []).filter((j) => j.status === 'done' || j.status === 'cancelled').slice(0, 10), [jobs.data])
   const loading = recipes.isLoading || jobs.isLoading
 
   const publish = async (r: RecipeRow) => { await update.mutateAsync({ id: r.id, patch: { status: 'published' } }); celebrate('small'); toast(`「${r.title}」を図鑑に載せました`, 'success') }
@@ -53,7 +53,7 @@ export function InboxPage() {
         ) : active.length > 0 ? (
           <MascotSays mood="thinking">{active.some((j) => j.status === 'processing') ? 'いま読み取り中…' : `次の処理は ${nextWorkerTime()} ごろ。急ぎなら Claude に「LaRa の AI ジョブを今処理して」と頼んでね。`}</MascotSays>
         ) : (
-          <MascotSays mood="idle">写真やテキストを「AI のトレイに入れる」と、ここにカードが届くよ。</MascotSays>
+          <MascotSays mood="idle">「＋」から写真を送ると、ネタ帳かレシピか AI が振り分けて、ここに結果が届くよ。</MascotSays>
         )}
 
         {loading ? <Skeleton className="h-28" /> : (
@@ -92,7 +92,7 @@ export function InboxPage() {
             )}
 
             {drafts.length === 0 && active.length === 0 && (
-              <EmptyState emoji="📬" title="トレイは空です" body="レシピ図鑑の「作る」→「写真 → AI」や、ネタ帳の写真から送れます。" action={<Link to={`${paths.recipeNew}?tab=photo`} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">写真を送る</Link>} />
+              <EmptyState emoji="📬" title="トレイは空です" body="「＋」→ カメラか写真を選ぶだけ。ネタ帳かレシピかは AI が判断します。" action={<Link to={paths.add} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">写真を送る</Link>} />
             )}
 
             {recent.length > 0 && (
@@ -105,7 +105,7 @@ export function InboxPage() {
         )}
         <Card className="text-xs leading-relaxed text-muted">
           <p className="font-bold text-espresso-700">仕組み</p>
-          <p>API 料金は使わず、Claude Code の定期実行（Routine）がこのトレイを見に来て、写真を読み取ってレシピカードを作ります。届いたカードは下書きなので、確認してから図鑑に載せてね。</p>
+          <p>API 料金は使わず、Claude Code の定期実行（Routine）がこのトレイを見に来て写真を読み取ります。レシピなら下書きカードとしてここに届き、ネタ（他店のメニューやラベルなど）なら名前とメモを付けてネタ帳に直接保存します。どちらも後から自由に直せるよ。</p>
         </Card>
       </div>
     </>
@@ -116,12 +116,19 @@ function JobRow({ job, onCancel, onRetry }: { job: AiJobRow; onCancel?: () => vo
   const st = STATUS[job.status]
   const payload = (job.payload ?? {}) as { image_paths?: string[]; text?: string; hint?: string }
   const detail = payload.image_paths?.length ? `写真 ${payload.image_paths.length} 枚` : payload.text ? payload.text.slice(0, 40) : ''
+  const result = (job.status === 'done' ? job.result ?? {} : {}) as AutoResult
+  const link = result.clip_id ? { to: paths.clip(result.clip_id), label: '📌 ネタ帳に保存' } : result.recipe_ids?.[0] ? { to: paths.recipe(result.recipe_ids[0]), label: '📖 レシピの下書き' } : null
   return (
     <Card className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-bold">{KIND_LABEL[job.kind]}</p>
         <p className="truncate text-xs text-muted">{[detail, payload.hint, relativeDay(job.created_at)].filter(Boolean).join(' ・ ')}</p>
         {job.status === 'failed' && job.error && <p className="mt-1 text-xs text-brick-500">{job.error}</p>}
+        {link && (
+          <Link to={link.to} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-green-700">
+            {link.label}{result.summary ? `: ${result.summary}` : ''} <IconChevronRight size={14} />
+          </Link>
+        )}
       </div>
       <Tag className={cx('border-0', st.cls)}>{st.label}</Tag>
       {job.status === 'pending' && onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>取消</Button>}

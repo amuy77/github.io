@@ -120,6 +120,57 @@ where id = '<CLIP_ID>' and user_id = '<USER_ID>';
 
 `result` には `{"clip_id":"…","summary":"店名とメニュー3品を書き起こし"}` を入れる。
 
+## kind = auto_from_image
+
+アプリの「＋」から写真だけが送られてきたもの。**写真を見て、レシピかネタかを自分で判断して保存する。** `payload.images` は `[{path, thumb_path, w, h, bytes}]` の配列（`payload.image_paths` は同じ写真のパスだけ）。`payload.hint` があれば尊重する。
+
+判断の目安:
+- **レシピ**: 材料・分量・作り方が書かれている（レシピ本、手書きレシピ、レシピサイトやレシピ動画のスクショ、メモ帳に書いた作り方）。
+- **ネタ**: それ以外。他店のメニュー表、料理やドリンクの写真、ボトルや商品のラベル、看板、Instagram の投稿のスクショ、レシート、チラシなど。
+- 迷ったら**ネタ**にする（写真がそのまま残るので損が少ない）。写真が不鮮明で何も読めない場合も `failed` にはせず、ネタとして保存して `note` に「写真が不鮮明で読み取れませんでした」と書く。
+
+### レシピだった場合
+
+`recipe_from_image` と同じ手順で `recipes` に**下書き**を作る（`source_kind` は `'ai_image'`）。加えて:
+- `hero_image` には `payload.images[0]` をそのまま jsonb で入れる。
+- タイトルは読み取ったものを使い、無ければ材料から自然な名前を付ける（`notes` に「タイトルは仮」）。
+- 材料は `[{"name","amount"}]`、手順は 1 文ずつ。レシピの説明文やコツは `notes` に整理して入れる。
+- 複数枚で別のレシピなら最大 3 件。
+
+`result` は `{"decided":"recipe","recipe_ids":["…"],"summary":"BLTサンドを下書きに"}`。
+
+### ネタだった場合
+
+`clips` に 1 行 **insert** する（`clip_from_image` と違って新規作成）:
+
+```sql
+insert into public.clips (user_id, type, title, note, images, category, tags, shop_name)
+values (
+  '<USER_ID>',
+  'photo',
+  '<タイトル>',
+  '<メモ>',
+  '<payload.images をそのまま>'::jsonb,
+  '<sandwich | drink | wine | beer | coffee | shop | other>',
+  array['<タグ1>','<タグ2>'],
+  <'<店名>' または null>
+)
+returning id;
+```
+
+- `title`: 写真から読み取った名前（メニュー名・商品名・店名など）。読めなければ「写真メモ 9/28」のように日付を付ける。
+- `note`: 1 行目は「AI が読み取ったメモ（要確認）」。続けて、読み取れた文字（メニュー名・価格・説明・原材料など）はそのまま書き起こし、見た目の特徴（パンの種類・具材・盛り付け・色）を 1〜3 行。LaRa（サンドイッチ＆ドリンクのカフェ）の参考になりそうな点があれば最後に 1 行。価格は表記どおり（税込/税抜の記載があればそれも）。
+- `category`: 内容から選ぶ。店の外観や内装なら `shop`。
+- `tags`: 2〜5 個の短い日本語。
+- `shop_name`: 店名が読めたときだけ。
+- 複数枚が同じ対象（別角度・表裏）なら 1 件にまとめて `images` に全部入れる。明らかに別々の対象なら複数件に分けてよい（最大 3 件。`images` はそれぞれ該当する写真だけ）。
+
+`result` は `{"decided":"clip","clip_id":"…","summary":"○○カフェのメニュー 3 品"}`（複数件のときは `clip_ids` も付ける）。
+
+### レシピとネタが混在
+
+それぞれ上の手順で作り、`result` に両方（`recipe_ids` と `clip_id`/`clip_ids`）を入れる。`decided` は件数が多いほう。
+
 ## kind = weekly_insights
 
 `payload.week_start`（無ければ直近の月曜）を対象に、週次レポート Routine と同じ手順（直近 4 週の `menu_logs` を集計 → 3〜5 個の気づき → `ai_insights` に upsert）で処理し、ジョブを `done` にする（`result` に `{"week_start":"…"}`）。気づきの書き方: 1 つ目は必ず褒める、数字は集計の事実だけ、`body` は 80 字以内のです・ます調、`emoji` は 1 つ、`kind` は `praise | bias | popular | suggestion | reminder`。
