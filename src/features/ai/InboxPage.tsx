@@ -136,8 +136,10 @@ function ReviewCard({ badge, thumb, title, sub, stars, onOpen }: { badge: string
 }
 
 function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCancel?: () => void; onRetry?: () => void; onOpenResult?: () => void }) {
-  const st = STATUS[job.status]
-  const payload = (job.payload ?? {}) as { image_paths?: string[]; text?: string; hint?: string }
+  const payload = (job.payload ?? {}) as { image_paths?: string[]; text?: string; hint?: string; escalate?: string; escalate_reason?: string }
+  // 一次（Sonnet）が自信なしと判断して Opus の精読に回したもの
+  const escalated = job.status === 'pending' && !!payload.escalate
+  const st = escalated ? { label: 'Opus で精読待ち', cls: 'bg-plum-400/15 text-plum-400' } : STATUS[job.status]
   const detail = payload.image_paths?.length ? `写真 ${payload.image_paths.length} 枚` : payload.text ? payload.text.slice(0, 40) : ''
   const result = (job.status === 'done' ? job.result ?? {} : {}) as AutoResult
   const link = result.clip_id ? { to: paths.clip(result.clip_id), label: '📌 ネタ帳に保存' } : result.recipe_ids?.[0] ? { to: paths.recipe(result.recipe_ids[0]), label: '📖 レシピの下書き' } : null
@@ -148,6 +150,7 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
         <p className="truncate text-[14px] font-bold">{KIND_LABEL[job.kind]}</p>
         <p className="truncate text-xs text-muted">{[detail, payload.hint, (payload as { question?: string }).question, relativeDay(job.created_at)].filter(Boolean).join(' ・ ')}</p>
         {job.status === 'failed' && job.error && <p className="mt-1 text-xs text-brick-500">{job.error}</p>}
+        {escalated && <p className="mt-1 text-xs text-plum-400">より正確に読むため Opus に回しました{payload.escalate_reason ? `（${payload.escalate_reason}）` : ''}。毎時 20 分ごろに処理します。</p>}
         {link && (
           <Link to={link.to} onClick={(e) => { if (onOpenResult) { e.preventDefault(); onOpenResult() } }} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-green-700">
             {link.label}{result.summary ? `: ${result.summary}` : ''} <IconChevronRight size={14} />

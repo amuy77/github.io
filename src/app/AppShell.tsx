@@ -22,7 +22,8 @@ export function AppShell() {
   useBadges()
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
-  const showAsk = !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
+  // ホームは上部に「聞く」を置くので、浮かぶボタンは出さない
+  const showAsk = !isHome && !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
   return (
     <div className="min-h-full">
       <OfflineBanner />
@@ -49,7 +50,7 @@ export function AppShell() {
         </div>
       </nav>
 
-      <main className={cx('mx-auto w-full max-w-[1100px] md:pl-[88px]', isHome ? '' : 'px-4 pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)] md:px-8 md:pb-10')}>
+      <main className={cx('mx-auto w-full max-w-[1100px] md:pl-[88px]', isHome ? '' : cx('px-4 md:px-8 md:pb-10', showAsk ? 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+80px)]' : 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)]'))}>
         <Outlet />
       </main>
 

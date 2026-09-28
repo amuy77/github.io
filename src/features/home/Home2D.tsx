@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { AskChip } from '@/features/ask/AskChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { IconFire } from '@/components/ui/icons'
@@ -24,9 +25,12 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
             <div className="font-display text-[28px] font-extrabold leading-none tracking-wide">LaRa</div>
             <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-chip border border-line bg-paper px-3 py-1.5 text-[13px] font-bold shadow-card">
-            <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
-            {streak > 0 ? `${streak}日連続` : '今日から記録'}
+          <div className="flex items-center gap-2">
+            <AskChip />
+            <div className="flex items-center gap-1.5 rounded-chip border border-line bg-paper px-3 py-1.5 text-[13px] font-bold shadow-card">
+              <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
+              {streak > 0 ? `${streak}日連続` : '今日から記録'}
+            </div>
           </div>
         </div>
       </div>

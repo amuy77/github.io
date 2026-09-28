@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AskChip } from '@/features/ask/AskChip'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ShopScene, type Hotspot } from './shopScene'
@@ -78,9 +79,12 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
           <div className="font-display text-[26px] font-extrabold leading-none tracking-wide">LaRa</div>
           <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
         </div>
-        <div className="pointer-events-auto flex items-center gap-1.5 rounded-chip border border-line bg-paper/90 px-3 py-1.5 text-[13px] font-bold shadow-card backdrop-blur" title="連続記録">
-          <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
-          {streak > 0 ? `${streak}日連続` : '今日から記録'}
+        <div className="flex items-center gap-2">
+          <AskChip />
+          <div className="pointer-events-auto flex items-center gap-1.5 rounded-chip border border-line bg-paper/90 px-3 py-1.5 text-[13px] font-bold shadow-card backdrop-blur" title="連続記録">
+            <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
+            {streak > 0 ? `${streak}日連続` : '今日から記録'}
+          </div>
         </div>
       </div>
 
