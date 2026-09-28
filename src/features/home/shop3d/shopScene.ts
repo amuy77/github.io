@@ -274,6 +274,25 @@ export class ShopScene {
 
   /** デバッグ用の状態 */
   debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit } }
+  /**
+   * テスト用: タップできる家具が画面のどこに見えているか。家具の範囲の中の点を順に試し、
+   * カメラからの光線がいちばん手前でその家具の形に当たる点の画面座標を返す（タップの判定そのものは使わない）
+   */
+  debugHotspotScreenPos(id: Hotspot): { x: number; y: number } | null {
+    const g = this.hotspots.find((h) => h.userData.hot === id)
+    if (!g) return null
+    const box = new THREE.Box3().setFromObject(g), p = new THREE.Vector3(), ndc = new THREE.Vector2()
+    const r = this.el.getBoundingClientRect()
+    const inside = (o: THREE.Object3D | null) => { while (o) { if (o === g) return true; o = o.parent } return false }
+    for (const fy of [0.6, 0.5, 0.75, 0.35, 0.85]) for (const fx of [0.5, 0.35, 0.65, 0.2, 0.8]) for (const fz of [0.5, 0.8, 0.2]) {
+      p.set(THREE.MathUtils.lerp(box.min.x, box.max.x, fx), THREE.MathUtils.lerp(box.min.y, box.max.y, fy), THREE.MathUtils.lerp(box.min.z, box.max.z, fz)).project(this.camera)
+      if (Math.abs(p.x) > 0.95 || Math.abs(p.y) > 0.95) continue
+      ndc.set(p.x, p.y); this.ray.setFromCamera(ndc, this.camera)
+      const hit = this.ray.intersectObjects(this.hotspots, true)[0]
+      if (hit && inside(hit.object)) return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height }
+    }
+    return null
+  }
   /** デバッグ用: 行動の場所へ瞬間移動して、その行動を続ける（null は今の時間帯の決まった行動） */
   debugGoto(act: ResidentActivity | null) {
     this.goTo(act ?? this.forcedActivity() ?? this.baseActivity(), true)
@@ -629,7 +648,7 @@ export class ShopScene {
   private mergeStatic(container: THREE.Object3D, skip: (o: THREE.Object3D) => boolean = () => false) {
     container.updateMatrixWorld(true)
     const inv = container.matrixWorld.clone().invert()
-    const buckets = new Map<string, { mat: THREE.Material; cast: boolean; geos: THREE.BufferGeometry[] }>()
+    const buckets = new Map<string, { mat: THREE.Material; cast: boolean; hot: unknown; geos: THREE.BufferGeometry[] }>()
     const olds: THREE.Mesh[] = []
     const walk = (o: THREE.Object3D) => {
       for (const c of [...o.children]) {
@@ -637,9 +656,11 @@ export class ShopScene {
         const m = c as THREE.Mesh
         if (m.isMesh && !Array.isArray(m.material) && m.children.length === 0 && m.geometry.index) {
           const g = m.geometry.clone().applyMatrix4(inv.clone().multiply(m.matrixWorld))
-          const key = `${m.material.uuid}:${m.castShadow}`
+          // タップの判定に使う目印（userData.hotRoot）が違うものは混ぜない
+          const hot = m.userData.hotRoot as THREE.Object3D | undefined
+          const key = `${m.material.uuid}:${m.castShadow}:${hot?.uuid ?? ''}`
           let b = buckets.get(key)
-          if (!b) { b = { mat: m.material, cast: m.castShadow, geos: [] }; buckets.set(key, b) }
+          if (!b) { b = { mat: m.material, cast: m.castShadow, hot, geos: [] }; buckets.set(key, b) }
           b.geos.push(g); olds.push(m)
         } else walk(c)
       }
@@ -651,6 +672,7 @@ export class ShopScene {
       b.geos.forEach((g) => g.dispose())
       if (!merged) continue
       const mesh = new THREE.Mesh(merged, b.mat); mesh.castShadow = b.cast; mesh.receiveShadow = true
+      if (b.hot) mesh.userData.hotRoot = b.hot
       container.add(mesh)
     }
     // 空になったグループを片付ける
@@ -994,7 +1016,13 @@ export class ShopScene {
     this.ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
     this.ray.setFromCamera(this.ndc, this.camera)
     const hits = this.ray.intersectObjects(this.hotspots, true)
-    return hits.length ? (hits[0].object.userData.hotRoot as THREE.Group) : null
+    if (!hits.length) return null
+    const root = hits[0].object.userData.hotRoot as THREE.Group | undefined
+    if (root) return root
+    // 目印が無いとき（飾りをまとめた後など）は、親をたどってタップできる家具（userData.hot）を探す
+    let o: THREE.Object3D | null = hits[0].object
+    while (o && !o.userData.hot) o = o.parent
+    return (o as THREE.Group | null) ?? null
   }
   private bindPointer() {
     const el = this.el
