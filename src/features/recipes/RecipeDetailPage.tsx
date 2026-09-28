@@ -18,6 +18,7 @@ import { useClip } from '@/features/clips/hooks'
 import { clipTitle } from '@/features/clips/ClipCard'
 import { RecipeReviewSheet } from '@/features/ai/ReviewSheet'
 import { AskLaraButton } from '@/features/ask/AskLaraButton'
+import { AiFixButton } from '@/features/ai/AiFixPanel'
 import { useDeleteRecipe, useRecipe, useRecipes, useSetMain, useUpdateRecipe } from './hooks'
 import { familyOf, latestOf, versionName } from './family'
 import { cx } from '@/lib/cx'
@@ -136,6 +137,7 @@ export function RecipeDetailPage() {
           <Button variant="mustard" icon={<IconPlus size={16} />} onClick={() => nav(`${paths.recipeNew}?from=${r.id}`)}>この版から試作</Button>
           <AskLaraButton recipeId={r.id} q={`「${r.title}」の味をもうちょっと良くしたい。どうしたらいい？`} full />
         </div>
+        {r.hero_image && <AiFixButton full target={{ type: 'recipe', id: r.id, images: [r.hero_image] }} />}
         <div className="flex items-center justify-between">
           <Button variant="secondary" icon={<IconCalendar size={16} />} onClick={() => nav(`${paths.menuDay(today())}?add=${r.id}`)}>今日のメニューに入れる</Button>
           <Button variant="ghost" size="sm" icon={<IconTrash size={16} />} className="text-brick-500" onClick={() => setConfirm(true)}>削除</Button>

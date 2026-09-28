@@ -55,6 +55,9 @@ const fixtures: Record<string, object[]> = {
     return { id: `f${i}000000-0000-4000-8000-00000000000a`, user_id: USER_ID, log_date: iso(d), note: i === 0 ? '雨。BLT 早めに売り切れ' : '', created_at: ts(i), updated_at: ts(i), menu_log_items: items }
   }),
   menu_log_items: [],
+  ai_preferences: [
+    { ...base, id: 'h1000000-0000-4000-8000-000000000001', rule: '手書きのレシピノートの写真は、写っているレシピを 1 つずつすべてレシピの下書きにする', example: 'レシピが書いてあるので、1つずつ文字起こししてレシピとして保存して', source_job_id: null, active: true },
+  ],
   ai_insights: [
     { id: 'g1000000-0000-4000-8000-000000000001', user_id: USER_ID, week_start: iso(daysAgo(7)), model: 'claude-code', created_at: ts(0), insights: [
       { kind: 'praise', emoji: '👏', title: '6日記録できた', body: '先週は6日分のメニューを記録。続いてます。' },
@@ -181,4 +184,27 @@ test('ask LaRa: local search, chat answer links, and no-key fallback', async ({ 
   await p2.getByRole('textbox', { name: 'LaRa に聞く' }).fill('BLT をもっと美味しくしたい')
   await p2.getByRole('button', { name: '聞く' }).click()
   await expect(p2.getByRole('button', { name: 'トレイに入れて答えてもらう' })).toBeVisible()
+})
+
+test('AI fix: review sheet sends a redo, settings lists learned rules', async ({ page }, info) => {
+  await stubSupabase(page)
+  const sent: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/ai_jobs')) sent.push(r.postDataJSON()) })
+  await page.goto('#/inbox')
+  await page.getByText('ピスタチオラテ ¥720').click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: /読み取りが違う？/ }).click()
+  await dialog.getByRole('button', { name: /1つずつ文字起こししてレシピとして保存して/ }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-ai-fix.png` })
+  await dialog.getByRole('button', { name: 'この指示で直してもらう' }).click()
+  await expect.poll(() => sent.length).toBe(1)
+  const body = (Array.isArray(sent[0]) ? sent[0][0] : sent[0]) as { kind: string; payload: { target_type: string; escalate: string; instruction: string } }
+  expect(body.kind).toBe('redo')
+  expect(body.payload.target_type).toBe('clip')
+  expect(body.payload.escalate).toBe('opus')
+
+  await page.goto('#/settings')
+  await expect(page.getByText('LaRa が覚えたこと')).toBeVisible()
+  await expect(page.getByText('写っているレシピを 1 つずつすべてレシピの下書きにする')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
 })

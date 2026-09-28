@@ -7,7 +7,7 @@ export type ClipType = 'photo' | 'link' | 'note' | 'idea'
 export type ClipCategory = 'sandwich' | 'drink' | 'wine' | 'beer' | 'coffee' | 'shop' | 'other'
 export type RecipeStatus = 'draft' | 'published'
 export type RecipeSourceKind = 'manual' | 'ai_image' | 'ai_text' | 'text_paste'
-export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'consult' | 'weekly_insights'
+export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'redo' | 'consult' | 'weekly_insights'
 export type AiJobStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled'
 export type GenreColor = 'green' | 'mustard' | 'brick' | 'plum' | 'wood'
 
@@ -46,6 +46,7 @@ export type AiJobRow = {
   id: string; user_id: string; kind: AiJobKind; status: AiJobStatus; payload: Json; result: Json | null; error: string | null
   attempts: number; started_at: string | null; finished_at: string | null; created_at: string
 }
+export type AiPreferenceRow = Timestamps & { id: string; user_id: string; rule: string; example: string; source_job_id: string | null; active: boolean }
 export type AiInsightRow = { id: string; user_id: string; week_start: string; insights: Insight[]; model: string; created_at: string }
 
 type GeneratedKeys = 'id' | 'user_id' | 'created_at' | 'updated_at'
@@ -66,6 +67,7 @@ export type Database = {
       menu_log_items: Table<MenuLogItemRow, 'menu_log_id' | 'recipe_id'>
       ai_jobs: Table<AiJobRow, 'kind'>
       ai_insights: Table<AiInsightRow, 'week_start' | 'insights' | 'model'>
+      ai_preferences: Table<AiPreferenceRow, 'rule'>
     }
     Views: { [_ in never]: never }
     Functions: {

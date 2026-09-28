@@ -10,4 +10,5 @@ export const qk = {
   aiJobs: ['ai-jobs'] as const,
   aiInsights: ['ai-insights'] as const,
   counts: ['counts'] as const,
+  aiPreferences: ['ai-preferences'] as const,
 }
