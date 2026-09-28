@@ -37,7 +37,11 @@ export interface LaraFigure {
 }
 
 const COL = { cream: 0xffe7c2, moon: 0xffd95a, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a }
-const HEAD = { cx: 0, cy: 0.69, rx: 0.378, ry: 0.306, rz: 0.342 }
+const HEAD = { cx: 0, cy: 0.65, rx: 0.378, ry: 0.306, rz: 0.342 }
+/** 頭全体（顔 + フード）の体に対する大きさ。小さくした分だけ HEAD.cy も下げて体に座らせる */
+const HEAD_SCALE = 0.9
+/** フード（殻 + 角）だけの大きさ。顔にぴったり寄せる */
+const HOOD_SCALE = 0.82
 const LINE = 0.02
 
 let toneTex: THREE.DataTexture | null = null
@@ -188,9 +192,11 @@ export function buildLaraFigure(): LaraFigure {
   }
 
   // ---------- 頭 ----------
-  const headG = new THREE.Group(); headG.position.set(HEAD.cx, HEAD.cy, 0); root.add(headG)
+  const headG = new THREE.Group(); headG.position.set(HEAD.cx, HEAD.cy, 0); headG.scale.setScalar(HEAD_SCALE); root.add(headG)
+  // 顔（頭の球と顔のパーツ）はフードより少しだけ小さく。フードは headG 直下なので大きさは変わらない
+  const face = new THREE.Group(); face.scale.setScalar(0.85); headG.add(face)
   const headGeo = new THREE.SphereGeometry(1, 36, 26); headGeo.scale(HEAD.rx, HEAD.ry, HEAD.rz); headGeo.computeVertexNormals()
-  solid(headGeo, COL.cream, headG)
+  solid(headGeo, COL.cream, face)
 
   /** 顔座標 (x, y は頭の中心基準) → 頭の表面の点（lift だけ外へ） */
   const onFace = (x: number, y: number, lift = 0.006) => {
@@ -213,31 +219,31 @@ export function buildLaraFigure(): LaraFigure {
   const eyesClosed: THREE.Mesh[] = []
   for (const s of [-1, 1]) {
     const e = new THREE.Mesh(G(new THREE.SphereGeometry(0.037, 14, 10)), inkMat())
-    e.position.copy(onFace(s * 0.165, 0.0, -0.008)); headG.add(e); eyes.push(e)
-    const c = faceLine([[s * 0.165 - 0.05, 0.012], [s * 0.165, -0.018], [s * 0.165 + 0.05, 0.012]], 0.0115, headG)
+    e.position.copy(onFace(s * 0.165, 0.0, -0.008)); face.add(e); eyes.push(e)
+    const c = faceLine([[s * 0.165 - 0.05, 0.012], [s * 0.165, -0.018], [s * 0.165 + 0.05, 0.012]], 0.0115, face)
     c.visible = false; eyesClosed.push(c)
   }
   // 困り眉（通常は非表示）
-  const brows = [-1, 1].map((s) => { const b = faceLine([[s * 0.27, 0.1], [s * 0.19, 0.135], [s * 0.1, 0.15]], 0.011, headG); b.visible = false; return b })
+  const brows = [-1, 1].map((s) => { const b = faceLine([[s * 0.27, 0.1], [s * 0.19, 0.135], [s * 0.1, 0.15]], 0.011, face); b.visible = false; return b })
   // 鼻
-  faceLine([[-0.022, -0.075], [0, -0.05], [0.022, -0.075]], 0.009, headG)
+  faceLine([[-0.022, -0.075], [0, -0.05], [0.022, -0.075]], 0.009, face)
   // 口（笑い）と、心配顔の口
   const smile: [number, number][] = []
   for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 - 0.95 + (1.9 * i) / 8; smile.push([Math.cos(a) * 0.165, -0.045 + Math.sin(a) * 0.165]) }
-  const mouthSmile = faceLine(smile, 0.012, headG)
-  const mouthFlat = faceLine([[-0.1, -0.175], [-0.035, -0.185], [0.035, -0.165], [0.1, -0.178]], 0.012, headG); mouthFlat.visible = false
+  const mouthSmile = faceLine(smile, 0.012, face)
+  const mouthFlat = faceLine([[-0.1, -0.175], [-0.035, -0.185], [0.035, -0.165], [0.1, -0.178]], 0.012, face); mouthFlat.visible = false
   // 舌（口の右端）
   const tongue = new THREE.Mesh(G(new THREE.SphereGeometry(0.036, 14, 10)), toonMat(COL.tongue))
-  tongue.position.copy(onFace(0.12, -0.2, 0.004)); tongue.scale.set(0.9, 1.15, 0.45); headG.add(tongue); hull(tongue, 0.01)
+  tongue.position.copy(onFace(0.12, -0.2, 0.004)); tongue.scale.set(0.9, 1.15, 0.45); face.add(tongue); hull(tongue, 0.01)
   // ほっぺ
   for (const s of [-1, 1]) {
     const c = new THREE.Mesh(G(new THREE.SphereGeometry(0.052, 14, 10)), toonMat(COL.pink))
-    c.position.copy(onFace(s * 0.285, -0.14, -0.036)); headG.add(c)
+    c.position.copy(onFace(s * 0.285, -0.14, -0.036)); face.add(c)
   }
   // 前髪のくるん
   const curl: [number, number][] = []
   for (let i = 0; i <= 14; i++) { const a = (i / 14) * Math.PI * 1.7 + 0.6, r = 0.012 + (i / 14) * 0.045; curl.push([Math.cos(a) * r, 0.235 + Math.sin(a) * r * 0.8]) }
-  faceLine(curl, 0.0095, headG, 0.012)
+  faceLine(curl, 0.0095, face, 0.012)
   // ヒゲ（頬から扇状に。三日月の手前に出る）
   for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
     const y0 = 0.0 - i * 0.05, y1 = 0.09 - i * 0.1
@@ -247,18 +253,20 @@ export function buildLaraFigure(): LaraFigure {
     w.position.copy(a).lerp(b, 0.5)
     w.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize())
     w.raycast = () => {}
-    headG.add(w)
+    face.add(w)
   }
 
   // ---------- 三日月（黄色いフード）の被り物 ----------
   // 頭をすっぽり包む黄色いフードだが、形は三日月: 頭より一回り大きい楕円体の正面に丸い顔の窓を開け、
   // 両脇から三日月の角が上外へ伸びる。線は外側のシルエットだけ（窓の縁や額の上には引かない）
   {
-    const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(55)
-    const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); headG.add(hood)
+    // フード（殻 + 角）は HOOD_SCALE で縮めて顔に寄せる。縮めた分だけ窓の角度 W を広げて、顔が窓から前に出るようにする
+    // （窓の縁の半径 ≈ 0.385 × sin60° ≈ 0.334 > 顔の半径 0.321）。輪郭線の押し出し量はスケールで細くならないよう割り戻す
+    const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(60), L = LINE / HOOD_SCALE
+    const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); hood.scale.setScalar(HOOD_SCALE); headG.add(hood)
     solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true, line: 0 })
     // 輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない）
-    const shellHull = new THREE.Mesh(G(hoodShell(R.x + LINE, R.y + LINE, R.z + LINE, W + THREE.MathUtils.degToRad(4))), hullMat())
+    const shellHull = new THREE.Mesh(G(hoodShell(R.x + L, R.y + L, R.z + L, W + THREE.MathUtils.degToRad(4))), hullMat())
     shellHull.raycast = () => {}
     hood.add(shellHull)
     // 顔の窓の縁と額の上には線を引かない（黒い枠や紐に見えるため）
@@ -266,7 +274,7 @@ export function buildLaraFigure(): LaraFigure {
     for (const s of [-1, 1]) {
       const ctrl: [number, number, number][] = [[s * 0.3, 0.2, 0.22], [s * 0.42, 0.44, 0.15], [s * 0.5, 0.66, 0.07], [s * 0.55, 0.82, 0]]
       const horn = new THREE.Mesh(G(sweep(ctrl, 0.6)), toonMat(COL.moon)); horn.castShadow = true; hood.add(horn)
-      const h = new THREE.Mesh(G(sweep(ctrl, 0.6, LINE * 0.9)), hullMat()); h.raycast = () => {}; hood.add(h)
+      const h = new THREE.Mesh(G(sweep(ctrl, 0.6, L * 0.9)), hullMat()); h.raycast = () => {}; hood.add(h)
     }
   }
 
@@ -292,7 +300,7 @@ export function buildLaraFigure(): LaraFigure {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
     spin() { spinT = 0 },
-    headTop(out) { return out.copy(headTopV.set(0, 1.55, 0)).applyMatrix4(group.matrixWorld) },
+    headTop(out) { return out.copy(headTopV.set(0, HEAD.cy + (0.04 + 0.82 * HOOD_SCALE) * HEAD_SCALE, 0)).applyMatrix4(group.matrixWorld) },
     update(t, dt, m) {
       const reduced = !!m.reduced
       // 向き
