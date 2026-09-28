@@ -1,13 +1,18 @@
 import { getSupabase } from '@/lib/supabase/client'
 import type { AiJobKind, AiJobRow, ImageRef, Json } from '@/lib/supabase/database.types'
 
-/** Routine の実行時刻（JST）。UI の案内に使う */
-export const WORKER_TIMES = ['9:10', '14:10', '21:10']
+/** Routine の実行時刻（JST）: 8:00〜23:00 の毎時。UI の案内に使う */
+export const WORKER_FIRST_HOUR = 8
+export const WORKER_LAST_HOUR = 23
+export const WORKER_SCHEDULE_LABEL = `${WORKER_FIRST_HOUR}:00〜${WORKER_LAST_HOUR}:00 の毎時`
 
+/** 次に定期処理が動く時刻（日本時間）。例: 「15:00」「明日の 8:00」 */
 export function nextWorkerTime(now = new Date()): string {
-  const h = now.getHours() + now.getMinutes() / 60
-  const next = [9 + 10 / 60, 14 + 10 / 60, 21 + 10 / 60].find((t) => t > h)
-  return next ? WORKER_TIMES[[9 + 10 / 60, 14 + 10 / 60, 21 + 10 / 60].indexOf(next)] : `明日の ${WORKER_TIMES[0]}`
+  const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60_000)
+  const h = jst.getHours()
+  if (h < WORKER_FIRST_HOUR) return `${WORKER_FIRST_HOUR}:00`
+  if (h >= WORKER_LAST_HOUR) return `明日の ${WORKER_FIRST_HOUR}:00`
+  return `${h + 1}:00`
 }
 
 export interface RecipeFromImagePayload { image_paths: string[]; hint?: string; genre_id?: string | null; clip_id?: string | null }

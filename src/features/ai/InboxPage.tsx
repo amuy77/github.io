@@ -19,7 +19,7 @@ import { paths } from '@/app/routes'
 import { useRecipes } from '@/features/recipes/hooks'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
-import { nextWorkerTime, WORKER_TIMES, type AutoResult } from './api'
+import { nextWorkerTime, WORKER_SCHEDULE_LABEL, type AutoResult } from './api'
 import { useAiJobs, useJobActions } from './hooks'
 import { cx } from '@/lib/cx'
 
@@ -65,7 +65,7 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="受信トレイ" sub={`Claude が ${WORKER_TIMES.join(' / ')} ごろにまとめて処理`} />
+      <PageHeader title="受信トレイ" sub={`Claude が ${WORKER_SCHEDULE_LABEL}に処理（次は ${nextWorkerTime()} ごろ）`} />
       <div className="flex flex-col gap-4">
         {reviews.length > 0 ? (
           <MascotSays mood="party">AI が {reviews.length} 件振り分けたよ！タップして中身を確認してね。</MascotSays>

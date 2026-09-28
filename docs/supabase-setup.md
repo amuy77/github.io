@@ -102,6 +102,6 @@ Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzww
 
 - マイグレーション `20260928010000_review_rating_versions.sql` を適用済み（`clips.rating` / `clips.needs_review`、`recipes.rating` / `family_id` / `variant_label` / `is_main`、`ai_jobs.kind` に `consult`）
 - Edge Function `lara-chat` をデプロイ済み（`verify_jwt = true`）。Claude API（`claude-opus-5`、effort medium、プロンプトキャッシュあり）で、呼び出した本人のレシピとネタだけを読んで答える
-- **リアルタイムの「LaRa に聞く」には Claude API キーが必要（未設定）。** 未設定のあいだは、アプリが相談を `ai_jobs`（`consult`）に預け、定期処理（9:10 / 14:10 / 21:10）が答えて受信トレイに返す
+- **リアルタイムの「LaRa に聞く」には Claude API キーが必要（未設定）。** 未設定のあいだは、アプリが相談を `ai_jobs`（`consult`）に預け、定期処理（8:00〜23:00 の毎時）が答えて受信トレイに返す
 - キーを入れる手順: Anthropic Console（https://console.anthropic.com）で API キーを作る → Supabase ダッシュボード → Edge Functions → Secrets に `ANTHROPIC_API_KEY` を追加。再デプロイ不要
 - 料金の目安: 相談 1 回あたり数円〜十数円（データ量と回答の長さで変わる）。Console で月の上限を設定しておくと安心
