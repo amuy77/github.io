@@ -12,6 +12,7 @@ export const OUTFITS = [
   { id: 'hoodie', label: '黒猫パーカー', emoji: '🐈‍⬛', line: '今日は黒猫パーカーの日！' },
   // ハロウィンの季節（10 月）だけ、おまかせの日替わりに入る
   { id: 'pumpkin', label: 'かぼちゃ', emoji: '🎃', line: 'ハロウィンのかぼちゃ、似合う？🎃', months: [10] },
+  { id: 'baymax', label: 'ベイマックス', emoji: '🤍', line: 'ベイマックスの日🤍 今日も無理しないでね' },
 ] as const
 
 export type LaraOutfit = (typeof OUTFITS)[number]['id']

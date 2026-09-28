@@ -18,6 +18,10 @@ const VARIANTS = [
   ['pumpkin-idle', 'outfit=pumpkin&still=1'],
   ['pumpkin-walk', 'outfit=pumpkin&motion=walk'],
   ['pumpkin-rest', 'outfit=pumpkin&pose=rest&prop=cup'],
+  // ベイマックス
+  ['baymax-idle', 'outfit=baymax&still=1'],
+  ['baymax-sleep', 'outfit=baymax&ex=sleep&still=1'],
+  ['baymax-walk', 'outfit=baymax&motion=walk'],
   // 暮らしの仕草
   ['pose-read', 'pose=read&prop=book'],
   ['pose-rest', 'pose=rest&prop=cup'],
