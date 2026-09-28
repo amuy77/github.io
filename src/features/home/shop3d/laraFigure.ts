@@ -7,7 +7,7 @@ import type { LaraOutfit } from './outfit'
  * ロゴ（大きな丸い頭・三日月・ヒゲ・点の目・ペロッと舌・小さな体と足）をプリミティブで組み、
  * 輪郭線は「法線方向に膨らませた裏面描画（inverted hull）」で描く。
  * 足元が y=0、三日月の角の先が y≈1.3。正面は +z。
- * 服は outfit.ts の OUTFITS の数だけ（今は黄色い三日月の被り物 moon と、黒い猫耳パーカー hoodie）。setOutfit で着替える。
+ * 服は outfit.ts の OUTFITS の数だけ（一覧はそちら）。setOutfit で着替える。
  * 新しい服は、頭の被り物を makeHood() で作って下の `looks` に足す（体の色・手・小物もそこで指定）。
  */
 
@@ -61,6 +61,8 @@ const COL = {
   mug: 0xfdf8f0, coral: 0xf08a6b, mint: 0x9fd4c7, oak: 0xb08d63, straw: 0xe3c27a, page: 0xfff8ea,
   // かぼちゃ（ハロウィン）
   pumpkin: 0xf7922f, pumpkinD: 0xd96a1c, stem: 0x7f9a3f, stemD: 0x5c7a2c,
+  // ベイマックス: 少し青みの白、ひじ・ひざの薄いグレー、額と胸の「●—●」の黒
+  snow: 0xfdfdff, snowGray: 0xd8dde6, dot: 0x26272b,
 }
 /** 猫耳の先（フードの座標）。吹き出しの位置に使う */
 const EAR_TIP_Y = 0.63
@@ -370,10 +372,16 @@ export function buildLaraFigure(): LaraFigure {
     }
   }
   /** 殻の輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない） */
-  const shellOutline = (parent: THREE.Group, color = COL.ink) => {
-    const m = new THREE.Mesh(G(hoodShell(R.x + L, R.y + L, R.z + L, W + THREE.MathUtils.degToRad(4))), hullMat(color))
+  const shellOutline = (parent: THREE.Group, color = COL.ink, r = R, w = W) => {
+    const m = new THREE.Mesh(G(hoodShell(r.x + L, r.y + L, r.z + L, w + THREE.MathUtils.degToRad(4))), hullMat(color))
     m.raycast = () => {}
     parent.add(m)
+  }
+  /** 殻（半径 r）の正面側の表面で (x, y) にある点を法線方向に lift だけ浮かせたものと、その法線（額に顔を貼る用） */
+  const shellPoint = (r: { x: number; y: number; z: number }, x: number, y: number, lift = 0.004) => {
+    const z = r.z * Math.sqrt(Math.max(0.01, 1 - (x / r.x) ** 2 - (y / r.y) ** 2))
+    const n = new THREE.Vector3(x / r.x ** 2, y / r.y ** 2, z / r.z ** 2).normalize()
+    return { p: new THREE.Vector3(x, y, z).addScaledVector(n, lift), n }
   }
 
   const moonHood = makeHood(); moonHood.visible = false
@@ -406,7 +414,7 @@ export function buildLaraFigure(): LaraFigure {
   const PR = { x: 0.52, y: 0.5, z: 0.48 }, PW = THREE.MathUtils.degToRad(50)
   {
     solid(hoodShell(PR.x, PR.y, PR.z, PW), COL.pumpkin, pumpkinHood, { double: true, line: 0 })
-    const o = new THREE.Mesh(G(hoodShell(PR.x + L, PR.y + L, PR.z + L, PW + THREE.MathUtils.degToRad(4))), hullMat()); o.raycast = () => {}; pumpkinHood.add(o)
+    shellOutline(pumpkinHood, COL.ink, PR, PW)
     rimRoll(pumpkinHood, PR, PW, 0.026, COL.pumpkin)
     // 縦の筋: てっぺんから後ろ下へ。顔の窓の中は通さない
     const ribMat = toonMat(COL.pumpkinD)
@@ -429,11 +437,7 @@ export function buildLaraFigure(): LaraFigure {
     for (let i = 0; i <= 18; i++) { const a = (i / 18) * Math.PI * 3.2, r = 0.05 - (i / 18) * 0.035; cur.push(new THREE.Vector3(0.06 + Math.cos(a) * r, 0.56 + Math.sin(a) * r, 0.0)) }
     const tendril = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cur), 40, 0.007, 5, false)), inkMat(COL.stemD)); tendril.raycast = () => {}; pumpkinHood.add(tendril)
     // ジャック・オ・ランタンの顔（窓の上）: 殻の表面の点と向き
-    const onShell = (x: number, y: number, lift = 0.004) => {
-      const z = PR.z * Math.sqrt(Math.max(0.01, 1 - (x / PR.x) ** 2 - (y / PR.y) ** 2))
-      const n = new THREE.Vector3(x / PR.x ** 2, y / PR.y ** 2, z / PR.z ** 2).normalize()
-      return { p: new THREE.Vector3(x, y, z).addScaledVector(n, lift), n }
-    }
+    const onShell = (x: number, y: number, lift = 0.004) => shellPoint(PR, x, y, lift)
     const flat = (geo: THREE.BufferGeometry, x: number, y: number, sx: number, sy: number) => {
       const { p, n } = onShell(x, y)
       const m = new THREE.Mesh(G(geo), inkMat()); m.raycast = () => {}
@@ -445,6 +449,28 @@ export function buildLaraFigure(): LaraFigure {
     for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 - 0.85 + (1.7 * i) / 12; mouth.push(onShell(Math.cos(a) * 0.13, 0.46 + Math.sin(a) * 0.06, 0.006).p) }
     const m = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(mouth), 24, 0.014, 6, false)), inkMat()); m.raycast = () => {}; pumpkinHood.add(m)
     for (const sd of [-1, 1]) flat(new THREE.CircleGeometry(0.02, 3), sd * 0.045, 0.405, 1, 1.3)   // 牙
+  }
+
+  // ---------- ベイマックスの猫フード ----------
+  // ロゴの白い猫耳フード。額に「●—●」の顔を載せるので、かぼちゃと同じ大きめの殻（窓が狭く額の帯が広い）を使う。耳の内側はピンク
+  const baymaxHood = makeHood(); baymaxHood.visible = false
+  {
+    solid(hoodShell(PR.x, PR.y, PR.z, PW), COL.snow, baymaxHood, { double: true, line: 0 })
+    shellOutline(baymaxHood, COL.ink, PR, PW)
+    rimRoll(baymaxHood, PR, PW, 0.03, COL.snow)
+    catEars(baymaxHood, 0.31, 0.33, COL.snow, COL.pink, COL.ink)
+    // 額の「●—●」: 殻に貼った黒い丸 2 つ（上向きの面で縦につぶれて見えないよう縦長に）と、殻の丸みに沿ってそれを結ぶ細い線
+    const dotMat = inkMat(COL.dot), FY = 0.42
+    for (const sd of [-1, 1]) {
+      const { p, n } = shellPoint(PR, sd * 0.13, FY)
+      const d = new THREE.Mesh(G(new THREE.CircleGeometry(0.042, 20)), dotMat); d.raycast = () => {}
+      d.position.copy(p); d.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); d.scale.set(1, 1.25, 1)
+      baymaxHood.add(d)
+    }
+    const bar: THREE.Vector3[] = []
+    for (let i = 0; i <= 10; i++) bar.push(shellPoint(PR, -0.13 + (0.26 * i) / 10, FY, 0.005).p)
+    const b = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bar), 20, 0.0085, 6, false)), dotMat); b.raycast = () => {}
+    baymaxHood.add(b)
   }
 
   // ---------- 状態 ----------
@@ -502,6 +528,28 @@ export function buildLaraFigure(): LaraFigure {
     }
   }
 
+  // ---------- ベイマックスの日の体の小物 ----------
+  const baymaxBody = new THREE.Group(); baymaxBody.visible = false; root.add(baymaxBody)
+  const baymaxPads: THREE.Object3D[] = []
+  {
+    // 胸の丸いボタン（中に小さな「●—●」）。体の表面の傾きに合わせて少し上を向ける
+    const by = 0.31
+    const badge = new THREE.Group(); badge.position.set(0, by, bodyR(by) + 0.002); badge.rotation.x = -0.34; baymaxBody.add(badge)
+    const disc = new THREE.CylinderGeometry(0.04, 0.04, 0.012, 24); disc.rotateX(Math.PI / 2)
+    solid(disc, COL.snow, badge, { line: 0.006 })
+    const dotMat = inkMat(COL.dot)
+    for (const sd of [-1, 1]) { const d = new THREE.Mesh(G(new THREE.CircleGeometry(0.008, 12)), dotMat); d.position.set(sd * 0.017, 0, 0.0065); d.raycast = () => {}; badge.add(d) }
+    const bar = new THREE.Mesh(G(new THREE.PlaneGeometry(0.034, 0.004)), dotMat); bar.position.z = 0.0065; bar.raycast = () => {}; badge.add(bar)
+    // ひざと腕の前の薄いグレー（足・腕と一緒に動くようにそれぞれの中へ）
+    const padMat = toonMat(COL.snowGray)
+    const pad = (parent: THREE.Object3D, r: number, pos: [number, number, number], scale: [number, number, number]) => {
+      const m = new THREE.Mesh(G(new THREE.SphereGeometry(r, 14, 10)), padMat); m.raycast = () => {}
+      m.position.set(...pos); m.scale.set(...scale); m.visible = false; parent.add(m); baymaxPads.push(m)
+    }
+    for (const l of legs) pad(l.leg, 0.05, [0, -0.035, 0.07], [1, 0.8, 0.4])
+    for (const a of arms) pad(a.tilt, 0.045, [0, -0.2, 0.056], [0.9, 1.1, 0.4])
+  }
+
   // ---------- 服 ----------
   // 服ごとの見た目: 頭の被り物（head）、服にだけ付く小物（extras）、体・腕・足の色（cloth）、袖から手を出すか（hands）
   // 被り物の頂点（吹き出しの位置）は tipY（フードの座標）
@@ -510,6 +558,8 @@ export function buildLaraFigure(): LaraFigure {
     hoodie: { head: catHood, extras: [strings], cloth: { body: COL.cloth, arms: COL.cloth, legs: COL.cloth }, hands: true, tipY: EAR_TIP_Y },
     // かぼちゃ: オレンジのワンピース、黒いケープの袖、黒いブーツ
     pumpkin: { head: pumpkinHood, extras: [pumpkinBody, ...bootLaces], cloth: { body: COL.pumpkin, arms: COL.cloth, legs: COL.cloth }, hands: true, tipY: 0.68 },
+    // ベイマックス: 真っ白なふわふわスーツ。袖の先は白いミトンのまま
+    baymax: { head: baymaxHood, extras: [baymaxBody, ...baymaxPads], cloth: { body: COL.snow, arms: COL.snow, legs: COL.snow }, hands: false, tipY: 0.68 },
   }
   // 小物を体に対してまっすぐ（+ 仕草ごとの傾き）に向ける
   const qParent = new THREE.Quaternion(), qWant = new THREE.Quaternion(), qTilt = new THREE.Quaternion(), eTilt = new THREE.Euler()
