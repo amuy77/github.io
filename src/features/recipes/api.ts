@@ -30,7 +30,17 @@ export async function updateRecipe(id: string, patch: RecipeUpdate): Promise<Rec
 }
 
 export async function deleteRecipe(recipe: RecipeRow): Promise<void> {
-  const { error } = await getSupabase().from('recipes').delete().eq('id', recipe.id)
+  const sb = getSupabase()
+  // グループの最初のレシピを消すときは、次に古い版を新しい先頭にしてグループを保つ
+  if (!recipe.family_id) {
+    const { data: kids } = await sb.from('recipes').select('id, created_at').eq('family_id', recipe.id).order('created_at')
+    if (kids && kids.length) {
+      const [head, ...rest] = kids as { id: string }[]
+      await sb.from('recipes').update({ family_id: null }).eq('id', head.id)
+      if (rest.length) await sb.from('recipes').update({ family_id: head.id }).in('id', rest.map((k) => k.id))
+    }
+  }
+  const { error } = await sb.from('recipes').delete().eq('id', recipe.id)
   if (error) throw error
   if (recipe.hero_image) await deletePhotos([recipe.hero_image])
 }

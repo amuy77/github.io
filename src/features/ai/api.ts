@@ -18,7 +18,10 @@ export interface AutoFromImagePayload { images: ImageRef[]; image_paths: string[
 /** auto_from_image の result */
 export interface AutoResult { decided?: 'clip' | 'recipe'; clip_id?: string; recipe_ids?: string[]; summary?: string }
 
-export async function enqueueJob(kind: AiJobKind, payload: RecipeFromImagePayload | RecipeFromTextPayload | ClipFromImagePayload | AutoFromImagePayload | { week_start?: string }): Promise<AiJobRow> {
+/** API キーが無いときの相談。定期処理が答えて result.answer に入れる */
+export interface ConsultPayload { question: string; recipe_id: string | null; compare_with_id: string | null }
+
+export async function enqueueJob(kind: AiJobKind, payload: RecipeFromImagePayload | RecipeFromTextPayload | ClipFromImagePayload | AutoFromImagePayload | ConsultPayload | { week_start?: string }): Promise<AiJobRow> {
   const { data, error } = await getSupabase().from('ai_jobs').insert({ kind, payload: payload as unknown as Json }).select('*').single()
   if (error) throw error
   return data as AiJobRow

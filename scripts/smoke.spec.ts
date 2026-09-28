@@ -28,16 +28,18 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: G.bev, name: 'ベバレッジ', color: 'green', sort_order: 4 },
   ],
   clips: [
-    { ...base, id: 'c1000000-0000-4000-8000-000000000001', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, created_at: ts(1), updated_at: ts(1) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000002', type: 'link', title: '', note: '断面の見せ方が良い', url: 'https://www.instagram.com/p/xxxx/', images: [], preview: { title: '', instagram_blocked: true }, category: 'sandwich', tags: ['Instagram', '見せ方'], shop_name: null, favorite: false, created_at: ts(2), updated_at: ts(2) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000003', type: 'idea', title: '秋メニュー案', note: '栗とマスカルポーネのクロワッサン。はちみつ少し。', url: null, images: [], preview: null, category: 'other', tags: [], shop_name: null, favorite: false, created_at: ts(4), updated_at: ts(4) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000004', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, created_at: ts(6), updated_at: ts(6) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000001', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, rating: 4, needs_review: false, created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000002', type: 'link', title: '', note: '断面の見せ方が良い', url: 'https://www.instagram.com/p/xxxx/', images: [], preview: { title: '', instagram_blocked: true }, category: 'sandwich', tags: ['Instagram', '見せ方'], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(2), updated_at: ts(2) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000003', type: 'idea', title: '秋メニュー案', note: '栗とマスカルポーネのクロワッサン。はちみつ少し。', url: null, images: [], preview: null, category: 'other', tags: [], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(4), updated_at: ts(4) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000004', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, rating: 3, needs_review: false, created_at: ts(6), updated_at: ts(6) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000005', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
   ],
   recipes: [
-    { ...base, id: 'd1000000-0000-4000-8000-000000000001', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '3枚' }, { name: 'レタス', amount: '2枚' }, { name: 'トマト', amount: '1/2個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストしてマヨを塗る', '具をはさんで半分に切る'], notes: '', source_clip_id: 'c1000000-0000-4000-8000-000000000001', source_kind: 'manual', source_job_id: null, status: 'published', favorite: true, created_at: ts(1), updated_at: ts(1) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000002', title: 'エッグサラダ', genre_id: G.american, hero_image: null, ingredients: [{ name: '卵', amount: '2個' }, { name: 'マヨ', amount: '大さじ2' }], steps: ['ゆで卵を作る', '刻んで和える'], notes: 'ディル少々', source_clip_id: null, source_kind: 'text_paste', source_job_id: null, status: 'published', favorite: false, created_at: ts(12), updated_at: ts(12) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, created_at: ts(20), updated_at: ts(20) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000004', title: 'ハムチーズクロワッサン', genre_id: G.croissant, hero_image: null, ingredients: [{ name: 'クロワッサン', amount: '1個' }], steps: ['温める'], notes: '', source_clip_id: null, source_kind: 'ai_image', source_job_id: null, status: 'draft', favorite: false, created_at: ts(0), updated_at: ts(0) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000001', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '3枚' }, { name: 'レタス', amount: '2枚' }, { name: 'トマト', amount: '1/2個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストしてマヨを塗る', '具をはさんで半分に切る'], notes: '', source_clip_id: 'c1000000-0000-4000-8000-000000000001', source_kind: 'manual', source_job_id: null, status: 'published', favorite: true, rating: 2, family_id: null, variant_label: '', is_main: false, created_at: ts(5), updated_at: ts(5) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000002', title: 'エッグサラダ', genre_id: G.american, hero_image: null, ingredients: [{ name: '卵', amount: '2個' }, { name: 'マヨ', amount: '大さじ2' }], steps: ['ゆで卵を作る', '刻んで和える'], notes: 'ディル少々', source_clip_id: null, source_kind: 'text_paste', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, created_at: ts(12), updated_at: ts(12) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, created_at: ts(20), updated_at: ts(20) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000004', title: 'ハムチーズクロワッサン', genre_id: G.croissant, hero_image: null, ingredients: [{ name: 'クロワッサン', amount: '1個' }], steps: ['温める'], notes: '', source_clip_id: null, source_kind: 'ai_image', source_job_id: null, status: 'draft', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, created_at: ts(0), updated_at: ts(0) },
   ],
   ai_jobs: [
     { id: 'e1000000-0000-4000-8000-000000000001', user_id: USER_ID, kind: 'recipe_from_image', status: 'pending', payload: { image_paths: ['x/a.jpg', 'x/b.jpg'], hint: '裏面あり' }, result: null, error: null, attempts: 0, started_at: null, finished_at: null, created_at: ts(0) },
@@ -63,7 +65,7 @@ const fixtures: Record<string, object[]> = {
   ],
 }
 
-async function stubSupabase(page: Page) {
+async function stubSupabase(page: Page, opts: { noKey?: boolean } = {}) {
   const s = session()
   await page.addInitScript(([key, value]) => { localStorage.setItem(key, value) }, [`sb-${REF}-auth-token`, JSON.stringify(s)])
   await page.route(`https://${REF}.supabase.co/**`, async (route) => {
@@ -73,6 +75,10 @@ async function stubSupabase(page: Page) {
     const headers = { 'access-control-expose-headers': 'content-range' }
     if (p.startsWith('/auth/v1/token')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(s) })
     if (p.startsWith('/auth/v1/user')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(s.user) })
+    if (p.endsWith('/functions/v1/lara-chat')) {
+      if (opts.noKey) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'NO_API_KEY', message: 'Claude API キーが未設定です' } }) })
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: 'さっぱりなら [[R2]] がおすすめ。ネタ帳の [[C1]] の見せ方も合いそう！', refs: { R2: { type: 'recipe', id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド（試作2）' }, C1: { type: 'clip', id: 'c1000000-0000-4000-8000-000000000001', title: 'クロックムッシュ ¥980' } } }) })
+    }
     if (p.includes('/rest/v1/rpc/activity_days')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([iso(daysAgo(2)), iso(daysAgo(1)), iso(daysAgo(0))]) })
     const m = p.match(/\/rest\/v1\/([a-z_]+)/)
     if (m) {
@@ -96,7 +102,7 @@ async function stubSupabase(page: Page) {
   })
 }
 
-const routes = ['/', '/clips', '/clips/c1000000-0000-4000-8000-000000000001', '/add', '/recipes', '/recipes/d1000000-0000-4000-8000-000000000001', '/recipes/new', '/menu', `/menu/${iso(daysAgo(0))}`, '/menu/stats', '/inbox', '/settings']
+const routes = ['/', '/clips', '/clips/c1000000-0000-4000-8000-000000000001', '/add', '/recipes', '/recipes/d1000000-0000-4000-8000-000000000001', '/recipes/new', '/menu', `/menu/${iso(daysAgo(0))}`, '/menu/stats', '/inbox', '/settings', '/ask', '/recipes/d1000000-0000-4000-8000-000000000005/compare']
 
 for (const r of routes) {
   test(`renders ${r}`, async ({ page }, info) => {
@@ -109,7 +115,7 @@ for (const r of routes) {
     const isPhone = info.project.name === 'phone'
     if (isPhone) await expect(page.getByRole('navigation', { name: 'メイン' }).last()).toBeVisible()
     else await expect(page.getByRole('navigation', { name: 'メイン' }).first()).toBeVisible()
-    const slug = r === '/' ? 'home' : r.replace(/\//g, '-').replace(/^-/, '').replace(/-[0-9a-f-]{36}$/, '-detail').replace(/-\d{4}-\d{2}-\d{2}$/, '-day')
+    const slug = r === '/' ? 'home' : r.replace(/\//g, '-').replace(/^-/, '').replace(/-[0-9a-f-]{36}$/, '-detail').replace(/-[0-9a-f-]{36}-compare$/, '-compare').replace(/-\d{4}-\d{2}-\d{2}$/, '-day')
     await page.screenshot({ path: `screenshots/${info.project.name}-${slug}.png`, fullPage: r !== '/' })
     expect(errors, errors.join('\n')).toEqual([])
   })
@@ -128,4 +134,51 @@ test('login page without session', async ({ page }, info) => {
   await page.goto('#/login')
   await expect(page.getByRole('button', { name: 'ログイン' })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-login.png` })
+})
+
+test('inbox shows AI results and the review sheet takes a rating', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/inbox')
+  await expect(page.getByText('確認待ち')).toBeVisible()
+  await page.getByText('ピスタチオラテ ¥720').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('radio', { name: '4 つ星' }).click()
+  await expect(dialog.getByText('かなり好き')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-review-clip.png` })
+  await dialog.getByRole('button', { name: '閉じる' }).click()
+  await page.getByText('ハムチーズクロワッサン').click()
+  await expect(page.getByRole('dialog').getByText('同じ料理のレシピはもうある？')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-review-recipe.png` })
+})
+
+test('recipe versions: detail shows latest and compare highlights changes', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000001')
+  await expect(page.getByText('この料理の版')).toBeVisible()
+  await expect(page.getByText('最新は「試作2」→')).toBeVisible()
+  await page.getByRole('link', { name: '比べる →' }).click()
+  await expect(page.getByText('アボカド').first()).toBeVisible()
+  await expect(page.getByText('3か所の違い')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-compare.png`, fullPage: true })
+})
+
+test('ask LaRa: local search, chat answer links, and no-key fallback', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/ask')
+  const box = page.getByRole('textbox', { name: 'LaRa に聞く' })
+  await box.fill('ベーコン')
+  await expect(page.getByText('手元で見つかったもの')).toBeVisible()
+  await box.fill('さっぱりしたい')
+  await page.getByRole('button', { name: '聞く' }).click()
+  await expect(page.getByRole('link', { name: /BLT サンド（試作2）/ })).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-ask.png`, fullPage: true })
+
+  const p2 = await page.context().newPage()
+  await stubSupabase(p2, { noKey: true })
+  await p2.goto('#/ask')
+  await p2.evaluate(() => sessionStorage.clear())
+  await p2.getByRole('textbox', { name: 'LaRa に聞く' }).fill('BLT をもっと美味しくしたい')
+  await p2.getByRole('button', { name: '聞く' }).click()
+  await expect(p2.getByRole('button', { name: 'トレイに入れて答えてもらう' })).toBeVisible()
 })

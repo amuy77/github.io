@@ -7,6 +7,7 @@ import { PhotoPicker } from '@/components/ui/PhotoPicker'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { useToast } from '@/components/ui/Toast'
 import { IconX } from '@/components/ui/icons'
+import { RatingInput } from '@/components/ui/Rating'
 import type { ClipCategory, ClipRow, ClipType, ImageRef, LinkPreview } from '@/lib/supabase/database.types'
 import { uploadPhoto, photoUrl, deletePhotos } from '@/lib/images/upload'
 import { useSession } from '@/features/auth/useSession'
@@ -74,6 +75,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
   const [pending, setPending] = useState<{ file: File; url: string }[]>(() => (draft?.files ?? []).map((file) => ({ file, url: URL.createObjectURL(file) })))
   const [preview, setPreview] = useState<LinkPreview | null>(clip?.preview ?? null)
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'blocked' | 'error'>('idle')
+  const [rating, setRating] = useState<number | null>(clip?.rating ?? null)
   const [saving, setSaving] = useState(false)
   const saveBtn = useRef<HTMLButtonElement>(null)
 
@@ -118,7 +120,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
       const uploaded: ImageRef[] = []
       for (const p of pending) uploaded.push(await uploadPhoto(p.file, userId))
       const allImages = [...images, ...uploaded]
-      const row = { type, title: title.trim(), note: note.trim(), url: hasUrl ? url.trim() : null, images: allImages, preview: hasUrl ? preview : null, category, tags, shop_name: shop.trim() || null }
+      const row = { type, title: title.trim(), note: note.trim(), url: hasUrl ? url.trim() : null, images: allImages, preview: hasUrl ? preview : null, category, tags, shop_name: shop.trim() || null, rating: isIdea ? null : rating, needs_review: false }
       let saved: ClipRow
       if (clip) {
         saved = await update.mutateAsync({ id: clip.id, patch: row })
@@ -191,6 +193,8 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
         <span className="text-[13px] font-bold text-espresso-700">カテゴリ</span>
         <div className="flex flex-wrap gap-2">{CATEGORIES.map((c) => <Chip key={c.value} active={category === c.value} onClick={() => setCategory(c.value)}>{c.emoji} {c.label}</Chip>)}</div>
       </div>
+
+      {!isIdea && <RatingInput label="評価" max={5} value={rating} onChange={setRating} />}
 
       {!isIdea && <Input label="お店の名前（任意）" placeholder="コーヒースタンド Y" value={shop} onChange={(e) => setShop(e.target.value)} />}
 

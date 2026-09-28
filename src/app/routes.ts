@@ -8,6 +8,8 @@ export const paths = {
   recipeNew: '/recipes/new',
   recipe: (id: string) => `/recipes/${id}`,
   recipeEdit: (id: string) => `/recipes/${id}/edit`,
+  recipeCompare: (id: string) => `/recipes/${id}/compare`,
+  ask: '/ask',
   menu: '/menu',
   menuDay: (date: string) => `/menu/${date}`,
   menuStats: '/menu/stats',

@@ -7,6 +7,7 @@ import { UpdateToast } from './UpdateToast'
 import { useCounts } from '@/features/home/useCounts'
 import { CountBadge } from '@/components/ui/Chip'
 import { useBadges } from '@/features/game/useBadges'
+import { Mascot } from '@/components/mascot/Mascot'
 
 const tabs = [
   { to: paths.home, label: 'ホーム', Icon: IconHome, end: true },
@@ -21,6 +22,7 @@ export function AppShell() {
   useBadges()
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
+  const showAsk = !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
   return (
     <div className="min-h-full">
       <OfflineBanner />
@@ -33,6 +35,9 @@ export function AppShell() {
           </NavLink>
         ))}
         <NavLink to={paths.add} className="mt-2 grid size-12 place-items-center rounded-full bg-green-600 text-white shadow-card" aria-label="すぐメモ"><IconPlus /></NavLink>
+        <NavLink to={paths.ask} className={({ isActive }) => cx('mt-2 flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', isActive ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
+          <Mascot size={28} /> 聞く
+        </NavLink>
         <div className="mt-auto mb-6 flex flex-col items-center gap-1">
           <NavLink to={paths.inbox} className={({ isActive }) => cx('relative flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', isActive ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
             <IconInbox /> トレイ
@@ -54,6 +59,12 @@ export function AppShell() {
         <NavLink to={paths.add} className="relative -top-4 grid size-14 place-items-center rounded-full bg-green-600 text-white shadow-sheet" aria-label="すぐメモ"><IconPlus size={28} /></NavLink>
         {tabs.slice(2).map((t) => <Tab key={t.to} {...t} />)}
       </nav>
+      {/* モバイル: どの画面からでも LaRa に聞ける丸ボタン（入力中の画面では出さない） */}
+      {showAsk && (
+        <NavLink to={paths.ask} aria-label="LaRa に聞く" className="fixed right-4 z-30 flex items-center gap-1 rounded-full border border-line bg-paper py-1 pl-1 pr-3 text-[12px] font-bold shadow-sheet md:hidden" style={{ bottom: 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)' }}>
+          <Mascot size={34} /> 聞く
+        </NavLink>
+      )}
       <UpdateToast />
     </div>
   )

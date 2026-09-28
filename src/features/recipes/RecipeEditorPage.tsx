@@ -20,7 +20,9 @@ import { genreEmoji } from '@/features/genres/api'
 import { celebrateFrom } from '@/features/game/celebrate'
 import { nextWorkerTime } from '@/features/ai/api'
 import { useEnqueueJob } from '@/features/ai/hooks'
-import { useCreateRecipe, useRecipe, useUpdateRecipe } from './hooks'
+import { useCreateRecipe, useRecipe, useRecipes, useUpdateRecipe } from './hooks'
+import { RatingInput } from '@/components/ui/Rating'
+import { familyKey, familyOf, nextTrialLabel, representativeOf } from './family'
 import { cx } from '@/lib/cx'
 
 type Tab = 'manual' | 'text' | 'photo'
@@ -29,15 +31,18 @@ export function RecipeEditorPage() {
   const { id } = useParams()
   const [params] = useSearchParams()
   const existing = useRecipe(id)
+  const fromId = params.get('from') ?? undefined
+  const from = useRecipe(fromId)
+  if (fromId && from.isLoading) return <><PageHeader title="試作を作る" back /><Skeleton className="h-40" /></>
   if (id && existing.isLoading) return <><PageHeader title="レシピを編集" back /><Skeleton className="h-40" /></>
   if (id && !existing.data) return <><PageHeader title="レシピを編集" back /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
   const initialTab = (params.get('tab') as Tab | null) ?? 'manual'
-  return <Editor key={id ?? 'new'} recipe={existing.data ?? null} initialTab={id ? 'manual' : initialTab} />
+  return <Editor key={id ?? fromId ?? 'new'} recipe={existing.data ?? null} from={fromId ? from.data ?? null : null} initialTab={id || fromId ? 'manual' : initialTab} />
 }
 
-interface FormState { title: string; genreId: string | null; ingredients: Ingredient[]; steps: string[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind }
+interface FormState { title: string; genreId: string | null; ingredients: Ingredient[]; steps: string[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string }
 
-function Editor({ recipe, initialTab }: { recipe: RecipeRow | null; initialTab: Tab }) {
+function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: RecipeRow | null; initialTab: Tab }) {
   const nav = useNavigate()
   const toast = useToast()
   const { userId } = useSession()
@@ -45,11 +50,26 @@ function Editor({ recipe, initialTab }: { recipe: RecipeRow | null; initialTab: 
   const create = useCreateRecipe()
   const update = useUpdateRecipe()
   const enqueue = useEnqueueJob()
+  const allRecipes = useRecipes()
   const [tab, setTab] = useState<Tab>(initialTab)
-  const [form, setForm] = useState<FormState>(() => ({
-    title: recipe?.title ?? '', genreId: recipe?.genre_id ?? null, ingredients: recipe?.ingredients?.length ? recipe.ingredients : [{ name: '', amount: '' }],
-    steps: recipe?.steps?.length ? recipe.steps : [''], notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
-  }))
+  const [form, setForm] = useState<FormState>(() => {
+    // ?from=<id>: その版をコピーして同じグループの次の試作を作る（写真はコピーしない）
+    const src = recipe ?? from
+    return {
+      title: src?.title ?? '', genreId: src?.genre_id ?? null, ingredients: src?.ingredients?.length ? src.ingredients : [{ name: '', amount: '' }],
+      steps: src?.steps?.length ? src.steps : [''], notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
+      rating: recipe?.rating ?? null,
+      familyId: recipe ? recipe.family_id : from ? familyKey(from) : null,
+      label: recipe ? recipe.variant_label : from ? nextTrialLabel(familyOf(allRecipes.data ?? [from], from)) : '',
+    }
+  })
+  const familyChoices = (() => {
+    const others = (allRecipes.data ?? []).filter((r) => r.id !== recipe?.id && r.status === 'published' && familyKey(r) !== recipe?.id)
+    const keys = [...new Set(others.map(familyKey))]
+    return keys.map((k) => representativeOf(others.filter((r) => familyKey(r) === k)))
+  })()
+  // グループの先頭（他の版がぶら下がっている）レシピは、別グループへは移せない
+  const isFamilyHead = !!recipe && (allRecipes.data ?? []).some((r) => r.family_id === recipe.id)
   const [pendingHero, setPendingHero] = useState<{ file: File; url: string } | null>(null)
   const [text, setText] = useState('')
   const [photoFiles, setPhotoFiles] = useState<{ file: File; url: string }[]>([])
@@ -112,6 +132,7 @@ function Editor({ recipe, initialTab }: { recipe: RecipeRow | null; initialTab: 
         ingredients: form.ingredients.map((i) => ({ name: i.name.trim(), amount: i.amount.trim() })).filter((i) => i.name),
         steps: form.steps.map((s) => s.trim()).filter(Boolean),
         notes: form.notes.trim(), source_kind: form.sourceKind, status: 'published' as const,
+        rating: form.rating, family_id: form.familyId, variant_label: form.familyId || isFamilyHead ? form.label.trim() : '',
       }
       if (recipe) {
         const saved = await update.mutateAsync({ id: recipe.id, patch: row })
@@ -139,8 +160,8 @@ function Editor({ recipe, initialTab }: { recipe: RecipeRow | null; initialTab: 
 
   return (
     <>
-      <PageHeader title={recipe ? 'レシピを編集' : 'レシピを作る'} back={recipe ? paths.recipe(recipe.id) : paths.recipes} />
-      {!recipe && (
+      <PageHeader title={recipe ? 'レシピを編集' : from ? '試作を作る' : 'レシピを作る'} sub={from ? `「${from.title}」をコピーしたよ。変えたところだけ直してね` : undefined} back={recipe ? paths.recipe(recipe.id) : from ? paths.recipe(from.id) : paths.recipes} />
+      {!recipe && !from && (
         <div className="mb-4 grid grid-cols-3 gap-1 rounded-chip border border-line bg-paper p-1" role="tablist">
           {([['manual', '✍️ 手入力'], ['text', '📋 テキスト'], ['photo', '📷 写真 → AI']] as [Tab, string][]).map(([t, l]) => (
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('h-9 rounded-chip text-[13px] font-bold', tab === t ? 'bg-green-600 text-white' : 'text-espresso-900')}>{l}</button>
@@ -187,6 +208,25 @@ function Editor({ recipe, initialTab }: { recipe: RecipeRow | null; initialTab: 
         <div className="flex flex-col gap-4">
           <Input label="レシピ名" placeholder="BLT サンド" value={form.title} onChange={(e) => set('title', e.target.value)} />
           {genreChips}
+          <RatingInput label="評価" max={3} value={form.rating} onChange={(v) => set('rating', v)} />
+
+          <div className="flex flex-col gap-2 rounded-card border border-line bg-oat-50 p-3">
+            <span className="text-[13px] font-bold text-espresso-700">同じ料理のグループ</span>
+            {isFamilyHead ? (
+              <p className="text-xs text-muted">このレシピには別の版がつながっています（このレシピがグループの最初の版です）。</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted">同じ料理の別レシピ・試作ならグループにまとめると、あとで比べられます。</p>
+                <div className="flex flex-wrap gap-2">
+                  <Chip active={form.familyId === null} onClick={() => setForm((f) => ({ ...f, familyId: null }))}>単独のレシピ</Chip>
+                  {familyChoices.map((r) => (
+                    <Chip key={r.id} active={form.familyId === familyKey(r)} onClick={() => setForm((f) => ({ ...f, familyId: familyKey(r), label: f.label || nextTrialLabel(familyOf(allRecipes.data ?? [], r)) }))}>{r.title}</Chip>
+                  ))}
+                </div>
+              </>
+            )}
+            {(form.familyId || isFamilyHead) && <Input label="この版の呼び名（任意）" placeholder="試作2 / A案 / 夏バージョン" value={form.label} onChange={(e) => set('label', e.target.value)} />}
+          </div>
 
           <div className="flex flex-col gap-2">
             <span className="text-[13px] font-bold text-espresso-700">写真（任意）</span>
