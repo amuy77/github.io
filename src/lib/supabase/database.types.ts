@@ -7,7 +7,7 @@ export type ClipType = 'photo' | 'link' | 'note' | 'idea'
 export type ClipCategory = 'sandwich' | 'drink' | 'wine' | 'beer' | 'coffee' | 'shop' | 'other'
 export type RecipeStatus = 'draft' | 'published'
 export type RecipeSourceKind = 'manual' | 'ai_image' | 'ai_text' | 'text_paste'
-export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'weekly_insights'
+export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'weekly_insights'
 export type AiJobStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled'
 export type GenreColor = 'green' | 'mustard' | 'brick' | 'plum' | 'wood'
 
