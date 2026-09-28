@@ -55,6 +55,10 @@
     const ex = q.get('ex'); const motion = q.get('motion')
     fig.setExpression({ worried: ex === 'worried', sleeping: ex === 'sleep', blink: ex === 'blink' })
     const m = { walking: motion === 'walk', waving: motion === 'wave', brewing: motion === 'brew', sleeping: ex === 'sleep', worried: ex === 'worried', facing: 0, reduced: q.has('still') }
+    if (q.get('pose')) m.pose = q.get('pose')
+    if (q.get('prop')) fig.setProp(q.get('prop'))
+    // still=1 でも仕草の形は見せたいので、ポーズ指定があるときは時刻を固定して動かす
+    if (q.get('pose')) m.reduced = false
     window.__fig = fig
 
     const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 50)

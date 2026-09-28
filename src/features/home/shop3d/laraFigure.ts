@@ -12,6 +12,13 @@ import type { LaraOutfit } from './outfit'
  */
 
 export type { LaraOutfit }
+/** 手に持つ小物 */
+export type LaraProp = 'none' | 'cup' | 'watering' | 'book' | 'broom'
+/**
+ * 止まっているときの仕草。stand: ふつう / sit: 座る / read: 座って本を読む / rest: 座ってコーヒー /
+ * water: じょうろで水やり / sweep: ほうきで掃く / gaze: 窓の外を眺める / stretch: 伸び / lookaround: きょろきょろ / hop: 小さく跳ねる
+ */
+export type LaraPose = 'stand' | 'sit' | 'read' | 'rest' | 'water' | 'sweep' | 'gaze' | 'stretch' | 'lookaround' | 'hop'
 export interface LaraExpression { blink?: boolean; worried?: boolean; sleeping?: boolean }
 export interface LaraMotion {
   /** 歩行中（体の揺れ・腕振り・足踏み） */
@@ -27,6 +34,8 @@ export interface LaraMotion {
   facing?: number | null
   /** アニメーションを最小限に */
   reduced?: boolean
+  /** 止まっているときの仕草（歩行中・寝ているときは無視） */
+  pose?: LaraPose
 }
 
 export interface LaraFigure {
@@ -34,6 +43,8 @@ export interface LaraFigure {
   setExpression(e: LaraExpression): void
   /** 着替え（作り直さずに表示と色を切り替えるだけ） */
   setOutfit(o: LaraOutfit): void
+  /** 右手に持つ小物 */
+  setProp(p: LaraProp): void
   update(t: number, dt: number, m: LaraMotion): void
   /** タップ演出: ジャンプしながら 1 回転 */
   spin(): void
@@ -46,6 +57,8 @@ const COL = {
   cream: 0xffe7c2, moon: 0xffd95a, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a,
   // 黒猫パーカー: 真っ黒だと陰影が消えるので少し明るい黒。耳の内側とひもはもう一段明るく、輪郭線は濃く
   cloth: 0x37322f, clothInner: 0x57504b, string: 0x776d66, clothInk: 0x15100d,
+  // 小物
+  mug: 0xfdf8f0, coral: 0xf08a6b, mint: 0x9fd4c7, oak: 0xb08d63, straw: 0xe3c27a, page: 0xfff8ea,
 }
 /** 猫耳の先（フードの座標）。吹き出しの位置に使う */
 const EAR_TIP_Y = 0.63
@@ -195,6 +208,33 @@ export function buildLaraFigure(): LaraFigure {
     hands.push(hand)
     arms.push({ pivot, tilt, side: s })
   }
+  // ---------- 右手に持つ小物（side > 0 の腕の手の位置） ----------
+  // 小物は腕の角度に関係なく体に対してまっすぐ立て、持ち方の傾きだけ仕草ごとに付ける（update の orientProp）
+  const handArm = arms.find((a) => a.side > 0)!
+  const propG = new THREE.Group(); propG.position.set(0, -0.3, 0.02); handArm.tilt.add(propG)
+  const props: Record<Exclude<LaraProp, 'none'>, THREE.Group> = { cup: new THREE.Group(), watering: new THREE.Group(), book: new THREE.Group(), broom: new THREE.Group() }
+  for (const g of Object.values(props)) { g.visible = false; propG.add(g) }
+  {
+    // マグカップ（コーラルの帯）
+    const c = props.cup
+    solid(new THREE.CylinderGeometry(0.05, 0.045, 0.09, 14), COL.mug, c, { line: 0.01 }).position.set(0, 0.01, 0.05)
+    solid(new THREE.CylinderGeometry(0.052, 0.05, 0.022, 14), COL.coral, c, { line: 0 }).position.set(0, 0.02, 0.05)
+    solid(new THREE.TorusGeometry(0.024, 0.008, 6, 12), COL.mug, c, { line: 0.006 }).position.set(0.056, 0.01, 0.05)
+    // じょうろ（ミント）: 胴・注ぎ口・持ち手
+    const w = props.watering
+    solid(new THREE.CylinderGeometry(0.07, 0.075, 0.11, 16), COL.mint, w, { line: 0.01 }).position.set(0, -0.03, 0.07)
+    const spout = solid(new THREE.CylinderGeometry(0.01, 0.014, 0.17, 8), COL.mint, w, { line: 0.006 }); spout.position.set(0, 0.0, 0.2); spout.rotation.x = 1.05
+    const handle = solid(new THREE.TorusGeometry(0.045, 0.01, 6, 14, Math.PI), COL.mint, w, { line: 0.006 }); handle.position.set(0, 0.025, 0.07); handle.rotation.y = Math.PI / 2
+    // レシピ本（コーラルの表紙）
+    const b = props.book
+    solid(new THREE.BoxGeometry(0.2, 0.24, 0.035), COL.coral, b, { line: 0.008 }).position.set(-0.08, 0.04, 0.09)
+    solid(new THREE.BoxGeometry(0.19, 0.225, 0.028), COL.page, b, { line: 0 }).position.set(-0.075, 0.04, 0.082)
+    // ほうき: 柄と穂先
+    const br = props.broom
+    const stick = solid(new THREE.CylinderGeometry(0.011, 0.011, 0.6, 6), COL.oak, br, { line: 0.006 }); stick.position.set(0, 0.05, 0)
+    const brist = solid(new THREE.ConeGeometry(0.08, 0.14, 10), COL.straw, br, { line: 0.008 }); brist.position.set(0, -0.3, 0); brist.scale.z = 0.45
+  }
+  let prop: LaraProp = 'none'
   // パーカーのひも: フードの下（首元）から体に沿って 2 本垂れ、先に結び目。首元に小さなちょうちょ結び
   const strings = new THREE.Group(); strings.visible = false; root.add(strings)
   {
@@ -378,6 +418,15 @@ export function buildLaraFigure(): LaraFigure {
     moon: { head: moonHood, extras: [], cloth: COL.cream, hands: false, tipY: 0.82 },
     hoodie: { head: catHood, extras: [strings], cloth: COL.cloth, hands: true, tipY: EAR_TIP_Y },
   }
+  // 小物を体に対してまっすぐ（+ 仕草ごとの傾き）に向ける
+  const qParent = new THREE.Quaternion(), qWant = new THREE.Quaternion(), qTilt = new THREE.Quaternion(), eTilt = new THREE.Euler()
+  const orientProp = ([rx, ry, rz]: [number, number, number]) => {
+    handArm.tilt.getWorldQuaternion(qParent)
+    root.getWorldQuaternion(qWant)
+    qWant.multiply(qTilt.setFromEuler(eTilt.set(rx, ry, rz)))
+    propG.quaternion.copy(qParent.invert().multiply(qWant))
+  }
+
   let outfit: LaraOutfit = 'moon'
   const applyOutfit = () => {
     for (const [id, look] of Object.entries(looks) as [LaraOutfit, (typeof looks)[LaraOutfit]][]) {
@@ -395,6 +444,7 @@ export function buildLaraFigure(): LaraFigure {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
     setOutfit(o) { if (o !== outfit && o in looks) { outfit = o; applyOutfit() } },
+    setProp(p) { if (p === prop) return; prop = p; for (const [k, g] of Object.entries(props)) g.visible = k === p },
     spin() { spinT = 0 },
     headTop(out) {
       // 被り物のいちばん上（三日月の角の先 / 猫耳の先）
@@ -417,15 +467,18 @@ export function buildLaraFigure(): LaraFigure {
       }
 
       const sleeping = !!m.sleeping
+      const pose: LaraPose = m.pose ?? 'stand'
+      const seated = sleeping || pose === 'sit' || pose === 'read' || pose === 'rest'
       // 腕: tilt.rotation.z = side × 角度 で外側へ（正 = 右腕が右下、負 = 左腕が左下）
       const armRest = (a: (typeof arms)[number]) => { a.tilt.rotation.z = a.side * 1.05; a.pivot.rotation.x = 0 }
-      const legRest = () => { for (const l of legs) l.hip.rotation.x = 0 }
+      const legRest = () => { for (const l of legs) l.hip.rotation.x = seated ? -1.45 : 0 }   // 座るときは足を前へ
       let wantSway = 0
+      let propTilt: [number, number, number] = [0, 0, 0]
+      root.rotation.set(0, 0, 0); root.scale.set(1, 1, 1)
       if (sleeping) {
-        // クッションの上でうとうと: 頭を前と横に傾け、ゆっくり呼吸
+        // ベンチに座ってうとうと: 頭を前と横に傾け、ゆっくり呼吸
         const b = reduced ? 0 : Math.sin(t * 1.1)
         root.position.y = jump
-        root.rotation.z = 0
         headG.rotation.set(0.28 + b * 0.015, 0, 0.22)
         headG.position.y = HEAD.cy - 0.03 + b * 0.008
         for (const a of arms) armRest(a)
@@ -439,10 +492,11 @@ export function buildLaraFigure(): LaraFigure {
         arms.forEach((a, i) => { a.tilt.rotation.z = a.side * 0.85; a.pivot.rotation.x = Math.sin(w + i * Math.PI) * 0.55 })
         legs.forEach((l, i) => { l.hip.rotation.x = Math.sin(w + i * Math.PI + Math.PI) * 0.6 })
         wantSway = Math.sin(w * 0.5) * 0.18
+        // 小物を持ったまま歩くときは右手を少し前に
+        if (prop !== 'none') { handArm.pivot.rotation.x = -0.6; handArm.tilt.rotation.z = 0.45 }
       } else {
         const b = reduced ? 0 : Math.sin(t * 1.5)
         root.position.y = jump + b * 0.015
-        root.rotation.z = 0
         headG.rotation.set(0, 0, m.worried ? 0.16 + b * 0.02 : b * 0.035)
         headG.position.y = HEAD.cy + b * 0.006
         legRest()
@@ -452,7 +506,66 @@ export function buildLaraFigure(): LaraFigure {
           else armRest(a)
         }
         wantSway = b * 0.06
+        const other = arms.find((a) => a.side < 0)!
+        switch (pose) {
+          case 'read': {
+            // 両手で本を持って少しうつむく。ときどき左手でページをめくる
+            for (const a of arms) { a.pivot.rotation.x = -1.35; a.tilt.rotation.z = a.side * 0.12 }
+            if (!reduced) other.pivot.rotation.x = -1.35 - Math.max(0, Math.sin(t * 1.6)) ** 8 * 0.45
+            headG.rotation.x = 0.28
+            propTilt = [-0.35, 0, 0]
+            break
+          }
+          case 'rest': {
+            // マグを胸の前に持ち、6 秒ごとにひと口（持ち上げる → 口元 → 下ろす）
+            const c = reduced ? 3 : t % 6
+            const k = c < 1 ? c : c < 2 ? 1 : c < 3 ? 3 - c : 0
+            const e = k * k * (3 - 2 * k)
+            handArm.pivot.rotation.x = -1.2 - e * 1.0; handArm.tilt.rotation.z = 0.12 - e * 0.45
+            headG.rotation.x = -0.12 * e
+            propTilt = [-0.9 * e, 0, 0]
+            break
+          }
+          case 'water': {
+            // じょうろを前に差し出して傾ける
+            handArm.pivot.rotation.x = -1.3; handArm.tilt.rotation.z = 0.15
+            headG.rotation.x = 0.22
+            root.rotation.x = 0.06
+            propTilt = [0.55 + (reduced ? 0 : Math.sin(t * 3) * 0.12), 0, 0]
+            break
+          }
+          case 'sweep': {
+            // 両手でほうきを持って左右に掃く
+            const w = reduced ? 0 : Math.sin(t * 4)
+            for (const a of arms) { a.pivot.rotation.x = -0.7 + w * 0.2; a.tilt.rotation.z = a.side * 0.35 }
+            root.rotation.y = w * 0.22
+            headG.rotation.x = 0.15
+            propTilt = [-1.0, 0, w * 0.35]
+            wantSway = w * 0.12
+            break
+          }
+          case 'gaze':
+            // 窓の外を眺める: 少し上を見て、しっぽがゆらゆら
+            headG.rotation.x = -0.12
+            wantSway = reduced ? 0 : Math.sin(t * 1.1) * 0.3
+            break
+          case 'stretch':
+            for (const a of arms) { a.tilt.rotation.z = a.side * 2.35; a.pivot.rotation.x = -0.15 }
+            headG.rotation.x = -0.18
+            root.scale.set(1, 1.05, 1)
+            break
+          case 'lookaround':
+            headG.rotation.y = reduced ? 0 : Math.sin(t * 2.2) * 0.55
+            break
+          case 'hop':
+            root.position.y = jump + (reduced ? 0 : Math.abs(Math.sin(t * 7)) * 0.12)
+            for (const a of arms) a.tilt.rotation.z = a.side * 1.6
+            break
+          default:
+            break
+        }
       }
+      if (prop !== 'none') orientProp(propTilt)
       // 尻尾: 少し遅れて揺れ、渦はゆっくり回る（「付いてくる」感じ）
       sway += (wantSway - sway) * Math.min(1, dt * 4)
       tail.rotation.y = sway

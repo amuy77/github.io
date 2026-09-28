@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { DayPart } from '@/lib/dates'
-import { buildLaraFigure, type LaraFigure, type LaraOutfit } from './laraFigure'
+import { buildLaraFigure, type LaraFigure, type LaraOutfit, type LaraPose, type LaraProp } from './laraFigure'
 
 export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident'
 export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number }
@@ -42,6 +42,70 @@ const MODES: Record<DayPart, { bg: number; hemi: [number, number, number]; sun: 
 function makeRand(seed: number) {
   return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646 }
 }
+
+// ---------- 住人（LaRa）の暮らし ----------
+/** 住人の行動。mailbox（未読）・sleep（夜）・counter（心配顔）は優先。それ以外は日中に気ままに選ぶ */
+export type ResidentActivity = 'counter' | 'machine' | 'mailbox' | 'sleep' | 'window' | 'water' | 'waterBanana' | 'read' | 'rest' | 'sweep'
+interface Spot { node: string; face: 'camera' | number; pose?: LaraPose; prop?: LaraProp; brewing?: boolean; waving?: boolean; sleeping?: boolean; emote?: string }
+/**
+ * 通り道の点（y は足元の高さ。カウンター裏の踏み板 0.6、ベンチ・スツールに座るときは座面 − 0.14）。
+ * PR / PL は踏み板の右端・左端、A はカウンター右の床、C は本棚の前の床、FL / FM はカウンターの手前、B は右前、W は窓辺のベンチの前
+ */
+const NODES: Record<string, [number, number, number]> = {
+  counter: [-0.2, 0.6, -0.35], machine: [-1.3, 0.6, -0.35], PR: [0.72, 0.6, -0.35], PL: [-2.12, 0.6, -0.35],
+  A: [1.15, 0, -0.35], C: [-2.7, 0, -0.2], FL: [-2.0, 0, 1.1], FM: [-0.6, 0, 1.1], B: [1.4, 0, 1.15], W: [2.05, 0, -1.65],
+  sleep: [2.05, 0.36, -2.2], window: [2.35, 0, -1.72], mailbox: [1.9, 0, 1.55],
+  water: [-1.85, 0, 1.35], waterBanana: [1.3, 0, -1.8], read: [-0.07, 0.37, 1.72], rest: [0.85, 0.37, 2.22], sweep: [1.05, 0, 0.98],
+}
+/** 通り道のつながり（家具を突き抜けないように置いた線） */
+const EDGES: [string, string][] = [
+  ['counter', 'machine'], ['counter', 'PR'], ['machine', 'PL'], ['PR', 'A'], ['PL', 'C'],
+  ['A', 'B'], ['A', 'W'], ['A', 'waterBanana'], ['W', 'waterBanana'], ['W', 'window'], ['W', 'sleep'], ['A', 'sweep'], ['FM', 'sweep'],
+  ['B', 'mailbox'], ['B', 'sweep'], ['B', 'rest'], ['B', 'FM'], ['FM', 'FL'], ['FM', 'read'], ['C', 'FL'], ['FL', 'water'],
+]
+/** 行動ごとの場所・向き・仕草・小物・気持ちマーク */
+const SPOTS: Record<ResidentActivity, Spot> = {
+  counter: { node: 'counter', face: 'camera' },
+  machine: { node: 'machine', face: -0.55, brewing: true },
+  mailbox: { node: 'mailbox', face: 'camera', waving: true, emote: '!' },
+  sleep: { node: 'sleep', face: 'camera', sleeping: true, emote: 'z' },
+  window: { node: 'window', face: Math.PI, pose: 'gaze', emote: '♪' },
+  water: { node: 'water', face: -0.98, pose: 'water', prop: 'watering', emote: '♪' },
+  waterBanana: { node: 'waterBanana', face: -2.47, pose: 'water', prop: 'watering' },
+  read: { node: 'read', face: 1.76, pose: 'read', prop: 'book', emote: '!' },
+  rest: { node: 'rest', face: 'camera', pose: 'rest', prop: 'cup', emote: '♡' },
+  sweep: { node: 'sweep', face: 'camera', pose: 'sweep', prop: 'broom', emote: '♪' },
+}
+/** 時間帯ごとの行動の選ばれやすさ（夜は寝るだけ） */
+const PLAN: Record<DayPart, [ResidentActivity, number][]> = {
+  morning: [['machine', 4], ['counter', 2], ['water', 2], ['waterBanana', 1], ['sweep', 2], ['window', 1], ['rest', 1]],
+  day: [['counter', 4], ['machine', 1], ['window', 2], ['water', 1], ['waterBanana', 1], ['read', 2], ['rest', 2], ['sweep', 1]],
+  evening: [['counter', 3], ['window', 3], ['read', 2], ['rest', 2], ['machine', 1]],
+  night: [['sleep', 1]],
+}
+const nodeDist = (a: string, b: string) => Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1], NODES[a][2] - NODES[b][2])
+/** 通り道の最短経路（ダイクストラ。点は 20 個弱なので素朴に） */
+function shortestPath(from: string, to: string): string[] {
+  if (from === to) return [to]
+  const dist = new Map<string, number>([[from, 0]]), prev = new Map<string, string>(), open = new Set(Object.keys(NODES))
+  while (open.size) {
+    let u = '', best = Infinity
+    for (const n of open) { const d = dist.get(n) ?? Infinity; if (d < best) { best = d; u = n } }
+    if (!u || u === to) break
+    open.delete(u)
+    for (const [a, b] of EDGES) {
+      const v = a === u ? b : b === u ? a : ''
+      if (!v || !open.has(v)) continue
+      const nd = best + nodeDist(u, v)
+      if (nd < (dist.get(v) ?? Infinity)) { dist.set(v, nd); prev.set(v, u) }
+    }
+  }
+  if (!dist.has(to)) return [to]
+  const path = [to]
+  while (path[0] !== from) path.unshift(prev.get(path[0])!)
+  return path
+}
+const pathLength = (p: string[]) => p.reduce((sum, n, i) => (i ? sum + nodeDist(p[i - 1], n) : 0), 0)
 
 /**
  * LaRa のお店ジオラマ。vanilla three.js で組み、React からは
@@ -91,7 +155,22 @@ export class ShopScene {
   private figure: LaraFigure | null = null
   private residentTarget = new THREE.Vector3()
   private residentPath: THREE.Vector3[] = []
-  private residentState: 'counter' | 'machine' | 'mailbox' | 'sleep' = 'counter'
+  private residentState: ResidentActivity = 'counter'
+  /** residentPath と並ぶ通り道の点の名前 / 最後に着いた点 */
+  private residentNodes: string[] = []
+  private residentAt = 'counter'
+  /** 今の行動の場所に着いた時刻（-1 = まだ歩いている）と、次の行動・次の短い仕草の時刻 */
+  private arrivedAt = -1
+  private nextSwitch = 0
+  private nextGesture = 0
+  private gesture: { pose: LaraPose; until: number } | null = null
+  private react: { pose?: LaraPose; waving?: boolean; until: number } | null = null
+  private lastT = 0
+  /** 気持ちマーク（♪ ♡ ! Zz）: 頭の上にふわっと出る小さな吹き出し */
+  private emote: THREE.Sprite | null = null
+  private emoteCanvas = document.createElement('canvas')
+  private emoteTex = new THREE.CanvasTexture(this.emoteCanvas)
+  private emoteT = 99
   private residentMood: ResidentMood = 'idle'
   private residentOutfit: LaraOutfit = 'moon'
   private blinkAt = 4
@@ -121,6 +200,7 @@ export class ShopScene {
     this.lampLight = new THREE.PointLight(0xffc97a, 0, 6, 2)
     this.buildRoom()
     this.buildLights()
+    this.buildEmote()
     this.setMode('day')
     this.bindPointer()
     this.ro = new ResizeObserver(() => this.fit())
@@ -169,28 +249,37 @@ export class ShopScene {
     this.scene.add(g)
     this.resident = g; this.figure = fig
     this.residentState = 'counter'
-    g.position.copy(this.residentSpot('counter'))
     this.updateResidentState(true)
     this.needsRender = true
   }
 
   /** 住人の気分（連続記録が途切れそうなときは心配顔） */
-  setResidentMood(m: ResidentMood) { this.residentMood = m; this.needsRender = true }
+  setResidentMood(m: ResidentMood) { this.residentMood = m; this.updateResidentState(); this.needsRender = true }
+
+  /** 今の行動（吹き出しのセリフを選ぶのに使う） */
+  residentActivity(): ResidentActivity { return this.residentState }
 
   /** 住人の服（三日月 / 黒猫パーカー）。日替わりの判定は呼ぶ側（outfit.ts） */
   setResidentOutfit(o: LaraOutfit) { this.residentOutfit = o; this.figure?.setOutfit(o); this.needsRender = true }
 
   private residentExpression(t: number) {
     if (!this.figure) return
-    const sleeping = this.residentState === 'sleep' && this.residentPath.length <= 1
+    const sleeping = !!SPOTS[this.residentState].sleeping && this.arrivedAt >= 0
     if (!sleeping && !this.opts.reducedMotion) {
       if (t >= this.blinkAt) { this.blinkUntil = t + 0.14; this.blinkAt = t + 3 + Math.random() * 5 }
     }
-    this.figure.setExpression({ blink: !sleeping && t < this.blinkUntil, worried: this.residentMood === 'worried', sleeping })
+    const stretching = this.gesture?.pose === 'stretch'   // 伸びの間は目を閉じる
+    this.figure.setExpression({ blink: !sleeping && (t < this.blinkUntil || stretching), worried: this.residentMood === 'worried', sleeping })
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit } }
+  /** デバッグ用: 行動の場所へ瞬間移動して、その行動を続ける（null は今の時間帯の決まった行動） */
+  debugGoto(act: ResidentActivity | null) {
+    this.goTo(act ?? this.forcedActivity() ?? this.baseActivity(), true)
+    this.arrive(this.lastT)
+    this.nextSwitch = this.lastT + 1e6
+  }
 
   /** 吹き出し表示用: 住人の頭上の画面座標 */
   residentScreenPos(): { x: number; y: number } | null {
@@ -212,7 +301,7 @@ export class ShopScene {
       if (m.material && !Array.isArray(m.material)) { const mm = m.material as THREE.MeshStandardMaterial; mm.map?.dispose(); mm.dispose() }
     })
     this.mats.forEach((m) => m.dispose())
-    this.seaTex.dispose(); this.festoonMat.dispose(); this.pendantMat.dispose()
+    this.seaTex.dispose(); this.festoonMat.dispose(); this.pendantMat.dispose(); this.emoteTex.dispose()
     this.figure?.dispose()
     this.renderer.dispose()
     this.el.remove()
@@ -777,41 +866,105 @@ export class ShopScene {
   }
 
   // ---------- resident (LaRa) ----------
-  /** 立ち位置（y は床の高さ: カウンター裏の踏み板 0.6、窓辺のベンチのクッション 0.5） */
-  private residentSpot(s: typeof this.residentState): THREE.Vector3 {
-    switch (s) {
-      case 'machine': return new THREE.Vector3(-1.3, 0.6, -0.35)
-      case 'mailbox': return new THREE.Vector3(1.9, 0, 1.55)
-      case 'sleep': return new THREE.Vector3(2.05, 0.5, -2.2)
-      default: return new THREE.Vector3(-0.2, 0.6, -0.35)
-    }
+  /** 優先される行動: 未読があれば郵便受け、夜は寝る、記録がまだで心配なときはお店番 */
+  private forcedActivity(): ResidentActivity | null {
+    if (this.counts.inbox > 0) return 'mailbox'
+    if (this.mode === 'night') return 'sleep'
+    if (this.residentMood === 'worried') return 'counter'
+    return null
   }
-  /** カウンターを突き抜けないように、端を回る経路（A: カウンター右端の奥, B: 右前, W: 窓辺のベンチの前） */
-  private residentRoute(from: typeof this.residentState, to: typeof this.residentState): THREE.Vector3[] {
-    const A = new THREE.Vector3(1.15, 0, -0.35), B = new THREE.Vector3(1.4, 0, 1.15), W = new THREE.Vector3(2.05, 0, -1.65)
-    const zone = (s: typeof this.residentState) => (s === 'mailbox' ? 'front' : s === 'sleep' ? 'window' : 'behind')
-    const zf = zone(from), zt = zone(to)
-    const via: THREE.Vector3[] = []
-    if (zf === 'behind' && zt === 'front') via.push(A, B)
-    else if (zf === 'front' && zt === 'behind') via.push(B, A)
-    else if (zf === 'behind' && zt === 'window') via.push(A, W)
-    else if (zf === 'window' && zt === 'behind') via.push(W, A)
-    else if (zf === 'front' && zt === 'window') via.push(B, W)
-    else if (zf === 'window' && zt === 'front') via.push(W, B)
-    return [...via, this.residentSpot(to)]
-  }
+  /** 気ままに動かないときの居場所（朝はコーヒーマシン、それ以外はカウンター） */
+  private baseActivity(): ResidentActivity { return this.mode === 'morning' ? 'machine' : 'counter' }
   private updateResidentState(force = false) {
     if (!this.resident) return
-    let s: typeof this.residentState = 'counter'
-    if (this.counts.inbox > 0) s = 'mailbox'
-    else if (this.mode === 'night') s = 'sleep'
-    else if (this.mode === 'morning') s = 'machine'
-    if (s !== this.residentState || force) {
-      this.residentPath = force ? [this.residentSpot(s)] : this.residentRoute(this.residentState, s)
-      this.residentState = s
-      this.residentTarget.copy(this.residentPath[0])
-      this.needsRender = true
+    const want = this.forcedActivity(), s = this.residentState
+    if (force) { this.goTo(want ?? this.baseActivity(), true); return }
+    if (want && want !== s) this.goTo(want)
+    else if (!want && (s === 'mailbox' || s === 'sleep')) this.goTo(this.baseActivity())
+    else if (!want && this.opts.reducedMotion && s !== this.baseActivity()) this.goTo(this.baseActivity())
+  }
+  /** 行動を始める: 通り道の最短経路で場所へ向かう（teleport なら瞬間移動） */
+  private goTo(act: ResidentActivity, teleport = false) {
+    if (!this.resident) return
+    const target = SPOTS[act].node
+    this.residentState = act; this.arrivedAt = -1; this.gesture = null; this.react = null
+    this.figure?.setProp('none')
+    const p = this.resident.position
+    if (teleport) {
+      this.residentAt = target; p.fromArray(NODES[target]); this.residentNodes = [target]
+    } else {
+      // 歩いている途中なら、さっき通った点と向かっている点のうち近道になる方から
+      const cands = [this.residentAt, this.residentNodes[0]].filter((n, i, a) => !!n && a.indexOf(n) === i)
+      let best: string[] = [target], bestLen = Infinity
+      for (const c of cands) {
+        const path = shortestPath(c, target)
+        const len = this.tmp.fromArray(NODES[c]).distanceTo(p) + pathLength(path)
+        if (len < bestLen) { bestLen = len; best = path }
+      }
+      this.residentNodes = best
+      if (this.residentNodes.length > 1 && this.tmp.fromArray(NODES[this.residentNodes[0]]).distanceTo(p) < 0.03) this.residentNodes.shift()
     }
+    this.residentPath = this.residentNodes.map((n) => new THREE.Vector3(...NODES[n]))
+    this.residentTarget.copy(this.residentPath[0])
+    this.needsRender = true
+  }
+  /** 場所に着いたとき: 小物を持ち、気持ちマークを出し、次の行動までの時間を決める */
+  private arrive(t: number) {
+    this.arrivedAt = t
+    const spot = SPOTS[this.residentState]
+    this.figure?.setProp(spot.prop ?? 'none')
+    if (spot.emote) this.showEmote(spot.emote)
+    this.nextSwitch = t + 20 + Math.random() * 20
+    this.nextGesture = t + 5 + Math.random() * 5
+  }
+  /** 次の行動を時間帯の選ばれやすさで選ぶ（今と同じ行動は選ばない） */
+  private pickNext() {
+    const plan = PLAN[this.mode].filter(([a]) => a !== this.residentState)
+    if (!plan.length) return
+    let r = Math.random() * plan.reduce((sum, [, w]) => sum + w, 0)
+    for (const [a, w] of plan) { r -= w; if (r <= 0) { this.goTo(a); return } }
+    this.goTo(plan[plan.length - 1][0])
+  }
+  /** タップされたとき: くるっと回る / ぴょんと跳ねて ♪ / 手を振る / ♡。座っている・寝ているときは気持ちマークだけ */
+  private reactTap() {
+    const t = this.lastT, spot = SPOTS[this.residentState], walking = this.arrivedAt < 0
+    if (!walking && spot.sleeping) { this.showEmote('z'); return }
+    if (!walking && (spot.pose === 'read' || spot.pose === 'rest')) { this.showEmote('♡'); return }
+    const r = Math.random()
+    if (walking || r < 0.4) this.figure?.spin()
+    else if (r < 0.65) { this.react = { pose: 'hop', until: t + 1.4 }; this.showEmote('♪') }
+    else if (r < 0.82) { this.react = { pose: 'stand', waving: true, until: t + 1.8 }; this.showEmote('!') }
+    else { this.react = { pose: 'stand', until: t + 1.6 }; this.showEmote('♡') }
+  }
+  private buildEmote() {
+    this.emoteCanvas.width = this.emoteCanvas.height = 128
+    this.emoteTex.colorSpace = THREE.SRGBColorSpace
+    const m = new THREE.SpriteMaterial({ map: this.emoteTex, transparent: true, depthTest: false, opacity: 0 })
+    this.emote = new THREE.Sprite(m); this.emote.scale.setScalar(0.36); this.emote.renderOrder = 10; this.emote.visible = false
+    this.scene.add(this.emote)
+  }
+  private showEmote(ch: string) {
+    const g = this.emoteCanvas.getContext('2d')
+    if (!g || !this.emote) return
+    g.clearRect(0, 0, 128, 128)
+    g.fillStyle = '#fffdf8'; g.strokeStyle = '#3b2a20'; g.lineWidth = 5; g.lineJoin = 'round'
+    g.beginPath(); g.arc(64, 56, 42, 0.35 * Math.PI, 0.65 * Math.PI, true); g.lineTo(58, 118); g.closePath(); g.fill(); g.stroke()
+    const col: Record<string, string> = { '♪': '#e8744f', '♡': '#e0607e', '!': '#d99a2b', z: '#4fa3b8' }
+    g.fillStyle = col[ch] ?? '#3b2a20'
+    g.font = `bold ${ch === 'z' ? 40 : 58}px "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif`
+    g.textAlign = 'center'; g.textBaseline = 'middle'
+    g.fillText(ch === 'z' ? 'Zz' : ch, 64, 58)
+    this.emoteTex.needsUpdate = true
+    this.emoteT = 0; this.emote.visible = true
+  }
+  private updateEmote(dt: number) {
+    if (!this.emote || !this.figure) return
+    if (this.emoteT > 2.2) { this.emote.visible = false; return }
+    this.emoteT += dt
+    this.figure.headTop(this.emote.position)
+    this.emote.position.y += 0.2 + this.emoteT * 0.08
+    const k = this.emoteT
+    ;(this.emote.material as THREE.SpriteMaterial).opacity = Math.min(1, k * 5) * Math.max(0, Math.min(1, (2.2 - k) * 3))
   }
 
   // ---------- camera ----------
@@ -864,7 +1017,7 @@ export class ShopScene {
     el.addEventListener('pointercancel', () => { this.dragging = false; this.pressed = null })
   }
   private tap(g: THREE.Group) {
-    if (g === this.resident) this.figure?.spin()
+    if (g === this.resident) this.reactTap()
     else this.bounces.push({ g, t: 0 })
     this.needsRender = true
     try { navigator.vibrate?.(10) } catch { /* noop */ }
@@ -897,11 +1050,12 @@ export class ShopScene {
       }
       this.needsRender = true
     }
-    // 住人: 経路に沿って歩く → 着いたら場所ごとの仕草
+    // 住人: 通り道に沿って歩く → 着いたら場所ごとの仕草 → しばらくしたら次の行動へ
     if (this.resident && this.figure) {
+      this.lastT = t
       this.residentExpression(t)
       const p = this.resident.position
-      const d = this.residentTarget.clone().sub(p)   // y も補間する（踏み板・クッションに上る）
+      const d = this.residentTarget.clone().sub(p)   // y も補間する（踏み板・ベンチ・スツールに上る）
       const dist = d.length()
       let walking = false
       let facing: number | null = null
@@ -911,18 +1065,36 @@ export class ShopScene {
         p.add(d.normalize().multiplyScalar(step))
         walking = true
       } else if (this.residentPath.length > 1) {
+        this.residentAt = this.residentNodes.shift() ?? this.residentAt
         this.residentPath.shift()
         this.residentTarget.copy(this.residentPath[0])
         walking = true
       }
+      const spot = SPOTS[this.residentState]
       const arrived = !walking
-      const s = this.residentState
-      if (arrived) facing = s === 'machine' ? -0.55 : this.yaw   // マシンの方 / カメラの方
+      if (arrived && this.arrivedAt < 0) { this.residentAt = spot.node; this.arrive(t) }
+      const free = !this.forcedActivity() && !this.opts.reducedMotion
+      if (arrived) {
+        facing = spot.face === 'camera' ? this.yaw : spot.face
+        if (this.gesture && t > this.gesture.until) this.gesture = null
+        // お店番と窓辺では、ときどき伸び・きょろきょろ・ぴょん
+        if (free && !this.gesture && (this.residentState === 'counter' || this.residentState === 'window') && t > this.nextGesture) {
+          const g = (['stretch', 'lookaround', 'hop'] as const)[Math.floor(Math.random() * 3)]
+          this.gesture = { pose: g, until: t + 2.4 }
+          if (g === 'hop') this.showEmote('♪')
+          this.nextGesture = t + 7 + Math.random() * 6
+        }
+        if (spot.sleeping && this.emoteT > 4 && !this.opts.reducedMotion) this.showEmote('z')
+        if (free && t > this.nextSwitch) this.pickNext()
+      }
+      if (this.react && t > this.react.until) this.react = null
+      const pose = arrived ? this.react?.pose ?? this.gesture?.pose ?? spot.pose : undefined
       this.figure.update(t, dt, {
-        walking, facing, reduced: !!this.opts.reducedMotion,
-        waving: arrived && s === 'mailbox', brewing: arrived && s === 'machine', sleeping: arrived && s === 'sleep',
+        walking, facing, reduced: !!this.opts.reducedMotion, pose,
+        waving: arrived && (!!spot.waving || !!this.react?.waving), brewing: arrived && !!spot.brewing && !this.react, sleeping: arrived && !!spot.sleeping,
         worried: this.residentMood === 'worried',
       })
+      this.updateEmote(dt)
       this.needsRender = true
     }
     for (let i = this.bounces.length - 1; i >= 0; i--) {
