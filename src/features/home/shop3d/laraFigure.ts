@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { LaraOutfit } from './outfit'
 
 /**
  * LaRa のフル 3D トゥーンフィギュア。
@@ -6,10 +7,11 @@ import * as THREE from 'three'
  * ロゴ（大きな丸い頭・三日月・ヒゲ・点の目・ペロッと舌・小さな体と足）をプリミティブで組み、
  * 輪郭線は「法線方向に膨らませた裏面描画（inverted hull）」で描く。
  * 足元が y=0、三日月の角の先が y≈1.3。正面は +z。
- * 服は 2 着: 黄色い三日月の被り物（moon）と、黒い猫耳パーカー（hoodie）。setOutfit で着替える。
+ * 服は outfit.ts の OUTFITS の数だけ（今は黄色い三日月の被り物 moon と、黒い猫耳パーカー hoodie）。setOutfit で着替える。
+ * 新しい服は、頭の被り物を makeHood() で作って下の `looks` に足す（体の色・手・小物もそこで指定）。
  */
 
-export type LaraOutfit = 'moon' | 'hoodie'
+export type { LaraOutfit }
 export interface LaraExpression { blink?: boolean; worried?: boolean; sleeping?: boolean }
 export interface LaraMotion {
   /** 歩行中（体の揺れ・腕振り・足踏み） */
@@ -315,7 +317,7 @@ export function buildLaraFigure(): LaraFigure {
     parent.add(m)
   }
 
-  const moonHood = makeHood()
+  const moonHood = makeHood(); moonHood.visible = false
   {
     solid(hoodShell(R.x, R.y, R.z, W), COL.moon, moonHood, { double: true, line: 0 })
     shellOutline(moonHood)
@@ -369,26 +371,34 @@ export function buildLaraFigure(): LaraFigure {
   }
   applyExpression()
 
+  // ---------- 服 ----------
+  // 服ごとの見た目: 頭の被り物（head）、服にだけ付く小物（extras）、体・腕・足の色（cloth）、袖から手を出すか（hands）
+  // 被り物の頂点（吹き出しの位置）は tipY（フードの座標）
+  const looks: Record<LaraOutfit, { head: THREE.Group; extras: THREE.Object3D[]; cloth: number; hands: boolean; tipY: number }> = {
+    moon: { head: moonHood, extras: [], cloth: COL.cream, hands: false, tipY: 0.82 },
+    hoodie: { head: catHood, extras: [strings], cloth: COL.cloth, hands: true, tipY: EAR_TIP_Y },
+  }
   let outfit: LaraOutfit = 'moon'
   const applyOutfit = () => {
-    const hoodie = outfit === 'hoodie'
-    moonHood.visible = !hoodie
-    catHood.visible = hoodie
-    strings.visible = hoodie
-    for (const h of hands) h.visible = hoodie
-    for (const m of clothMats) m.color.setHex(hoodie ? COL.cloth : COL.cream)
+    for (const [id, look] of Object.entries(looks) as [LaraOutfit, (typeof looks)[LaraOutfit]][]) {
+      const on = id === outfit
+      look.head.visible = on
+      for (const e of look.extras) e.visible = on
+    }
+    const look = looks[outfit]
+    for (const h of hands) h.visible = look.hands
+    for (const m of clothMats) m.color.setHex(look.cloth)
   }
   applyOutfit()
 
   return {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
-    setOutfit(o) { if (o !== outfit) { outfit = o; applyOutfit() } },
+    setOutfit(o) { if (o !== outfit && o in looks) { outfit = o; applyOutfit() } },
     spin() { spinT = 0 },
     headTop(out) {
-      // 三日月の角の先 / 猫耳の先
-      const tip = outfit === 'hoodie' ? EAR_TIP_Y : 0.82
-      return out.copy(headTopV.set(0, HEAD.cy + (0.04 + tip * HOOD_SCALE) * HEAD_SCALE, 0)).applyMatrix4(group.matrixWorld)
+      // 被り物のいちばん上（三日月の角の先 / 猫耳の先）
+      return out.copy(headTopV.set(0, HEAD.cy + (0.04 + looks[outfit].tipY * HOOD_SCALE) * HEAD_SCALE, 0)).applyMatrix4(group.matrixWorld)
     },
     update(t, dt, m) {
       const reduced = !!m.reduced

@@ -26,6 +26,7 @@
   <script type="module">
     import * as THREE from 'three'
     import { buildLaraFigure } from '/src/features/home/shop3d/laraFigure.ts'
+    import { OUTFITS } from '/src/features/home/shop3d/outfit.ts'
 
     const q = new URLSearchParams(location.search)
     const mode = q.get('mode') || 'shots'
@@ -49,7 +50,7 @@
 
     const fig = buildLaraFigure()
     scene.add(fig.group)
-    let outfit = q.get('outfit') === 'hoodie' ? 'hoodie' : 'moon'
+    let outfit = OUTFITS.some((o) => o.id === q.get('outfit')) ? q.get('outfit') : OUTFITS[0].id
     fig.setOutfit(outfit)
     const ex = q.get('ex'); const motion = q.get('motion')
     fig.setExpression({ worried: ex === 'worried', sleeping: ex === 'sleep', blink: ex === 'blink' })
@@ -80,7 +81,7 @@
       mk('寝る', () => { fig.setExpression({ worried: false, sleeping: true }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: true, worried: false }) })
       mk('タップ', () => fig.spin())
       const dress = document.createElement('button'); dress.textContent = '着替え'
-      dress.onclick = () => { outfit = outfit === 'moon' ? 'hoodie' : 'moon'; fig.setOutfit(outfit) }
+      dress.onclick = () => { const i = OUTFITS.findIndex((o) => o.id === outfit); outfit = OUTFITS[(i + 1) % OUTFITS.length].id; fig.setOutfit(outfit) }
       bar.appendChild(dress)
     }
     const clock = new THREE.Clock()

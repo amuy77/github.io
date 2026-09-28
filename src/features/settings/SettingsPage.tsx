@@ -10,12 +10,11 @@ import { useBadges } from '@/features/game/useBadges'
 import { BADGES } from '@/features/game/badges'
 import { cx } from '@/lib/cx'
 import { Chip } from '@/components/ui/Chip'
-import { OUTFIT_LABEL, outfitFor, type OutfitPref } from '@/features/home/shop3d/outfit'
+import { OUTFITS, outfitFor, outfitInfo, type OutfitPref } from '@/features/home/shop3d/outfit'
 
 const OUTFIT_CHOICES: { value: OutfitPref; label: string }[] = [
   { value: 'auto', label: '🎲 おまかせ（日替わり）' },
-  { value: 'moon', label: '🌙 三日月' },
-  { value: 'hoodie', label: '🐈‍⬛ 黒猫パーカー' },
+  ...OUTFITS.map((o) => ({ value: o.id, label: `${o.emoji} ${o.label}` })),
 ]
 
 export function SettingsPage() {
@@ -62,7 +61,7 @@ export function SettingsPage() {
           <div className="flex flex-wrap gap-2" role="group" aria-label="LaRa の服">
             {OUTFIT_CHOICES.map((c) => <Chip key={c.value} active={outfit === c.value} onClick={() => updateSettings({ outfit: c.value })}>{c.label}</Chip>)}
           </div>
-          <p className="text-sm">今日は <span className="font-bold">{OUTFIT_LABEL[outfitFor(outfit)]}</span> の日</p>
+          <p className="text-sm">今日は <span className="font-bold">{outfitInfo(outfitFor(outfit)).label}</span> の日</p>
         </Card>
 
         <SectionTitle>アカウント</SectionTitle>
