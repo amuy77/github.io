@@ -56,7 +56,7 @@ export function SettingsPage() {
         <Card className="flex flex-col gap-3">
           <div>
             <p className="font-bold">LaRa の服</p>
-            <p className="text-xs text-muted">3D のお店にいる LaRa の服。おまかせにすると日によって着替えます（同じ服は 3 日まで）</p>
+            <p className="text-xs text-muted">3D のお店にいる LaRa の服。おまかせにすると日によって着替えます（同じ服は 3 日まで）。かぼちゃは 10 月だけ日替わりに入ります</p>
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="LaRa の服">
             {OUTFIT_CHOICES.map((c) => <Chip key={c.value} active={outfit === c.value} onClick={() => updateSettings({ outfit: c.value })}>{c.label}</Chip>)}

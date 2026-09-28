@@ -59,6 +59,8 @@ const COL = {
   cloth: 0x37322f, clothInner: 0x57504b, string: 0x776d66, clothInk: 0x15100d,
   // 小物
   mug: 0xfdf8f0, coral: 0xf08a6b, mint: 0x9fd4c7, oak: 0xb08d63, straw: 0xe3c27a, page: 0xfff8ea,
+  // かぼちゃ（ハロウィン）
+  pumpkin: 0xf7922f, pumpkinD: 0xd96a1c, stem: 0x7f9a3f, stemD: 0x5c7a2c,
 }
 /** 猫耳の先（フードの座標）。吹き出しの位置に使う */
 const EAR_TIP_Y = 0.63
@@ -172,11 +174,11 @@ export function buildLaraFigure(): LaraFigure {
 
   // ---------- 体・足・腕 ----------
   // 服の色が変わる部品の材質（三日月の日はクリーム、パーカーの日は黒）
-  const clothMats: THREE.MeshToonMaterial[] = []
-  const clothOf = (m: THREE.Mesh) => { clothMats.push(m.material as THREE.MeshToonMaterial); return m }
+  const clothMats: Record<'body' | 'arms' | 'legs', THREE.MeshToonMaterial[]> = { body: [], arms: [], legs: [] }
+  const clothOf = (part: keyof typeof clothMats, m: THREE.Mesh) => { clothMats[part].push(m.material as THREE.MeshToonMaterial); return m }
   const bodyProfile = [[0, 0.14], [0.12, 0.14], [0.17, 0.17], [0.19, 0.22], [0.18, 0.29], [0.155, 0.36], [0.125, 0.42], [0, 0.44]].map(([r, y]) => new THREE.Vector2(r, y))
   const bodyGeo = new THREE.LatheGeometry(bodyProfile, 28); bodyGeo.computeVertexNormals()
-  clothOf(solid(bodyGeo, COL.cream, root))
+  clothOf('body', solid(bodyGeo, COL.cream, root))
   /** 体の表面の半径（高さ y で）。パーカーのひもを体に沿わせるのに使う */
   const bodyR = (y: number) => {
     for (let i = 1; i < bodyProfile.length; i++) {
@@ -186,13 +188,13 @@ export function buildLaraFigure(): LaraFigure {
     return 0
   }
   // 足: 股のピボット（前後の振り）> カプセル。体の下に丸い足が 2 つ見える
-  const legs: { hip: THREE.Group; side: number }[] = []
+  const legs: { hip: THREE.Group; side: number; leg: THREE.Mesh }[] = []
   for (const s of [-1, 1]) {
     const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.22, 0.01); root.add(hip)
-    const leg = clothOf(solid(new THREE.CapsuleGeometry(0.08, 0.08, 6, 14), COL.cream, hip, { line: 0.016 }))
+    const leg = clothOf('legs', solid(new THREE.CapsuleGeometry(0.08, 0.08, 6, 14), COL.cream, hip, { line: 0.016 }))
     leg.position.y = -0.1
     leg.rotation.z = -s * 0.1
-    legs.push({ hip, side: s })
+    legs.push({ hip, side: s, leg })
   }
   // 腕: 肩のピボット（前後の振り）> 傾き（外下向き）> カプセル。パーカーの日は袖の先からクリームの手が出る
   const arms: { pivot: THREE.Group; tilt: THREE.Group; side: number }[] = []
@@ -200,7 +202,7 @@ export function buildLaraFigure(): LaraFigure {
   for (const s of [-1, 1]) {
     const pivot = new THREE.Group(); pivot.position.set(s * 0.12, 0.385, 0.02); root.add(pivot)
     const tilt = new THREE.Group(); pivot.add(tilt)
-    const a = clothOf(solid(new THREE.CapsuleGeometry(0.066, 0.2, 6, 14), COL.cream, tilt, { line: 0.014 }))
+    const a = clothOf('arms', solid(new THREE.CapsuleGeometry(0.066, 0.2, 6, 14), COL.cream, tilt, { line: 0.014 }))
     a.position.y = -0.13
     const hand = solid(new THREE.SphereGeometry(0.056, 14, 10), COL.cream, tilt, { line: 0.012 })
     hand.position.y = -0.285
@@ -350,6 +352,23 @@ export function buildLaraFigure(): LaraFigure {
   // （窓の縁の半径 ≈ 0.385 × sin60° ≈ 0.334 > 顔の半径 0.321）。輪郭線の押し出し量はスケールで細くならないよう割り戻す
   const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(60), L = LINE / HOOD_SCALE
   const makeHood = () => { const h = new THREE.Group(); h.position.set(0, 0.04, -0.03); h.scale.setScalar(HOOD_SCALE); headG.add(h); return h }
+  /** 顔の窓の縁に沿う管（生地がふっくら折り返して見える） */
+  const rimRoll = (parent: THREE.Group, r: { x: number; y: number; z: number }, w: number, thick: number, color: number) => {
+    const rim: THREE.Vector3[] = []
+    for (let j = 0; j < 64; j++) { const v = (j / 64) * Math.PI * 2; rim.push(new THREE.Vector3(r.x * Math.sin(w) * Math.cos(v), r.y * Math.sin(w) * Math.sin(v), r.z * Math.cos(w))) }
+    const roll = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true), 96, thick, 10, true)), toonMat(color))
+    roll.castShadow = true; parent.add(roll)
+  }
+  /** 猫耳: 頭のてっぺんの左右から、少し外向きに立つ三角。前から見て三角に見えるよう奥行きを潰す */
+  const catEars = (parent: THREE.Group, x: number, y: number, outerCol: number, innerCol: number, ink: number) => {
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Group(); ear.position.set(s * x, y, -0.04); ear.rotation.set(-0.12, 0, -s * 0.38); parent.add(ear)
+      const outer = solid(new THREE.ConeGeometry(0.2, 0.42, 20), outerCol, ear, { line: L, apex: true, ink })
+      outer.position.y = 0.15; outer.scale.z = 0.6
+      const inner = solid(new THREE.ConeGeometry(0.12, 0.27, 16), innerCol, ear, { line: 0, shadow: false })
+      inner.position.set(0, 0.14, 0.08); inner.scale.z = 0.35
+    }
+  }
   /** 殻の輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない） */
   const shellOutline = (parent: THREE.Group, color = COL.ink) => {
     const m = new THREE.Mesh(G(hoodShell(R.x + L, R.y + L, R.z + L, W + THREE.MathUtils.degToRad(4))), hullMat(color))
@@ -376,21 +395,56 @@ export function buildLaraFigure(): LaraFigure {
   {
     solid(hoodShell(R.x, R.y, R.z, W), COL.cloth, catHood, { double: true, line: 0 })
     shellOutline(catHood, COL.clothInk)
-    const rim: THREE.Vector3[] = []
-    for (let j = 0; j < 64; j++) {
-      const v = (j / 64) * Math.PI * 2
-      rim.push(new THREE.Vector3(R.x * Math.sin(W) * Math.cos(v), R.y * Math.sin(W) * Math.sin(v), R.z * Math.cos(W)))
+    rimRoll(catHood, R, W, 0.038, COL.cloth)
+    catEars(catHood, 0.27, 0.29, COL.cloth, COL.clothInner, COL.clothInk)
+  }
+
+  // ---------- かぼちゃの猫フード（ハロウィン） ----------
+  // ロゴのかぼちゃ頭巾は大きめなので、殻をひと回り大きくして窓を少し狭め、窓の上（頭のてっぺんの前側）に
+  // ジャック・オ・ランタンの顔を置く。縦の筋・猫耳・てっぺんの緑のヘタとくるんとしたツル
+  const pumpkinHood = makeHood(); pumpkinHood.visible = false
+  const PR = { x: 0.52, y: 0.5, z: 0.48 }, PW = THREE.MathUtils.degToRad(50)
+  {
+    solid(hoodShell(PR.x, PR.y, PR.z, PW), COL.pumpkin, pumpkinHood, { double: true, line: 0 })
+    const o = new THREE.Mesh(G(hoodShell(PR.x + L, PR.y + L, PR.z + L, PW + THREE.MathUtils.degToRad(4))), hullMat()); o.raycast = () => {}; pumpkinHood.add(o)
+    rimRoll(pumpkinHood, PR, PW, 0.026, COL.pumpkin)
+    // 縦の筋: てっぺんから後ろ下へ。顔の窓の中は通さない
+    const ribMat = toonMat(COL.pumpkinD)
+    for (let k = 0; k < 10; k++) {
+      const phi = (k / 10) * Math.PI * 2 + Math.PI / 10
+      const segs: THREE.Vector3[][] = [[]]
+      for (let i = 0; i <= 28; i++) {
+        const th = 0.1 + (i / 28) * (Math.PI - 0.55)
+        const p = new THREE.Vector3(PR.x * Math.sin(th) * Math.sin(phi), PR.y * Math.cos(th), PR.z * Math.sin(th) * Math.cos(phi)).multiplyScalar(1.01)
+        if (Math.acos(THREE.MathUtils.clamp(p.z / (PR.z * 1.01), -1, 1)) < PW + 0.1) { if (segs[segs.length - 1].length) segs.push([]) }
+        else segs[segs.length - 1].push(p)
+      }
+      for (const seg of segs) if (seg.length >= 3) { const t = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(seg), seg.length * 2, 0.011, 5, false)), ribMat); t.raycast = () => {}; pumpkinHood.add(t) }
     }
-    const roll = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true), 96, 0.038, 10, true)), toonMat(COL.cloth))
-    roll.castShadow = true; catHood.add(roll)
-    // 猫耳: 頭のてっぺんの左右から、少し外向きに立つ三角。前から見て三角に見えるよう奥行きを潰す
-    for (const s of [-1, 1]) {
-      const ear = new THREE.Group(); ear.position.set(s * 0.27, 0.29, -0.04); ear.rotation.set(-0.12, 0, -s * 0.38); catHood.add(ear)
-      const outer = solid(new THREE.ConeGeometry(0.2, 0.42, 20), COL.cloth, ear, { line: L, apex: true, ink: COL.clothInk })
-      outer.position.y = 0.15; outer.scale.z = 0.6
-      const inner = solid(new THREE.ConeGeometry(0.12, 0.27, 16), COL.clothInner, ear, { line: 0, shadow: false })
-      inner.position.set(0, 0.14, 0.08); inner.scale.z = 0.35
+    catEars(pumpkinHood, 0.31, 0.33, COL.pumpkin, COL.pumpkinD, COL.ink)
+    // ヘタとツル
+    const stem = solid(new THREE.CylinderGeometry(0.04, 0.055, 0.15, 10), COL.stem, pumpkinHood, { line: L * 0.8 })
+    stem.position.set(0, 0.54, -0.02); stem.rotation.set(-0.15, 0, -0.3)
+    const cur: THREE.Vector3[] = []
+    for (let i = 0; i <= 18; i++) { const a = (i / 18) * Math.PI * 3.2, r = 0.05 - (i / 18) * 0.035; cur.push(new THREE.Vector3(0.06 + Math.cos(a) * r, 0.56 + Math.sin(a) * r, 0.0)) }
+    const tendril = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cur), 40, 0.007, 5, false)), inkMat(COL.stemD)); tendril.raycast = () => {}; pumpkinHood.add(tendril)
+    // ジャック・オ・ランタンの顔（窓の上）: 殻の表面の点と向き
+    const onShell = (x: number, y: number, lift = 0.004) => {
+      const z = PR.z * Math.sqrt(Math.max(0.01, 1 - (x / PR.x) ** 2 - (y / PR.y) ** 2))
+      const n = new THREE.Vector3(x / PR.x ** 2, y / PR.y ** 2, z / PR.z ** 2).normalize()
+      return { p: new THREE.Vector3(x, y, z).addScaledVector(n, lift), n }
     }
+    const flat = (geo: THREE.BufferGeometry, x: number, y: number, sx: number, sy: number) => {
+      const { p, n } = onShell(x, y)
+      const m = new THREE.Mesh(G(geo), inkMat()); m.raycast = () => {}
+      m.position.copy(p); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n); m.scale.set(sx, sy, 1)
+      pumpkinHood.add(m)
+    }
+    for (const sd of [-1, 1]) flat(new THREE.CircleGeometry(0.044, 16), sd * 0.12, 0.445, 1, 1.15)
+    const mouth: THREE.Vector3[] = []
+    for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 - 0.85 + (1.7 * i) / 12; mouth.push(onShell(Math.cos(a) * 0.13, 0.46 + Math.sin(a) * 0.06, 0.006).p) }
+    const m = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(mouth), 24, 0.014, 6, false)), inkMat()); m.raycast = () => {}; pumpkinHood.add(m)
+    for (const sd of [-1, 1]) flat(new THREE.CircleGeometry(0.02, 3), sd * 0.045, 0.405, 1, 1.3)   // 牙
   }
 
   // ---------- 状態 ----------
@@ -411,12 +465,51 @@ export function buildLaraFigure(): LaraFigure {
   }
   applyExpression()
 
+  // ---------- かぼちゃの日の体の小物 ----------
+  const pumpkinBody = new THREE.Group(); pumpkinBody.visible = false; root.add(pumpkinBody)
+  const bootLaces: THREE.Object3D[] = []
+  {
+    // 黒いケープ: 首から肩へ広がる短い円すい。裾にオレンジのフリル
+    const capeProfile = [[0.115, 0.455], [0.16, 0.42], [0.21, 0.37], [0.25, 0.32], [0.262, 0.3]].map(([r, y]) => new THREE.Vector2(r, y))
+    solid(new THREE.LatheGeometry(capeProfile, 28), COL.cloth, pumpkinBody, { double: true, line: 0.012, ink: COL.clothInk })
+    const frillMat = toonMat(COL.pumpkin)
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2
+      const f = new THREE.Mesh(G(new THREE.SphereGeometry(0.034, 8, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2)), frillMat)
+      f.position.set(Math.sin(a) * 0.262, 0.302, Math.cos(a) * 0.262); f.scale.set(1, 0.9, 0.6); f.lookAt(Math.sin(a) * 2, 0.3, Math.cos(a) * 2); f.raycast = () => {}
+      pumpkinBody.add(f)
+    }
+    // 首元のリボンと小さなかぼちゃのブローチ
+    const bz = 0.2
+    for (const sd of [-1, 1]) { const loop = solid(new THREE.SphereGeometry(0.045, 12, 8), COL.pumpkin, pumpkinBody, { line: 0.008 }); loop.position.set(sd * 0.05, 0.4, bz); loop.scale.set(1.2, 0.75, 0.45); loop.rotation.z = sd * 0.35 }
+    for (const sd of [-1, 1]) { const tail = solid(new THREE.BoxGeometry(0.03, 0.07, 0.012), COL.pumpkin, pumpkinBody, { line: 0.006 }); tail.position.set(sd * 0.03, 0.35, bz - 0.005); tail.rotation.z = sd * 0.35 }
+    const brooch = solid(new THREE.SphereGeometry(0.026, 12, 8), COL.pumpkinD, pumpkinBody, { line: 0.006 }); brooch.position.set(0, 0.4, bz + 0.02); brooch.scale.set(1.15, 0.9, 0.8)
+    const bstem = new THREE.Mesh(G(new THREE.CylinderGeometry(0.006, 0.006, 0.018, 5)), toonMat(COL.stem)); bstem.position.set(0, 0.427, bz + 0.02); pumpkinBody.add(bstem)
+    // 胸の黒いボタン
+    for (const y of [0.27, 0.225]) { const b = new THREE.Mesh(G(new THREE.SphereGeometry(0.013, 8, 6)), inkMat(COL.clothInk)); b.position.set(0, y, bodyR(y) + 0.006); b.raycast = () => {}; pumpkinBody.add(b) }
+    // かぼちゃのスカートの縦の筋
+    const skirtRib = toonMat(COL.pumpkinD)
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2 + 0.3
+      const pts = [0.155, 0.19, 0.23, 0.27, 0.295].map((y) => new THREE.Vector3(Math.sin(a) * (bodyR(y) + 0.004), y, Math.cos(a) * (bodyR(y) + 0.004)))
+      const t = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.008, 4, false)), skirtRib); t.raycast = () => {}; pumpkinBody.add(t)
+    }
+    // ブーツのオレンジの × ひも（足と一緒に動くように足の中へ）
+    for (const l of legs) {
+      const g = new THREE.Group(); g.position.set(0, -0.02, 0.078); g.visible = false; l.leg.add(g)
+      for (const r of [0.7, -0.7]) { const x = new THREE.Mesh(G(new THREE.BoxGeometry(0.075, 0.012, 0.01)), toonMat(COL.pumpkin)); x.rotation.z = r; x.raycast = () => {}; g.add(x) }
+      bootLaces.push(g)
+    }
+  }
+
   // ---------- 服 ----------
   // 服ごとの見た目: 頭の被り物（head）、服にだけ付く小物（extras）、体・腕・足の色（cloth）、袖から手を出すか（hands）
   // 被り物の頂点（吹き出しの位置）は tipY（フードの座標）
-  const looks: Record<LaraOutfit, { head: THREE.Group; extras: THREE.Object3D[]; cloth: number; hands: boolean; tipY: number }> = {
-    moon: { head: moonHood, extras: [], cloth: COL.cream, hands: false, tipY: 0.82 },
-    hoodie: { head: catHood, extras: [strings], cloth: COL.cloth, hands: true, tipY: EAR_TIP_Y },
+  const looks: Record<LaraOutfit, { head: THREE.Group; extras: THREE.Object3D[]; cloth: { body: number; arms: number; legs: number }; hands: boolean; tipY: number }> = {
+    moon: { head: moonHood, extras: [], cloth: { body: COL.cream, arms: COL.cream, legs: COL.cream }, hands: false, tipY: 0.82 },
+    hoodie: { head: catHood, extras: [strings], cloth: { body: COL.cloth, arms: COL.cloth, legs: COL.cloth }, hands: true, tipY: EAR_TIP_Y },
+    // かぼちゃ: オレンジのワンピース、黒いケープの袖、黒いブーツ
+    pumpkin: { head: pumpkinHood, extras: [pumpkinBody, ...bootLaces], cloth: { body: COL.pumpkin, arms: COL.cloth, legs: COL.cloth }, hands: true, tipY: 0.68 },
   }
   // 小物を体に対してまっすぐ（+ 仕草ごとの傾き）に向ける
   const qParent = new THREE.Quaternion(), qWant = new THREE.Quaternion(), qTilt = new THREE.Quaternion(), eTilt = new THREE.Euler()
@@ -436,7 +529,7 @@ export function buildLaraFigure(): LaraFigure {
     }
     const look = looks[outfit]
     for (const h of hands) h.visible = look.hands
-    for (const m of clothMats) m.color.setHex(look.cloth)
+    for (const part of ['body', 'arms', 'legs'] as const) for (const m of clothMats[part]) m.color.setHex(look.cloth[part])
   }
   applyOutfit()
 

@@ -14,6 +14,10 @@ const VARIANTS = [
   ['hoodie-idle', 'outfit=hoodie&still=1'],
   ['hoodie-sleep', 'outfit=hoodie&ex=sleep&still=1'],
   ['hoodie-walk', 'outfit=hoodie&motion=walk'],
+  // かぼちゃ（10 月）
+  ['pumpkin-idle', 'outfit=pumpkin&still=1'],
+  ['pumpkin-walk', 'outfit=pumpkin&motion=walk'],
+  ['pumpkin-rest', 'outfit=pumpkin&pose=rest&prop=cup'],
   // 暮らしの仕草
   ['pose-read', 'pose=read&prop=book'],
   ['pose-rest', 'pose=rest&prop=cup'],
