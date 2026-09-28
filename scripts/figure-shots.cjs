@@ -10,6 +10,10 @@ const VARIANTS = [
   ['sleep', 'ex=sleep&still=1'],
   ['walk', 'motion=walk'],
   ['wave', 'motion=wave'],
+  // 黒猫パーカーの日
+  ['hoodie-idle', 'outfit=hoodie&still=1'],
+  ['hoodie-sleep', 'outfit=hoodie&ex=sleep&still=1'],
+  ['hoodie-walk', 'outfit=hoodie&motion=walk'],
 ]
 
 ;(async () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { DayPart } from '@/lib/dates'
-import { buildLaraFigure, type LaraFigure } from './laraFigure'
+import { buildLaraFigure, type LaraFigure, type LaraOutfit } from './laraFigure'
 
 export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident'
 export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number }
@@ -81,6 +81,7 @@ export class ShopScene {
   private residentPath: THREE.Vector3[] = []
   private residentState: 'counter' | 'machine' | 'mailbox' | 'sleep' = 'counter'
   private residentMood: ResidentMood = 'idle'
+  private residentOutfit: LaraOutfit = 'moon'
   private blinkAt = 4
   private blinkUntil = 0
   private texLoader = new THREE.TextureLoader()
@@ -147,6 +148,7 @@ export class ShopScene {
     if (this.resident) { this.scene.remove(this.resident); this.hotspots = this.hotspots.filter((h) => h !== this.resident); this.figure?.dispose(); this.resident = null; this.figure = null }
     if (!enabled) return
     const fig = buildLaraFigure()
+    fig.setOutfit(this.residentOutfit)
     const g = fig.group
     g.userData.hot = 'resident'
     g.traverse((o) => { o.userData.hotRoot = g })
@@ -162,6 +164,9 @@ export class ShopScene {
   /** 住人の気分（連続記録が途切れそうなときは心配顔） */
   setResidentMood(m: ResidentMood) { this.residentMood = m; this.needsRender = true }
 
+  /** 住人の服（三日月 / 黒猫パーカー）。日替わりの判定は呼ぶ側（outfit.ts） */
+  setResidentOutfit(o: LaraOutfit) { this.residentOutfit = o; this.figure?.setOutfit(o); this.needsRender = true }
+
   private residentExpression(t: number) {
     if (!this.figure) return
     const sleeping = this.residentState === 'sleep' && this.residentPath.length <= 1
@@ -172,7 +177,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit } }
 
   /** 吹き出し表示用: 住人の頭上の画面座標 */
   residentScreenPos(): { x: number; y: number } | null {

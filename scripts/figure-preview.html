@@ -49,6 +49,8 @@
 
     const fig = buildLaraFigure()
     scene.add(fig.group)
+    let outfit = q.get('outfit') === 'hoodie' ? 'hoodie' : 'moon'
+    fig.setOutfit(outfit)
     const ex = q.get('ex'); const motion = q.get('motion')
     fig.setExpression({ worried: ex === 'worried', sleeping: ex === 'sleep', blink: ex === 'blink' })
     const m = { walking: motion === 'walk', waving: motion === 'wave', brewing: motion === 'brew', sleeping: ex === 'sleep', worried: ex === 'worried', facing: 0, reduced: q.has('still') }
@@ -77,6 +79,9 @@
       mk('心配', () => { fig.setExpression({ worried: true, sleeping: false }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: false, worried: true }) })
       mk('寝る', () => { fig.setExpression({ worried: false, sleeping: true }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: true, worried: false }) })
       mk('タップ', () => fig.spin())
+      const dress = document.createElement('button'); dress.textContent = '着替え'
+      dress.onclick = () => { outfit = outfit === 'moon' ? 'hoodie' : 'moon'; fig.setOutfit(outfit) }
+      bar.appendChild(dress)
     }
     const clock = new THREE.Clock()
     let blinkAt = 3, blinkUntil = 0

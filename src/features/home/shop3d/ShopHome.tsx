@@ -8,6 +8,8 @@ import { dayPart, formatMD, greeting, today } from '@/lib/dates'
 import { LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
+import { useSettings } from '@/features/settings/useSettings'
+import { outfitFor, type LaraOutfit } from './outfit'
 
 const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
@@ -23,6 +25,8 @@ const RESIDENT_LINES: Record<'morning' | 'day' | 'evening' | 'night', string[]> 
   evening: ['おつかれさま！', '今日のメニュー、記録した？', 'ワイン開けちゃう？'],
   night: ['Zzz…', 'もう寝る時間…', 'おやすみ…'],
 }
+/** 起きている時間のタップで、ときどき今日の服の話をする */
+const OUTFIT_LINE: Record<LaraOutfit, string> = { moon: '今日は三日月の日🌙', hoodie: '今日は黒猫パーカーの日！' }
 
 export function ShopHome({ counts, streak, worried = false }: { counts: HomeCounts; streak: number; worried?: boolean }) {
   const nav = useNavigate()
@@ -34,6 +38,11 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number } | null>(null)
   const part = useMemo(() => dayPart(), [])
   const worriedRef = useRef(worried)
+  // 服: 設定（おまかせ / 固定）と今日の日付で決まる。開いたまま日付が変わっても着替えるよう、日付はときどき見直す
+  const { outfit: outfitPref } = useSettings()
+  const [day, setDay] = useState(today)
+  const outfit = outfitFor(outfitPref, day)
+  const outfitRef = useRef(outfit)
 
   useEffect(() => {
     const el = ref.current
@@ -44,7 +53,9 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       assets: { wordmark: WORDMARK, poster: LOGO_FULL },
       onTap: (h) => {
         if (h === 'resident') {
-          const lines = worriedRef.current ? ['今日の記録、まだ？', 'メニュー、何出したっけ…', '記録したら安心して寝られる…'] : RESIDENT_LINES[dayPart()]
+          const now = dayPart()
+          const lines = worriedRef.current ? ['今日の記録、まだ？', 'メニュー、何出したっけ…', '記録したら安心して寝られる…']
+            : now === 'night' ? RESIDENT_LINES.night : [...RESIDENT_LINES[now], OUTFIT_LINE[outfitRef.current]]
           const pos = scene.residentScreenPos()
           if (pos) setBubble({ text: lines[Math.floor(Math.random() * lines.length)], ...pos })
           window.setTimeout(() => setBubble(null), 2200)
@@ -54,6 +65,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       },
     })
     scene.setMode(dayPart())
+    scene.setResidentOutfit(outfitRef.current)
     scene.setResident(true)
     sceneRef.current = scene
     ;(window as unknown as { __lara?: ShopScene }).__lara = scene   // デバッグ用
@@ -65,6 +77,14 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   }, [counts, streak])
 
   useEffect(() => { worriedRef.current = worried; sceneRef.current?.setResidentMood(worried ? 'worried' : 'idle') }, [worried])
+
+  useEffect(() => { outfitRef.current = outfit; sceneRef.current?.setResidentOutfit(outfit) }, [outfit])
+  useEffect(() => {
+    const tick = () => setDay(today())
+    const id = window.setInterval(tick, 10 * 60 * 1000)
+    document.addEventListener('visibilitychange', tick)
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', tick) }
+  }, [])
 
   const info = picked ? HOT[picked] : null
 

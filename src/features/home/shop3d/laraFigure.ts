@@ -5,9 +5,11 @@ import * as THREE from 'three'
  * 設定: 猫の女の子。三日月の被り物をかぶり、尻尾は太陽のモチーフで、背後に小さな太陽が付いてくる。
  * ロゴ（大きな丸い頭・三日月・ヒゲ・点の目・ペロッと舌・小さな体と足）をプリミティブで組み、
  * 輪郭線は「法線方向に膨らませた裏面描画（inverted hull）」で描く。
- * 足元が y=0、三日月の角の先が y≈1.5。正面は +z。
+ * 足元が y=0、三日月の角の先が y≈1.3。正面は +z。
+ * 服は 2 着: 黄色い三日月の被り物（moon）と、黒い猫耳パーカー（hoodie）。setOutfit で着替える。
  */
 
+export type LaraOutfit = 'moon' | 'hoodie'
 export interface LaraExpression { blink?: boolean; worried?: boolean; sleeping?: boolean }
 export interface LaraMotion {
   /** 歩行中（体の揺れ・腕振り・足踏み） */
@@ -28,6 +30,8 @@ export interface LaraMotion {
 export interface LaraFigure {
   group: THREE.Group
   setExpression(e: LaraExpression): void
+  /** 着替え（作り直さずに表示と色を切り替えるだけ） */
+  setOutfit(o: LaraOutfit): void
   update(t: number, dt: number, m: LaraMotion): void
   /** タップ演出: ジャンプしながら 1 回転 */
   spin(): void
@@ -36,7 +40,13 @@ export interface LaraFigure {
   dispose(): void
 }
 
-const COL = { cream: 0xffe7c2, moon: 0xffd95a, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a }
+const COL = {
+  cream: 0xffe7c2, moon: 0xffd95a, ink: 0x3b2a20, pink: 0xf6b8a8, tongue: 0xf08a8a, sun: 0xf5a54a,
+  // 黒猫パーカー: 真っ黒だと陰影が消えるので少し明るい黒。耳の内側とひもはもう一段明るく、輪郭線は濃く
+  cloth: 0x37322f, clothInner: 0x57504b, string: 0x776d66, clothInk: 0x15100d,
+}
+/** 猫耳の先（フードの座標）。吹き出しの位置に使う */
+const EAR_TIP_Y = 0.63
 const HEAD = { cx: 0, cy: 0.65, rx: 0.378, ry: 0.306, rz: 0.342 }
 /** 頭全体（顔 + フード）の体に対する大きさ。小さくした分だけ HEAD.cy も下げて体に座らせる */
 const HEAD_SCALE = 0.9
@@ -117,10 +127,10 @@ export function buildLaraFigure(): LaraFigure {
   const G = <T extends THREE.BufferGeometry>(g: T) => { geos.push(g); return g }
   const toonMat = (color: number) => { const m = new THREE.MeshToonMaterial({ color, gradientMap: tone() }); mats.push(m); return m }
   const inkMat = (color = COL.ink) => { const m = new THREE.MeshBasicMaterial({ color }); mats.push(m); return m }
-  const hullMat = () => { const m = new THREE.MeshBasicMaterial({ color: COL.ink, side: THREE.BackSide }); mats.push(m); return m }
+  const hullMat = (color = COL.ink) => { const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide }); mats.push(m); return m }
 
   /** 輪郭線: 頂点を法線方向に d だけ押し出したコピーを裏面描画。apex=true は円錐の先端（法線がばらけて毛羽立つ）を 1 点にまとめる */
-  const hull = (mesh: THREE.Mesh, d = LINE, apex = false) => {
+  const hull = (mesh: THREE.Mesh, d = LINE, apex = false, color = COL.ink) => {
     const g = G(mesh.geometry.clone())
     const pos = g.attributes.position as THREE.BufferAttribute
     const nor = g.attributes.normal as THREE.BufferAttribute
@@ -130,42 +140,77 @@ export function buildLaraFigure(): LaraFigure {
       if (apex && pos.getY(i) > top - 1e-4) pos.setXYZ(i, 0, top + d, 0)
       else pos.setXYZ(i, pos.getX(i) + nor.getX(i) * d, pos.getY(i) + nor.getY(i) * d, pos.getZ(i) + nor.getZ(i) * d)
     }
-    const h = new THREE.Mesh(g, hullMat())
+    const h = new THREE.Mesh(g, hullMat(color))
     h.raycast = () => {}
     mesh.add(h)
     return h
   }
-  const solid = (geo: THREE.BufferGeometry, color: number, parent: THREE.Object3D, o: { line?: number; shadow?: boolean; apex?: boolean; double?: boolean } = {}) => {
+  const solid = (geo: THREE.BufferGeometry, color: number, parent: THREE.Object3D, o: { line?: number; shadow?: boolean; apex?: boolean; double?: boolean; ink?: number } = {}) => {
     const mat = toonMat(color)
     if (o.double) mat.side = THREE.DoubleSide
     const m = new THREE.Mesh(G(geo), mat)
     m.castShadow = o.shadow ?? true
     parent.add(m)
-    if (o.line !== 0) hull(m, o.line ?? LINE, o.apex)
+    if (o.line !== 0) hull(m, o.line ?? LINE, o.apex, o.ink)
     return m
   }
 
   // ---------- 体・足・腕 ----------
+  // 服の色が変わる部品の材質（三日月の日はクリーム、パーカーの日は黒）
+  const clothMats: THREE.MeshToonMaterial[] = []
+  const clothOf = (m: THREE.Mesh) => { clothMats.push(m.material as THREE.MeshToonMaterial); return m }
   const bodyProfile = [[0, 0.14], [0.12, 0.14], [0.17, 0.17], [0.19, 0.22], [0.18, 0.29], [0.155, 0.36], [0.125, 0.42], [0, 0.44]].map(([r, y]) => new THREE.Vector2(r, y))
   const bodyGeo = new THREE.LatheGeometry(bodyProfile, 28); bodyGeo.computeVertexNormals()
-  solid(bodyGeo, COL.cream, root)
+  clothOf(solid(bodyGeo, COL.cream, root))
+  /** 体の表面の半径（高さ y で）。パーカーのひもを体に沿わせるのに使う */
+  const bodyR = (y: number) => {
+    for (let i = 1; i < bodyProfile.length; i++) {
+      const a = bodyProfile[i - 1], b = bodyProfile[i]
+      if (y <= b.y) return THREE.MathUtils.lerp(a.x, b.x, (y - a.y) / (b.y - a.y || 1))
+    }
+    return 0
+  }
   // 足: 股のピボット（前後の振り）> カプセル。体の下に丸い足が 2 つ見える
   const legs: { hip: THREE.Group; side: number }[] = []
   for (const s of [-1, 1]) {
     const hip = new THREE.Group(); hip.position.set(s * 0.1, 0.22, 0.01); root.add(hip)
-    const leg = solid(new THREE.CapsuleGeometry(0.08, 0.08, 6, 14), COL.cream, hip, { line: 0.016 })
+    const leg = clothOf(solid(new THREE.CapsuleGeometry(0.08, 0.08, 6, 14), COL.cream, hip, { line: 0.016 }))
     leg.position.y = -0.1
     leg.rotation.z = -s * 0.1
     legs.push({ hip, side: s })
   }
-  // 腕: 肩のピボット（前後の振り）> 傾き（外下向き）> カプセル
+  // 腕: 肩のピボット（前後の振り）> 傾き（外下向き）> カプセル。パーカーの日は袖の先からクリームの手が出る
   const arms: { pivot: THREE.Group; tilt: THREE.Group; side: number }[] = []
+  const hands: THREE.Mesh[] = []
   for (const s of [-1, 1]) {
     const pivot = new THREE.Group(); pivot.position.set(s * 0.12, 0.385, 0.02); root.add(pivot)
     const tilt = new THREE.Group(); pivot.add(tilt)
-    const a = solid(new THREE.CapsuleGeometry(0.066, 0.2, 6, 14), COL.cream, tilt, { line: 0.014 })
+    const a = clothOf(solid(new THREE.CapsuleGeometry(0.066, 0.2, 6, 14), COL.cream, tilt, { line: 0.014 }))
     a.position.y = -0.13
+    const hand = solid(new THREE.SphereGeometry(0.056, 14, 10), COL.cream, tilt, { line: 0.012 })
+    hand.position.y = -0.285
+    hand.visible = false
+    hands.push(hand)
     arms.push({ pivot, tilt, side: s })
+  }
+  // パーカーのひも: フードの下（首元）から体に沿って 2 本垂れ、先に結び目。首元に小さなちょうちょ結び
+  const strings = new THREE.Group(); strings.visible = false; root.add(strings)
+  {
+    const strMat = toonMat(COL.string)
+    for (const s of [-1, 1]) {
+      const pts = [0.405, 0.37, 0.33, 0.29].map((y, i) => new THREE.Vector3(s * (0.03 + i * 0.008), y, bodyR(y) + 0.014))
+      const tube = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.0085, 6, false)), strMat)
+      tube.raycast = () => {}; strings.add(tube)
+      const knot = new THREE.Mesh(G(new THREE.SphereGeometry(0.019, 10, 8)), strMat)
+      knot.position.copy(pts[pts.length - 1]).add(new THREE.Vector3(0, -0.012, 0.002)); strings.add(knot)
+      hull(knot, 0.008, false, COL.clothInk)
+      // ちょうちょ結びの輪
+      const loop = new THREE.Mesh(G(new THREE.TorusGeometry(0.022, 0.0075, 6, 14)), strMat)
+      loop.position.set(s * 0.032, 0.405, bodyR(0.405) + 0.02); loop.scale.set(1.2, 0.8, 1); loop.rotation.z = s * 0.35
+      loop.raycast = () => {}; strings.add(loop)
+    }
+    const center = new THREE.Mesh(G(new THREE.SphereGeometry(0.014, 10, 8)), strMat)
+    center.position.set(0, 0.405, bodyR(0.405) + 0.022); strings.add(center)
   }
 
   // ---------- 太陽みたいな尻尾 ----------
@@ -259,22 +304,50 @@ export function buildLaraFigure(): LaraFigure {
   // ---------- 三日月（黄色いフード）の被り物 ----------
   // 頭をすっぽり包む黄色いフードだが、形は三日月: 頭より一回り大きい楕円体の正面に丸い顔の窓を開け、
   // 両脇から三日月の角が上外へ伸びる。線は外側のシルエットだけ（窓の縁や額の上には引かない）
+  // フード（殻 + 角 / 耳）は HOOD_SCALE で縮めて顔に寄せる。縮めた分だけ窓の角度 W を広げて、顔が窓から前に出るようにする
+  // （窓の縁の半径 ≈ 0.385 × sin60° ≈ 0.334 > 顔の半径 0.321）。輪郭線の押し出し量はスケールで細くならないよう割り戻す
+  const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(60), L = LINE / HOOD_SCALE
+  const makeHood = () => { const h = new THREE.Group(); h.position.set(0, 0.04, -0.03); h.scale.setScalar(HOOD_SCALE); headG.add(h); return h }
+  /** 殻の輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない） */
+  const shellOutline = (parent: THREE.Group, color = COL.ink) => {
+    const m = new THREE.Mesh(G(hoodShell(R.x + L, R.y + L, R.z + L, W + THREE.MathUtils.degToRad(4))), hullMat(color))
+    m.raycast = () => {}
+    parent.add(m)
+  }
+
+  const moonHood = makeHood()
   {
-    // フード（殻 + 角）は HOOD_SCALE で縮めて顔に寄せる。縮めた分だけ窓の角度 W を広げて、顔が窓から前に出るようにする
-    // （窓の縁の半径 ≈ 0.385 × sin60° ≈ 0.334 > 顔の半径 0.321）。輪郭線の押し出し量はスケールで細くならないよう割り戻す
-    const R = { x: 0.47, y: 0.42, z: 0.45 }, W = THREE.MathUtils.degToRad(60), L = LINE / HOOD_SCALE
-    const hood = new THREE.Group(); hood.position.set(0, 0.04, -0.03); hood.scale.setScalar(HOOD_SCALE); headG.add(hood)
-    solid(hoodShell(R.x, R.y, R.z, W), COL.moon, hood, { double: true, line: 0 })
-    // 輪郭線: 窓を少し大きくした一回り大きい殻を裏面描画（外側のシルエットだけ線が出て、顔の窓の縁には出ない）
-    const shellHull = new THREE.Mesh(G(hoodShell(R.x + L, R.y + L, R.z + L, W + THREE.MathUtils.degToRad(4))), hullMat())
-    shellHull.raycast = () => {}
-    hood.add(shellHull)
+    solid(hoodShell(R.x, R.y, R.z, W), COL.moon, moonHood, { double: true, line: 0 })
+    shellOutline(moonHood)
     // 顔の窓の縁と額の上には線を引かない（黒い枠や紐に見えるため）
     // 三日月の角: フードの両脇から上外へまっすぐ伸びて先が尖る（ロゴの角）
     for (const s of [-1, 1]) {
       const ctrl: [number, number, number][] = [[s * 0.3, 0.2, 0.22], [s * 0.42, 0.44, 0.15], [s * 0.5, 0.66, 0.07], [s * 0.55, 0.82, 0]]
-      const horn = new THREE.Mesh(G(sweep(ctrl, 0.6)), toonMat(COL.moon)); horn.castShadow = true; hood.add(horn)
-      const h = new THREE.Mesh(G(sweep(ctrl, 0.6, L * 0.9)), hullMat()); h.raycast = () => {}; hood.add(h)
+      const horn = new THREE.Mesh(G(sweep(ctrl, 0.6)), toonMat(COL.moon)); horn.castShadow = true; moonHood.add(horn)
+      const h = new THREE.Mesh(G(sweep(ctrl, 0.6, L * 0.9)), hullMat()); h.raycast = () => {}; moonHood.add(h)
+    }
+  }
+
+  // ---------- 黒猫パーカーのフード ----------
+  // 同じ殻を黒い生地で。三日月の角の代わりに猫耳が上に 2 つ。顔の窓の縁は生地がふっくら折り返して見えるよう、同じ黒の太い管を沿わせる
+  const catHood = makeHood(); catHood.visible = false
+  {
+    solid(hoodShell(R.x, R.y, R.z, W), COL.cloth, catHood, { double: true, line: 0 })
+    shellOutline(catHood, COL.clothInk)
+    const rim: THREE.Vector3[] = []
+    for (let j = 0; j < 64; j++) {
+      const v = (j / 64) * Math.PI * 2
+      rim.push(new THREE.Vector3(R.x * Math.sin(W) * Math.cos(v), R.y * Math.sin(W) * Math.sin(v), R.z * Math.cos(W)))
+    }
+    const roll = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim, true), 96, 0.038, 10, true)), toonMat(COL.cloth))
+    roll.castShadow = true; catHood.add(roll)
+    // 猫耳: 頭のてっぺんの左右から、少し外向きに立つ三角。前から見て三角に見えるよう奥行きを潰す
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Group(); ear.position.set(s * 0.27, 0.29, -0.04); ear.rotation.set(-0.12, 0, -s * 0.38); catHood.add(ear)
+      const outer = solid(new THREE.ConeGeometry(0.2, 0.42, 20), COL.cloth, ear, { line: L, apex: true, ink: COL.clothInk })
+      outer.position.y = 0.15; outer.scale.z = 0.6
+      const inner = solid(new THREE.ConeGeometry(0.12, 0.27, 16), COL.clothInner, ear, { line: 0, shadow: false })
+      inner.position.set(0, 0.14, 0.08); inner.scale.z = 0.35
     }
   }
 
@@ -296,11 +369,27 @@ export function buildLaraFigure(): LaraFigure {
   }
   applyExpression()
 
+  let outfit: LaraOutfit = 'moon'
+  const applyOutfit = () => {
+    const hoodie = outfit === 'hoodie'
+    moonHood.visible = !hoodie
+    catHood.visible = hoodie
+    strings.visible = hoodie
+    for (const h of hands) h.visible = hoodie
+    for (const m of clothMats) m.color.setHex(hoodie ? COL.cloth : COL.cream)
+  }
+  applyOutfit()
+
   return {
     group,
     setExpression(e) { Object.assign(ex, e); applyExpression() },
+    setOutfit(o) { if (o !== outfit) { outfit = o; applyOutfit() } },
     spin() { spinT = 0 },
-    headTop(out) { return out.copy(headTopV.set(0, HEAD.cy + (0.04 + 0.82 * HOOD_SCALE) * HEAD_SCALE, 0)).applyMatrix4(group.matrixWorld) },
+    headTop(out) {
+      // 三日月の角の先 / 猫耳の先
+      const tip = outfit === 'hoodie' ? EAR_TIP_Y : 0.82
+      return out.copy(headTopV.set(0, HEAD.cy + (0.04 + tip * HOOD_SCALE) * HEAD_SCALE, 0)).applyMatrix4(group.matrixWorld)
+    },
     update(t, dt, m) {
       const reduced = !!m.reduced
       // 向き
