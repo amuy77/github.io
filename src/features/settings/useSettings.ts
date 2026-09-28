@@ -1,8 +1,13 @@
 import { useSyncExternalStore } from 'react'
+import type { OutfitPref } from '@/features/home/shop3d/outfit'
 
-export interface Settings { home3d: boolean }
+export interface Settings {
+  home3d: boolean
+  /** LaRa の服: おまかせ（日替わり）/ 三日月 / 黒猫パーカー */
+  outfit: OutfitPref
+}
 const KEY = 'lara.settings'
-const DEFAULTS: Settings = { home3d: true }
+const DEFAULTS: Settings = { home3d: true, outfit: 'auto' }
 const listeners = new Set<() => void>()
 let cache: Settings | null = null
 

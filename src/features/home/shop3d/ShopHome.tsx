@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AskChip } from '@/features/ask/AskChip'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ShopScene, type Hotspot } from './shopScene'
+import { ShopScene, type Hotspot, type ResidentActivity } from './shopScene'
 import { paths } from '@/app/routes'
 import { dayPart, formatMD, greeting, today } from '@/lib/dates'
 import { LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
+import { useSettings } from '@/features/settings/useSettings'
+import { outfitFor, outfitInfo } from './outfit'
 
 const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
@@ -23,6 +25,16 @@ const RESIDENT_LINES: Record<'morning' | 'day' | 'evening' | 'night', string[]> 
   evening: ['おつかれさま！', '今日のメニュー、記録した？', 'ワイン開けちゃう？'],
   night: ['Zzz…', 'もう寝る時間…', 'おやすみ…'],
 }
+/** 気ままな行動の最中にタップされたときのセリフ */
+const ACTIVITY_LINES: Partial<Record<ResidentActivity, string[]>> = {
+  window: ['海、きれいだね', '今日の波はどうかな？', 'サーフィン日和かも'],
+  water: ['お水あげてるの', 'モンステラ、元気に育ってる！'],
+  waterBanana: ['バナナの葉っぱにもお水', '南国っぽくていいでしょ'],
+  read: ['このレシピ、作ってみたい', '図鑑、読みごたえあるなあ'],
+  rest: ['ひと休み中☕', 'このコーヒー、おいしい'],
+  sweep: ['お掃除中！', '砂がすぐ入ってくるの'],
+  mailbox: ['何か届いてるよ！', '受信トレイ、見てみて'],
+}
 
 export function ShopHome({ counts, streak, worried = false }: { counts: HomeCounts; streak: number; worried?: boolean }) {
   const nav = useNavigate()
@@ -34,6 +46,11 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number } | null>(null)
   const part = useMemo(() => dayPart(), [])
   const worriedRef = useRef(worried)
+  // 服: 設定（おまかせ / 固定）と今日の日付で決まる。開いたまま日付が変わっても着替えるよう、日付はときどき見直す
+  const { outfit: outfitPref } = useSettings()
+  const [day, setDay] = useState(today)
+  const outfit = outfitFor(outfitPref, day)
+  const outfitRef = useRef(outfit)
 
   useEffect(() => {
     const el = ref.current
@@ -44,7 +61,11 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       assets: { wordmark: WORDMARK, poster: LOGO_FULL },
       onTap: (h) => {
         if (h === 'resident') {
-          const lines = worriedRef.current ? ['今日の記録、まだ？', 'メニュー、何出したっけ…', '記録したら安心して寝られる…'] : RESIDENT_LINES[dayPart()]
+          const now = dayPart()
+          const doing = ACTIVITY_LINES[scene.residentActivity()]
+          const lines = worriedRef.current ? ['今日の記録、まだ？', 'メニュー、何出したっけ…', '記録したら安心して寝られる…']
+            : now === 'night' ? RESIDENT_LINES.night
+            : doing ?? [...RESIDENT_LINES[now], outfitInfo(outfitRef.current).line]   // 行動中はその話、お店番のときはときどき今日の服の話
           const pos = scene.residentScreenPos()
           if (pos) setBubble({ text: lines[Math.floor(Math.random() * lines.length)], ...pos })
           window.setTimeout(() => setBubble(null), 2200)
@@ -54,6 +75,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       },
     })
     scene.setMode(dayPart())
+    scene.setResidentOutfit(outfitRef.current)
     scene.setResident(true)
     sceneRef.current = scene
     ;(window as unknown as { __lara?: ShopScene }).__lara = scene   // デバッグ用
@@ -65,6 +87,14 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   }, [counts, streak])
 
   useEffect(() => { worriedRef.current = worried; sceneRef.current?.setResidentMood(worried ? 'worried' : 'idle') }, [worried])
+
+  useEffect(() => { outfitRef.current = outfit; sceneRef.current?.setResidentOutfit(outfit) }, [outfit])
+  useEffect(() => {
+    const tick = () => setDay(today())
+    const id = window.setInterval(tick, 10 * 60 * 1000)
+    document.addEventListener('visibilitychange', tick)
+    return () => { window.clearInterval(id); document.removeEventListener('visibilitychange', tick) }
+  }, [])
 
   const info = picked ? HOT[picked] : null
 
