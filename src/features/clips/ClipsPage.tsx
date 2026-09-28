@@ -16,6 +16,7 @@ export function ClipsPage() {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState<ClipCategory | 'all' | 'idea'>('all')
   const [favOnly, setFavOnly] = useState(false)
+  const [minRating, setMinRating] = useState<0 | 4 | -1>(0)
   const [editorOpen, setEditorOpen] = useState(false)
 
   const list = useMemo(() => {
@@ -24,11 +25,12 @@ export function ClipsPage() {
     return all.filter((c) => {
       if (cat === 'idea' ? c.type !== 'idea' : cat !== 'all' && c.category !== cat) return false
       if (favOnly && !c.favorite) return false
+      if (minRating === -1 ? c.type === 'idea' || c.rating !== null : minRating > 0 && (c.rating ?? 0) < minRating) return false
       if (!needle) return true
       const hay = `${clipTitle(c)} ${c.note} ${c.shop_name ?? ''} ${c.tags.join(' ')} ${c.preview?.title ?? ''}`.toLowerCase()
       return hay.includes(needle)
     })
-  }, [clips.data, q, cat, favOnly])
+  }, [clips.data, q, cat, favOnly, minRating])
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
 
@@ -45,6 +47,8 @@ export function ClipsPage() {
           <Chip active={cat === 'idea'} onClick={() => setCat('idea')}>💡 ひらめき</Chip>
           {CATEGORIES.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.emoji} {c.label}</Chip>)}
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
+          <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>
+          <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
         </div>
 
         {clips.isLoading ? (

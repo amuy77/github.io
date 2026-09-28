@@ -7,7 +7,7 @@ export type ClipType = 'photo' | 'link' | 'note' | 'idea'
 export type ClipCategory = 'sandwich' | 'drink' | 'wine' | 'beer' | 'coffee' | 'shop' | 'other'
 export type RecipeStatus = 'draft' | 'published'
 export type RecipeSourceKind = 'manual' | 'ai_image' | 'ai_text' | 'text_paste'
-export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'weekly_insights'
+export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'consult' | 'weekly_insights'
 export type AiJobStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled'
 export type GenreColor = 'green' | 'mustard' | 'brick' | 'plum' | 'wood'
 
@@ -22,11 +22,23 @@ export type GenreRow = Timestamps & { id: string; user_id: string; name: string;
 export type ClipRow = Timestamps & {
   id: string; user_id: string; type: ClipType; title: string; note: string; url: string | null
   images: ImageRef[]; preview: LinkPreview | null; category: ClipCategory; tags: string[]; shop_name: string | null; favorite: boolean
+  /** 1〜5。null は保留（未評価） */
+  rating: number | null
+  /** AI が作って、まだ確認していない */
+  needs_review: boolean
 }
 export type RecipeRow = Timestamps & {
   id: string; user_id: string; title: string; genre_id: string | null; hero_image: ImageRef | null
   ingredients: Ingredient[]; steps: string[]; notes: string; source_clip_id: string | null; source_kind: RecipeSourceKind
   source_job_id: string | null; status: RecipeStatus; favorite: boolean
+  /** 1〜3。null は保留（未評価） */
+  rating: number | null
+  /** 同じ料理のグループ。グループ最初のレシピの id（最初のレシピ自身は null） */
+  family_id: string | null
+  /** 「試作2」「A案」など */
+  variant_label: string
+  /** グループ内の本命（採用中） */
+  is_main: boolean
 }
 export type MenuLogRow = Timestamps & { id: string; user_id: string; log_date: string; note: string }
 export type MenuLogItemRow = { id: string; user_id: string; menu_log_id: string; recipe_id: string; sold_count: number | null; created_at: string }

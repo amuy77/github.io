@@ -62,3 +62,16 @@ export function useDeleteRecipe() {
     onSuccess: (_r, recipe) => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.filter((r) => r.id !== recipe.id)); qc.removeQueries({ queryKey: qk.recipe(recipe.id) }); inv() },
   })
 }
+
+/** グループの本命（採用中）を 1 件にする。同じグループの他の版は外す */
+export function useSetMain() {
+  const update = useUpdateRecipe()
+  return useMutation({
+    mutationFn: async ({ family, id }: { family: RecipeRow[]; id: string | null }) => {
+      for (const r of family) {
+        const want = r.id === id
+        if (r.is_main !== want) await update.mutateAsync({ id: r.id, patch: { is_main: want } })
+      }
+    },
+  })
+}

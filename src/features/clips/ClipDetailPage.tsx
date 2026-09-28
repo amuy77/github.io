@@ -14,6 +14,9 @@ import { paths } from '@/app/routes'
 import { categoryOf, TYPE_LABEL } from './categories'
 import { clipTitle } from './ClipCard'
 import { ClipEditorSheet } from './ClipEditorSheet'
+import { RatingInput } from '@/components/ui/Rating'
+import { ClipReviewSheet } from '@/features/ai/ReviewSheet'
+import { AskLaraButton } from '@/features/ask/AskLaraButton'
 import { useClip, useDeleteClip, useUpdateClip } from './hooks'
 import { cx } from '@/lib/cx'
 
@@ -27,6 +30,7 @@ export function ClipDetailPage() {
   const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [review, setReview] = useState(false)
 
   if (clip.isLoading) return <><PageHeader title="ネタ" back={paths.clips} /><Skeleton className="aspect-[4/3]" /></>
   const c = clip.data
@@ -50,6 +54,16 @@ export function ClipDetailPage() {
             ))}
           </div>
         )}
+        {c.needs_review && (
+          <div className="flex items-center gap-3 rounded-card border border-mustard-300 bg-mustard-300/20 p-3 text-sm">
+            <span className="text-xl" aria-hidden>📬</span>
+            <p className="flex-1 font-bold">AI が入れたネタです。中身を確認してね。</p>
+            <Button size="sm" onClick={() => setReview(true)}>確認する</Button>
+          </div>
+        )}
+        {c.type !== 'idea' && (
+          <Card><RatingInput label="評価" max={5} value={c.rating} onChange={(v) => update.mutate({ id: c.id, patch: { rating: v } })} /></Card>
+        )}
         {c.type === 'idea' ? (
           <div className="rounded-[6px] border border-mustard-300 bg-[#FFF2C2] p-5 text-[15px] font-bold leading-relaxed whitespace-pre-wrap">{c.note}</div>
         ) : (
@@ -65,11 +79,13 @@ export function ClipDetailPage() {
             )}
           </Card>
         )}
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <AskLaraButton q={`「${clipTitle(c)}」${c.shop_name ? `（${c.shop_name}）` : ''}のネタを LaRa のメニューに活かすなら？`} />
           <Button variant="ghost" size="sm" icon={<IconTrash size={16} />} className="text-brick-500" onClick={() => setConfirm(true)}>削除</Button>
         </div>
       </div>
       <ClipEditorSheet open={edit} onClose={() => setEdit(false)} clip={c} />
+      <ClipReviewSheet clip={review ? c : null} onClose={() => setReview(false)} />
       <Confirm open={confirm} onClose={() => setConfirm(false)} title="このネタを削除しますか？" body="写真も一緒に消えます。元に戻せません。" confirmLabel="削除する" danger
         onConfirm={async () => { try { await del.mutateAsync(c); toast('削除しました'); nav(paths.clips, { replace: true }) } catch { toast('削除できませんでした', 'error') } }} />
       {lightbox && (

@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { ClipRow } from '@/lib/supabase/database.types'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Tag } from '@/components/ui/Chip'
+import { RatingStars } from '@/components/ui/Rating'
 import { IconStar } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { relativeDay } from '@/lib/dates'
@@ -31,11 +32,13 @@ export function ClipCard({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFa
           <div className="flex flex-col gap-1 p-3">
             <p className="line-clamp-2 text-[14px] font-bold leading-snug">{clipTitle(clip)}</p>
             {(clip.shop_name || clip.preview?.site_name) && <p className="truncate text-[11px] text-muted">{clip.shop_name ?? clip.preview?.site_name}</p>}
+            <RatingStars value={clip.rating} max={5} showHold={false} />
             {clip.tags.length > 0 && <div className="flex flex-wrap gap-1">{clip.tags.slice(0, 3).map((t) => <Tag key={t}>{t}</Tag>)}</div>}
           </div>
         </>
       )}
       {!isIdea && <div className="absolute left-2 top-2 rounded-chip bg-paper/90 px-1.5 py-0.5 text-[10px] font-bold shadow-card">{cat.emoji} {cat.label}</div>}
+      {clip.needs_review && <span className="absolute left-2 top-8 rounded-chip bg-mustard-400 px-2 py-0.5 text-[10px] font-bold">確認待ち</span>}
       <span className="absolute bottom-2 right-2 text-[10px] text-muted">{relativeDay(clip.created_at)}</span>
       {onToggleFavorite && (
         <button type="button" aria-label={clip.favorite ? 'お気に入りを外す' : 'お気に入りにする'} onClick={(e) => { e.preventDefault(); onToggleFavorite(clip) }}

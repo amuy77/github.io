@@ -9,15 +9,16 @@ const ZERO: HomeCounts = { clips: 0, recipes: 0, menuLogs: 0, inbox: 0, drafts: 
 
 async function fetchCounts(): Promise<HomeCounts> {
   const sb = getSupabase()
-  const [clips, recipes, menuLogs, drafts, jobs] = await Promise.all([
+  const [clips, recipes, menuLogs, drafts, jobs, reviews] = await Promise.all([
     sb.from('clips').select('id', { count: 'exact', head: true }),
     sb.from('recipes').select('id', { count: 'exact', head: true }).eq('status', 'published'),
     sb.from('menu_logs').select('id', { count: 'exact', head: true }),
     sb.from('recipes').select('id', { count: 'exact', head: true }).eq('status', 'draft'),
     sb.from('ai_jobs').select('id', { count: 'exact', head: true }).in('status', ['pending', 'processing']),
+    sb.from('clips').select('id', { count: 'exact', head: true }).eq('needs_review', true),
   ])
   const n = (r: { count: number | null }) => r.count ?? 0
-  return { clips: n(clips), recipes: n(recipes), menuLogs: n(menuLogs), drafts: n(drafts), pendingJobs: n(jobs), inbox: n(drafts) }
+  return { clips: n(clips), recipes: n(recipes), menuLogs: n(menuLogs), drafts: n(drafts), pendingJobs: n(jobs), inbox: n(drafts) + n(reviews) }
 }
 
 export function useCounts() {

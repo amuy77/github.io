@@ -136,6 +136,8 @@ where id = '<CLIP_ID>' and user_id = '<USER_ID>';
 - タイトルは読み取ったものを使い、無ければ材料から自然な名前を付ける（`notes` に「タイトルは仮」）。
 - 材料は `[{"name","amount"}]`、手順は 1 文ずつ。レシピの説明文やコツは `notes` に整理して入れる。
 - 複数枚で別のレシピなら最大 3 件。
+- `rating` は入れない（店主が確認画面で付ける）。
+- **同じ料理がもう図鑑にあるか確かめる。** `select id, title, family_id, variant_label, created_at from public.recipes where user_id = '<USER_ID>' order by created_at` を見て、明らかに同じ料理（例: 「BLTサンド」と「BLT サンド 改」、材料の大半が同じ）があれば、`family_id` にそのグループの先頭の id（相手の `family_id`、それが null なら相手の `id`）を入れ、`variant_label` に「試作N」（N = そのグループの件数 + 1）を入れる。迷ったら入れない（店主が確認画面で選べる）。
 
 `result` は `{"decided":"recipe","recipe_ids":["…"],"summary":"BLTサンドを下書きに"}`。
 
@@ -144,7 +146,7 @@ where id = '<CLIP_ID>' and user_id = '<USER_ID>';
 `clips` に 1 行 **insert** する（`clip_from_image` と違って新規作成）:
 
 ```sql
-insert into public.clips (user_id, type, title, note, images, category, tags, shop_name)
+insert into public.clips (user_id, type, title, note, images, category, tags, shop_name, needs_review)
 values (
   '<USER_ID>',
   'photo',
@@ -153,10 +155,13 @@ values (
   '<payload.images をそのまま>'::jsonb,
   '<sandwich | drink | wine | beer | coffee | shop | other>',
   array['<タグ1>','<タグ2>'],
-  <'<店名>' または null>
+  <'<店名>' または null>,
+  true
 )
 returning id;
 ```
+
+`needs_review` は必ず `true`（店主がアプリの受信トレイで確認して ★ を付ける）。`rating` は入れない（店主が付ける）。
 
 - `title`: 写真から読み取った名前（メニュー名・商品名・店名など）。読めなければ「写真メモ 9/28」のように日付を付ける。
 - `note`: 1 行目は「AI が読み取ったメモ（要確認）」。続けて、読み取れた文字（メニュー名・価格・説明・原材料など）はそのまま書き起こし、見た目の特徴（パンの種類・具材・盛り付け・色）を 1〜3 行。LaRa（サンドイッチ＆ドリンクのカフェ）の参考になりそうな点があれば最後に 1 行。価格は表記どおり（税込/税抜の記載があればそれも）。
@@ -193,13 +198,29 @@ returning id;
 
 それぞれ上の手順で作り、`result` に両方（`recipe_ids` と `clip_id`/`clip_ids`）を入れる。`decided` は件数が多いほう。
 
+## kind = consult
+
+アプリの「LaRa に聞く」で、Claude API キーが未設定だったときに預かった相談。`payload.question` に質問、`payload.recipe_id`（相談中のレシピ）、`payload.compare_with_id`（比べている版）が入っている（null もある）。
+
+1. そのユーザーのデータを読む（読むだけ）:
+   ```sql
+   select id, title, genre_id, ingredients, steps, notes, rating, family_id, variant_label, is_main, status, created_at from public.recipes where user_id = '<USER_ID>' order by created_at;
+   select id, type, title, note, shop_name, category, tags, rating from public.clips where user_id = '<USER_ID>' order by created_at desc limit 300;
+   select id, name from public.genres where user_id = '<USER_ID>';
+   ```
+2. あなたはカフェ LaRa の看板キャラクター「LaRa（ララ）」として答える。三日月のフードをかぶった猫の女の子で、店主の相棒。親しみやすい日本語で 400 字くらいまで。
+   - 探す・提案: 図鑑とネタ帳から具体的に名前を挙げる（データに無いものをあるように言わない）。★ は店主の評価（レシピ 3 段階、ネタ 5 段階、null は保留）。
+   - 味の相談: なぜそうなるかを一言添えて、試しやすい小さな変更を具体的な分量で。一度に変えるのは 1〜2 か所。
+   - 版の比較: `compare_with_id` があれば 2 つの版の違い（材料・分量・手順）を踏まえて、次の試作で何を変えるか。
+3. `result` に `{"answer":"<回答>"}` を入れて `done` にする（アプリの受信トレイに表示される）。
+
 ## kind = weekly_insights
 
 `payload.week_start`（無ければ直近の月曜）を対象に、週次レポート Routine と同じ手順（直近 4 週の `menu_logs` を集計 → 3〜5 個の気づき → `ai_insights` に upsert）で処理し、ジョブを `done` にする（`result` に `{"week_start":"…"}`）。気づきの書き方: 1 つ目は必ず褒める、数字は集計の事実だけ、`body` は 80 字以内のです・ます調、`emoji` は 1 つ、`kind` は `praise | bias | popular | suggestion | reminder`。
 
 ## 安全のルール
 
-- 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`, `genres`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
+- 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`（`consult` では読むだけ）, `genres`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
 - `delete` / `drop` / `truncate` は絶対に実行しない。
 - 1 回の実行で処理するジョブは最大 5 件。3 回失敗したジョブは放置する（`attempts < 3` の条件で除外される）。
 - SQL の文字列はシングルクォートを `''` にエスケープする。JSON の中の `'` も同様。

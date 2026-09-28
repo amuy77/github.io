@@ -10,6 +10,7 @@ import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useRecipes, useUpdateRecipe } from './hooks'
 import { RecipeCard } from './RecipeCard'
+import { familyKey, representativeOf } from './family'
 
 export function RecipesPage() {
   const nav = useNavigate()
@@ -19,17 +20,22 @@ export function RecipesPage() {
   const [q, setQ] = useState('')
   const [genreId, setGenreId] = useState<string | 'all' | 'none'>('all')
   const [favOnly, setFavOnly] = useState(false)
+  const [minRating, setMinRating] = useState<0 | 3 | 2 | -1>(0) // -1 = 保留だけ
 
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
+  // 同じ料理の版は 1 枚にまとめる（代表 = 採用中 → 最新）。版数を覚えておく
+  const famCount = useMemo(() => { const m = new Map<string, number>(); for (const r of published) m.set(familyKey(r), (m.get(familyKey(r)) ?? 0) + 1); return m }, [published])
+  const reps = useMemo(() => [...new Set(published.map(familyKey))].map((k) => representativeOf(published.filter((r) => familyKey(r) === k))), [published])
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return published.filter((r) => {
+    return reps.filter((r) => {
+      if (minRating === -1 ? r.rating !== null : minRating > 0 && (r.rating ?? 0) < minRating) return false
       if (genreId === 'none' ? r.genre_id !== null : genreId !== 'all' && r.genre_id !== genreId) return false
       if (favOnly && !r.favorite) return false
       if (!needle) return true
       return `${r.title} ${r.notes} ${r.ingredients.map((i) => i.name).join(' ')}`.toLowerCase().includes(needle)
     })
-  }, [published, q, genreId, favOnly])
+  }, [reps, q, genreId, favOnly, minRating])
 
   const sections = useMemo(() => {
     const gs = genres.data ?? []
@@ -41,7 +47,7 @@ export function RecipesPage() {
   }, [filtered, genres.data])
 
   const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
-  const total = published.length
+  const total = reps.length
 
   return (
     <>
@@ -53,8 +59,11 @@ export function RecipesPage() {
         </label>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <Chip active={genreId === 'all'} onClick={() => setGenreId('all')} count={total}>すべて</Chip>
-          {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={published.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g.name)} {g.name}</Chip>)}
+          {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={reps.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g.name)} {g.name}</Chip>)}
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
+          <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★★★</Chip>
+          <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★★以上</Chip>
+          <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
         </div>
 
         {recipes.isLoading || genres.isLoading ? (
@@ -70,7 +79,7 @@ export function RecipesPage() {
             <section key={s.key} className="flex flex-col gap-2">
               <SectionTitle count={`${s.items.length}品`}>{s.title}</SectionTitle>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-                {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} />)}
+                {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} />)}
               </div>
             </section>
           ))
