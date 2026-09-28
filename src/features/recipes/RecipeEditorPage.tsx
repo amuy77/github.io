@@ -18,7 +18,7 @@ import { useSession } from '@/features/auth/useSession'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { celebrateFrom } from '@/features/game/celebrate'
-import { nextWorkerTime } from '@/features/ai/api'
+import { nextWorkerTime, WORKER_SCHEDULE_LABEL } from '@/features/ai/api'
 import { useEnqueueJob } from '@/features/ai/hooks'
 import { useCreateRecipe, useRecipe, useRecipes, useUpdateRecipe } from './hooks'
 import { RatingInput } from '@/components/ui/Rating'
@@ -179,7 +179,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
           </div>
           <Card className="flex flex-col gap-2">
             <p className="text-[13px] font-bold">AI にきれいに整えてもらう</p>
-            <p className="text-xs text-muted">Claude が 1 日 3 回（{nextWorkerTime() === `明日の 9:10` ? '9:10 / 14:10 / 21:10' : `次は ${nextWorkerTime()}`}）まとめて処理して、受信トレイに届けます。</p>
+            <p className="text-xs text-muted">Claude が {WORKER_SCHEDULE_LABEL}（次は {nextWorkerTime()} ごろ）まとめて処理して、受信トレイに届けます。</p>
             {genreChips}
             <Input label="ヒント（任意）" placeholder="例: 店のクロワッサンサンド用。分量は 1 人前で" value={hint} onChange={(e) => setHint(e.target.value)} />
             <Button variant="mustard" icon={<IconSparkles size={16} />} loading={saving} onClick={() => sendToAi('recipe_from_text')} disabled={!text.trim()}>AI のトレイに入れる</Button>

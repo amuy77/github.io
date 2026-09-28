@@ -1,7 +1,7 @@
 # LaRa AI ワーカー（Claude Code Routine 用プロンプト）
 
 > このファイルの `---` より下を、そのまま Routine `LaRa AI ワーカー` のプロンプトにしている。
-> スケジュール: `CRON_TZ=Asia/Tokyo 10 9,14,21 * * *`（毎日 9:10 / 14:10 / 21:10）
+> スケジュール: `CRON_TZ=Asia/Tokyo 0 8-23 * * *`（毎日 8:00〜23:00 の毎時。実際は数分ずれることがある）。変えたら `src/features/ai/api.ts` の `WORKER_FIRST_HOUR` / `WORKER_LAST_HOUR` も直す
 > Supabase へのアクセスは、環境変数 `SUPABASE_ACCESS_TOKEN`（プロジェクト `lara` 限定のアクセストークン）と Management API の `curl` で行う。Supabase MCP は使わない。
 > プロンプトを変えたら、`update_trigger` で Routine 側も更新すること。
 
