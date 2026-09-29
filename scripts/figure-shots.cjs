@@ -28,6 +28,13 @@ const VARIANTS = [
   ['pose-water', 'pose=water&prop=watering'],
   ['pose-sweep', 'outfit=hoodie&pose=sweep&prop=broom'],
   ['pose-stretch', 'pose=stretch'],
+  ['pose-wipe', 'pose=wipe&prop=cloth'],
+  ['pose-write', 'pose=write&prop=chalk'],
+  ['pose-browse', 'pose=browse'],
+  ['pose-peruse', 'pose=peruse&prop=book'],
+  ['pose-dance', 'pose=dance'],
+  ['pose-wake', 'pose=wake'],
+  ['pose-yawn', 'pose=yawn'],
 ]
 
 ;(async () => {
