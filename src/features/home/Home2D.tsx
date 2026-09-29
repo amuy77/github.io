@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { AskChip } from '@/features/ask/AskChip'
+import { SettingsChip } from '@/features/settings/SettingsChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { IconFire } from '@/components/ui/icons'
@@ -16,8 +17,9 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
     { to: paths.menu, em: '🗓️', name: 'メニュー記録', n: counts.menuLogs, accent: 'brick' as const },
     { to: paths.inbox, em: '📬', name: '受信トレイ', n: counts.inbox, accent: 'plum' as const },
   ]
+  // ホームは画面の端まで使う 3D 版に合わせて外側の余白が無いので、タイル版は自分で左右と下（タブバーの分）の余白を取る
   return (
-    <div className="flex flex-col gap-4 pt-[calc(12px+var(--safe-top))]">
+    <div className="flex flex-col gap-4 px-4 pt-[calc(12px+var(--safe-top))] pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)] md:px-8 md:pb-10">
       <div className="relative">
         <div className="confetti-bg pointer-events-none absolute -inset-x-4 -top-4 h-24" aria-hidden />
         <div className="relative flex items-end justify-between">
@@ -31,6 +33,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
               <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
               {streak > 0 ? `${streak}日連続` : '今日から記録'}
             </div>
+            <SettingsChip />
           </div>
         </div>
       </div>

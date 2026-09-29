@@ -26,6 +26,7 @@
   <script type="module">
     import * as THREE from 'three'
     import { buildLaraFigure } from '/src/features/home/shop3d/laraFigure.ts'
+    import { OUTFITS } from '/src/features/home/shop3d/outfit.ts'
 
     const q = new URLSearchParams(location.search)
     const mode = q.get('mode') || 'shots'
@@ -49,9 +50,15 @@
 
     const fig = buildLaraFigure()
     scene.add(fig.group)
+    let outfit = OUTFITS.some((o) => o.id === q.get('outfit')) ? q.get('outfit') : OUTFITS[0].id
+    fig.setOutfit(outfit)
     const ex = q.get('ex'); const motion = q.get('motion')
     fig.setExpression({ worried: ex === 'worried', sleeping: ex === 'sleep', blink: ex === 'blink' })
     const m = { walking: motion === 'walk', waving: motion === 'wave', brewing: motion === 'brew', sleeping: ex === 'sleep', worried: ex === 'worried', facing: 0, reduced: q.has('still') }
+    if (q.get('pose')) m.pose = q.get('pose')
+    if (q.get('prop')) fig.setProp(q.get('prop'))
+    // still=1 でも仕草の形は見せたいので、ポーズ指定があるときは時刻を固定して動かす
+    if (q.get('pose')) m.reduced = false
     window.__fig = fig
 
     const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 50)
@@ -77,6 +84,9 @@
       mk('心配', () => { fig.setExpression({ worried: true, sleeping: false }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: false, worried: true }) })
       mk('寝る', () => { fig.setExpression({ worried: false, sleeping: true }); Object.assign(m, { walking: false, waving: false, brewing: false, sleeping: true, worried: false }) })
       mk('タップ', () => fig.spin())
+      const dress = document.createElement('button'); dress.textContent = '着替え'
+      dress.onclick = () => { const i = OUTFITS.findIndex((o) => o.id === outfit); outfit = OUTFITS[(i + 1) % OUTFITS.length].id; fig.setOutfit(outfit) }
+      bar.appendChild(dress)
     }
     const clock = new THREE.Clock()
     let blinkAt = 3, blinkUntil = 0

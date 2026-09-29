@@ -124,6 +124,34 @@ for (const r of routes) {
   })
 }
 
+test('3D home: tapping each piece of furniture opens its card', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  await page.waitForFunction(() => (window as unknown as { __lara?: { debugState(): { figure: boolean } } }).__lara?.debugState().figure, null, { timeout: 20_000 })
+  // 住人が家具の前に立ってタップを受け止めないように、いったんお店から出てもらう
+  await page.evaluate(() => (window as unknown as { __lara: { setResident(v: boolean): void } }).__lara.setResident(false))
+  const cards: [string, string][] = [
+    ['inbox', 'AI が作ったカードが届く場所'], ['recipes', 'ジャンル別のレシピカード'], ['menu', '日別の記録と、週・月の構成比'],
+    ['clips', '気になったお店・SNS・ワインやビールのメモ'], ['add', 'ひらめき・URL・写真をサッと保存'],
+  ]
+  for (const [id, sub] of cards) {
+    const pos = await page.evaluate((id) => (window as unknown as { __lara: { debugHotspotScreenPos(h: string): { x: number; y: number } | null } }).__lara.debugHotspotScreenPos(id), id)
+    expect(pos, `${id} is on screen`).not.toBeNull()
+    await page.mouse.click(pos!.x, pos!.y)
+    await expect(page.getByText(sub), `${id} card`).toBeVisible()
+  }
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-tap.png` })
+})
+
+test('home: settings button opens settings', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  // スマホはホーム右上の歯車、パソコンは左のメニューの「設定」（どちらか見えている 1 つ）
+  await page.getByRole('link', { name: '設定', exact: true }).click()
+  await expect(page).toHaveURL(/#\/settings$/)
+  await expect(page.getByText('LaRa の服', { exact: true })).toBeVisible()
+})
+
 test('clip editor opens from list', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/clips')

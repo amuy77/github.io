@@ -10,6 +10,24 @@ const VARIANTS = [
   ['sleep', 'ex=sleep&still=1'],
   ['walk', 'motion=walk'],
   ['wave', 'motion=wave'],
+  // 黒猫パーカーの日
+  ['hoodie-idle', 'outfit=hoodie&still=1'],
+  ['hoodie-sleep', 'outfit=hoodie&ex=sleep&still=1'],
+  ['hoodie-walk', 'outfit=hoodie&motion=walk'],
+  // かぼちゃ（10 月）
+  ['pumpkin-idle', 'outfit=pumpkin&still=1'],
+  ['pumpkin-walk', 'outfit=pumpkin&motion=walk'],
+  ['pumpkin-rest', 'outfit=pumpkin&pose=rest&prop=cup'],
+  // ベイマックス
+  ['baymax-idle', 'outfit=baymax&still=1'],
+  ['baymax-sleep', 'outfit=baymax&ex=sleep&still=1'],
+  ['baymax-walk', 'outfit=baymax&motion=walk'],
+  // 暮らしの仕草
+  ['pose-read', 'pose=read&prop=book'],
+  ['pose-rest', 'pose=rest&prop=cup'],
+  ['pose-water', 'pose=water&prop=watering'],
+  ['pose-sweep', 'outfit=hoodie&pose=sweep&prop=broom'],
+  ['pose-stretch', 'pose=stretch'],
 ]
 
 ;(async () => {

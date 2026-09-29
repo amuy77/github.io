@@ -9,10 +9,17 @@ import { LearnedRules } from './LearnedRules'
 import { useBadges } from '@/features/game/useBadges'
 import { BADGES } from '@/features/game/badges'
 import { cx } from '@/lib/cx'
+import { Chip } from '@/components/ui/Chip'
+import { OUTFITS, outfitFor, outfitInfo, type OutfitPref } from '@/features/home/shop3d/outfit'
+
+const OUTFIT_CHOICES: { value: OutfitPref; label: string }[] = [
+  { value: 'auto', label: '🎲 おまかせ（日替わり）' },
+  ...OUTFITS.map((o) => ({ value: o.id, label: `${o.emoji} ${o.label}` })),
+]
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
-  const { home3d } = useSettings()
+  const { home3d, outfit } = useSettings()
   const badges = useBadges()
   const unlockedKeys = new Set(badges.unlocked.map((b) => b.key))
   return (
@@ -45,6 +52,16 @@ export function SettingsPage() {
             <span className="h-7 w-12 rounded-full bg-line transition-colors peer-checked:bg-green-600 peer-focus-visible:outline-2 peer-focus-visible:outline-mustard-400" />
             <span className="absolute left-1 top-1 size-5 rounded-full bg-paper shadow transition-transform peer-checked:translate-x-5" />
           </label>
+        </Card>
+        <Card className="flex flex-col gap-3">
+          <div>
+            <p className="font-bold">LaRa の服</p>
+            <p className="text-xs text-muted">3D のお店にいる LaRa の服。おまかせにすると日によって着替えます（同じ服は 3 日まで）。かぼちゃは 10 月だけ日替わりに入ります</p>
+          </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="LaRa の服">
+            {OUTFIT_CHOICES.map((c) => <Chip key={c.value} active={outfit === c.value} onClick={() => updateSettings({ outfit: c.value })}>{c.label}</Chip>)}
+          </div>
+          <p className="text-sm">今日は <span className="font-bold">{outfitInfo(outfitFor(outfit)).label}</span> の日</p>
         </Card>
 
         <SectionTitle>アカウント</SectionTitle>
