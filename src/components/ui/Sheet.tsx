@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IconX } from './icons'
 import { IconButton } from './Button'
@@ -26,7 +27,8 @@ export function Sheet({ open, onClose, title, children, tall, footer }: SheetPro
     return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
   }, [open, onClose])
 
-  return (
+  // body 直下に出す（シートの中からシートを開いても、親の transform に閉じ込められないように）
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="dialog" aria-modal="true" aria-label={title}>
@@ -48,13 +50,14 @@ export function Sheet({ open, onClose, title, children, tall, footer }: SheetPro
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }
 
 /** 確認ダイアログ */
 export function Confirm({ open, onClose, onConfirm, title, body, confirmLabel = '実行する', danger }: { open: boolean; onClose: () => void; onConfirm: () => void; title: string; body?: string; confirmLabel?: string; danger?: boolean }) {
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" role="alertdialog" aria-modal="true" aria-label={title}>
@@ -69,6 +72,7 @@ export function Confirm({ open, onClose, onConfirm, title, body, confirmLabel = 
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

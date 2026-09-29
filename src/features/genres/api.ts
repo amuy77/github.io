@@ -1,6 +1,9 @@
 import { getSupabase } from '@/lib/supabase/client'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
 
+/** アイコンに選べる絵文字 */
+export const GENRE_EMOJI_CHOICES = ['🥪', '🥐', '🥖', '🍞', '🥯', '🌯', '🍔', '🌭', '🥗', '🥣', '🍰', '🍪', '🧁', '🍩', '☕', '🍵', '🥤', '🧃', '🍹', '🍸', '🍷', '🍺', '🥛', '🍋', '🍓', '🥑', '🧀', '🥓', '🍳', '🍽️']
+
 export const GENRE_COLORS: { value: GenreColor; label: string; swatch: string }[] = [
   { value: 'green', label: 'グリーン', swatch: 'bg-green-600' },
   { value: 'mustard', label: 'マスタード', swatch: 'bg-mustard-400' },
@@ -10,7 +13,14 @@ export const GENRE_COLORS: { value: GenreColor; label: string; swatch: string }[
 ]
 
 export const GENRE_EMOJI: Record<string, string> = { 'コーヒー': '☕', 'アメリカンサンド': '🥪', 'クロワッサンサンド': '🥐', 'ベバレッジ': '🥤', 'ドリンク': '🥤', 'デザート': '🍰', 'スープ': '🥣', 'サラダ': '🥗' }
-export function genreEmoji(name: string): string {
+/** ジャンルのアイコン。選んだ絵文字があればそれ、無ければ名前から自動 */
+export function genreEmoji(g: { name: string; emoji?: string }): string {
+  if (g.emoji) return g.emoji
+  return autoEmoji(g.name)
+}
+
+/** 名前から選ぶ絵文字 */
+export function autoEmoji(name: string): string {
   for (const k of Object.keys(GENRE_EMOJI)) if (name.includes(k)) return GENRE_EMOJI[k]
   if (/サンド|パン|バゲット/.test(name)) return '🥪'
   if (/茶|ティー/.test(name)) return '🍵'
@@ -25,13 +35,13 @@ export async function listGenres(): Promise<GenreRow[]> {
   return data as GenreRow[]
 }
 
-export async function createGenre(name: string, color: GenreColor, sort_order: number): Promise<GenreRow> {
-  const { data, error } = await getSupabase().from('genres').insert({ name, color, sort_order }).select('*').single()
+export async function createGenre(name: string, color: GenreColor, sort_order: number, emoji = ''): Promise<GenreRow> {
+  const { data, error } = await getSupabase().from('genres').insert({ name, color, sort_order, emoji }).select('*').single()
   if (error) throw error
   return data as GenreRow
 }
 
-export async function updateGenre(id: string, patch: Partial<Pick<GenreRow, 'name' | 'color' | 'sort_order'>>): Promise<GenreRow> {
+export async function updateGenre(id: string, patch: Partial<Pick<GenreRow, 'name' | 'color' | 'sort_order' | 'emoji'>>): Promise<GenreRow> {
   const { data, error } = await getSupabase().from('genres').update(patch).eq('id', id).select('*').single()
   if (error) throw error
   return data as GenreRow

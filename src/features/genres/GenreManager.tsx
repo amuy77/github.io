@@ -1,25 +1,23 @@
 import { useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button, IconButton } from '@/components/ui/Button'
+import { Chip } from '@/components/ui/Chip'
 import { Input } from '@/components/ui/Field'
-import { Confirm } from '@/components/ui/Sheet'
+import { Confirm, Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
-import { IconCheck, IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
+import { IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
-import { GENRE_COLORS, genreEmoji } from './api'
+import { autoEmoji, GENRE_COLORS, GENRE_EMOJI_CHOICES, genreEmoji } from './api'
 import { useGenreMutations, useGenres } from './hooks'
 import { cx } from '@/lib/cx'
 
-/** ジャンルの追加・名前変更・色・並び替え・削除 */
+const swatchOf = (c: GenreColor) => GENRE_COLORS.find((x) => x.value === c)?.swatch ?? 'bg-green-600'
+
+/** ジャンルの一覧（並び替え・編集・追加）。設定画面と、図鑑などから開くシートで使う */
 export function GenreManager() {
   const genres = useGenres()
-  const { create, update, remove, reorder } = useGenreMutations()
-  const toast = useToast()
-  const [editing, setEditing] = useState<string | null>(null)
-  const [name, setName] = useState('')
-  const [newName, setNewName] = useState('')
-  const [newColor, setNewColor] = useState<GenreColor>('green')
-  const [confirm, setConfirm] = useState<GenreRow | null>(null)
+  const { reorder } = useGenreMutations()
+  const [editing, setEditing] = useState<GenreRow | 'new' | null>(null)
   const list = genres.data ?? []
 
   const move = (i: number, dir: -1 | 1) => {
@@ -32,41 +30,132 @@ export function GenreManager() {
 
   return (
     <div className="flex flex-col gap-2">
+      {list.length === 0 && <p className="rounded-[10px] bg-oat-50 px-3 py-3 text-center text-sm text-muted">ジャンルはまだありません</p>}
       {list.map((g, i) => (
         <Card key={g.id} className="flex items-center gap-2 py-2">
-          <span className="text-xl" aria-hidden>{genreEmoji(g.name)}</span>
-          {editing === g.id ? (
-            <>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9" aria-label="ジャンル名" onKeyDown={(e) => { if (e.key === 'Enter') { update.mutate({ id: g.id, patch: { name: name.trim() } }); setEditing(null) } }} />
-              <IconButton label="保存" onClick={() => { if (name.trim()) update.mutate({ id: g.id, patch: { name: name.trim() } }); setEditing(null) }}><IconCheck /></IconButton>
-            </>
-          ) : (
-            <>
-              <span className="flex-1 truncate font-bold">{g.name}</span>
-              <div className="flex gap-1">
-                {GENRE_COLORS.map((c) => (
-                  <button key={c.value} type="button" aria-label={c.label} aria-pressed={g.color === c.value} onClick={() => update.mutate({ id: g.id, patch: { color: c.value } })}
-                    className={cx('size-5 rounded-full border-2', c.swatch, g.color === c.value ? 'border-espresso-900' : 'border-transparent opacity-60')} />
-                ))}
-              </div>
-              <IconButton label="上へ" className="size-8" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
-              <IconButton label="下へ" className="size-8" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
-              <IconButton label="名前を変える" className="size-8" onClick={() => { setEditing(g.id); setName(g.name) }}><IconEdit size={16} /></IconButton>
-              <IconButton label="削除" className="size-8 text-brick-500" onClick={() => setConfirm(g)}><IconTrash size={16} /></IconButton>
-            </>
-          )}
+          <button type="button" onClick={() => setEditing(g)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+            <span className={cx('size-2.5 shrink-0 rounded-full', swatchOf(g.color))} aria-hidden />
+            <span className="text-xl" aria-hidden>{genreEmoji(g)}</span>
+            <span className="truncate font-bold">{g.name}</span>
+          </button>
+          <IconButton label="上へ" className="size-8" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
+          <IconButton label="下へ" className="size-8" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
+          <IconButton label={`${g.name} を編集`} className="size-8" onClick={() => setEditing(g)}><IconEdit size={16} /></IconButton>
         </Card>
       ))}
-      <Card className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <Input placeholder="新しいジャンル（例: デザート）" value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="新しいジャンル名" />
-          <Button icon={<IconPlus size={16} />} disabled={!newName.trim() || create.isPending} onClick={async () => {
-            try { await create.mutateAsync({ name: newName.trim(), color: newColor, sort_order: list.length + 1 }); setNewName(''); toast('ジャンルを追加しました', 'success') } catch (e) { toast(e instanceof Error && /duplicate|unique/i.test(e.message) ? '同じ名前のジャンルがあります' : '追加できませんでした', 'error') }
-          }}>追加</Button>
+      <Button variant="secondary" icon={<IconPlus size={16} />} onClick={() => setEditing('new')}>ジャンルを追加</Button>
+      <GenreEditSheet genre={editing} onClose={() => setEditing(null)} />
+    </div>
+  )
+}
+
+/** ジャンル 1 つの追加・編集（名前・アイコン・色・削除） */
+export function GenreEditSheet({ genre, onClose, onCreated }: { genre: GenreRow | 'new' | null; onClose: () => void; onCreated?: (g: GenreRow) => void }) {
+  return (
+    <Sheet open={genre !== null} onClose={onClose} title={genre === 'new' ? 'ジャンルを追加' : 'ジャンルを編集'}>
+      {genre !== null && <GenreForm key={genre === 'new' ? 'new' : genre.id} genre={genre === 'new' ? null : genre} onClose={onClose} onCreated={onCreated} />}
+    </Sheet>
+  )
+}
+
+function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onClose: () => void; onCreated?: (g: GenreRow) => void }) {
+  const genres = useGenres()
+  const { create, update, remove } = useGenreMutations()
+  const toast = useToast()
+  const [name, setName] = useState(genre?.name ?? '')
+  const [emoji, setEmoji] = useState(genre?.emoji ?? '')
+  const [color, setColor] = useState<GenreColor>(genre?.color ?? 'green')
+  const [confirm, setConfirm] = useState(false)
+  const busy = create.isPending || update.isPending
+  const shown = emoji || autoEmoji(name)
+
+  async function save() {
+    const n = name.trim()
+    if (!n) { toast('ジャンル名を入れてね', 'error'); return }
+    if ((genres.data ?? []).some((g) => g.name === n && g.id !== genre?.id)) { toast('同じ名前のジャンルがあります', 'error'); return }
+    try {
+      if (genre) {
+        await update.mutateAsync({ id: genre.id, patch: { name: n, emoji, color } })
+        toast('ジャンルを更新しました', 'success')
+      } else {
+        const g = await create.mutateAsync({ name: n, emoji, color, sort_order: (genres.data?.length ?? 0) + 1 })
+        toast(`「${n}」を追加しました`, 'success')
+        onCreated?.(g)
+      }
+      onClose()
+    } catch (e) {
+      toast(e instanceof Error && /duplicate|unique/i.test(e.message) ? '同じ名前のジャンルがあります' : '保存できませんでした', 'error')
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-end gap-3">
+        <span className={cx('grid size-14 shrink-0 place-items-center rounded-card text-3xl', swatchOf(color))} aria-hidden>{shown}</span>
+        <div className="min-w-0 flex-1">
+          <Input label="ジャンル名" placeholder="例: デザート / ホットサンド" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save() }} />
         </div>
-        <div className="flex gap-1.5">{GENRE_COLORS.map((c) => <button key={c.value} type="button" aria-label={c.label} aria-pressed={newColor === c.value} onClick={() => setNewColor(c.value)} className={cx('size-6 rounded-full border-2', c.swatch, newColor === c.value ? 'border-espresso-900' : 'border-transparent opacity-60')} />)}</div>
-      </Card>
-      <Confirm open={!!confirm} onClose={() => setConfirm(null)} title={`「${confirm?.name}」を削除しますか？`} body="このジャンルのレシピは「ジャンルなし」になります（レシピ自体は消えません）。" confirmLabel="削除する" danger onConfirm={() => confirm && remove.mutate(confirm.id)} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-[13px] font-bold text-espresso-700">アイコン</span>
+        <div className="grid grid-cols-8 gap-1.5" role="radiogroup" aria-label="アイコン">
+          <button type="button" role="radio" aria-checked={emoji === ''} aria-label="名前から自動" onClick={() => setEmoji('')}
+            className={cx('col-span-2 h-10 whitespace-nowrap rounded-[10px] border-2 text-[12px] font-bold', emoji === '' ? 'border-green-600 bg-green-600/10' : 'border-line bg-paper')}>
+            自動 {autoEmoji(name)}
+          </button>
+          {GENRE_EMOJI_CHOICES.map((e) => (
+            <button key={e} type="button" role="radio" aria-checked={emoji === e} aria-label={e} onClick={() => setEmoji(e)}
+              className={cx('h-10 rounded-[10px] border-2 text-xl', emoji === e ? 'border-green-600 bg-green-600/10' : 'border-transparent bg-oat-50')}>
+              {e}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="text-[13px] font-bold text-espresso-700">色</span>
+        <div className="flex flex-wrap gap-2">
+          {GENRE_COLORS.map((c) => (
+            <Chip key={c.value} active={color === c.value} onClick={() => setColor(c.value)} icon={<span className={cx('size-3.5 rounded-full', c.swatch)} aria-hidden />}>{c.label}</Chip>
+          ))}
+        </div>
+      </div>
+
+      <Button full size="lg" loading={busy} onClick={save}>{genre ? '保存する' : '追加する'}</Button>
+      {genre && (
+        <Button variant="ghost" className="text-brick-500" icon={<IconTrash size={16} />} onClick={() => setConfirm(true)}>このジャンルを削除</Button>
+      )}
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${genre?.name}」を削除しますか？`} body="このジャンルのレシピは「ジャンルなし」になります（レシピ自体は消えません）。" confirmLabel="削除する" danger
+        onConfirm={() => { if (genre) remove.mutate(genre.id, { onSuccess: () => { toast('削除しました'); onClose() } }) }} />
+    </div>
+  )
+}
+
+/** 図鑑やレシピ編集から開く「ジャンルの追加・編集」シート */
+export function GenreManagerSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="ジャンルの追加・編集">
+      {open && <GenreManager />}
+    </Sheet>
+  )
+}
+
+/** ジャンルを選ぶチップの並び ＋「新しいジャンル」「編集」 */
+export function GenrePicker({ value, onChange, label = 'ジャンル' }: { value: string | null; onChange: (id: string | null) => void; label?: string }) {
+  const genres = useGenres()
+  const [adding, setAdding] = useState(false)
+  const [managing, setManaging] = useState(false)
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[13px] font-bold text-espresso-700">{label}</span>
+      <div className="flex flex-wrap gap-2">
+        {(genres.data ?? []).map((g) => <Chip key={g.id} active={value === g.id} onClick={() => onChange(value === g.id ? null : g.id)}>{genreEmoji(g)} {g.name}</Chip>)}
+        <Chip onClick={() => setAdding(true)} icon={<IconPlus size={14} />} className="border-dashed">新しいジャンル</Chip>
+        {(genres.data?.length ?? 0) > 0 && <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを編集</Chip>}
+      </div>
+      <GenreEditSheet genre={adding ? 'new' : null} onClose={() => setAdding(false)} onCreated={(g) => onChange(g.id)} />
+      <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />
     </div>
   )
 }

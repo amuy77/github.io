@@ -11,9 +11,9 @@ export function useGenres() {
 export function useGenreMutations() {
   const qc = useQueryClient()
   const invalidate = () => { qc.invalidateQueries({ queryKey: qk.genres }); qc.invalidateQueries({ queryKey: qk.recipes }) }
-  const create = useMutation({ mutationFn: ({ name, color, sort_order }: { name: string; color: GenreColor; sort_order: number }) => createGenre(name, color, sort_order), onSuccess: invalidate })
+  const create = useMutation({ mutationFn: ({ name, color, sort_order, emoji }: { name: string; color: GenreColor; sort_order: number; emoji?: string }) => createGenre(name, color, sort_order, emoji), onSuccess: invalidate })
   const update = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<Pick<GenreRow, 'name' | 'color' | 'sort_order'>> }) => updateGenre(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Pick<GenreRow, 'name' | 'color' | 'sort_order' | 'emoji'>> }) => updateGenre(id, patch),
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: qk.genres })
       const prev = qc.getQueryData<GenreRow[]>(qk.genres)

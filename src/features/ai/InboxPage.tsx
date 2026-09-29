@@ -85,7 +85,7 @@ export function InboxPage() {
                     sub={[it.clip.shop_name, relativeDay(it.at)].filter(Boolean).join(' ・ ')} stars={<RatingStars value={it.clip.rating} max={5} />} onOpen={() => setClipOpen(it.clip)} />
                 ) : (
                   <ReviewCard key={it.recipe.id} badge="📖 レシピ" thumb={photoUrl(it.recipe.hero_image, 'thumb')} title={it.recipe.title}
-                    sub={[(() => { const g = genres.data?.find((x) => x.id === it.recipe.genre_id); return g ? `${genreEmoji(g.name)} ${g.name}` : '' })(), `材料 ${it.recipe.ingredients.length}`, relativeDay(it.at)].filter(Boolean).join(' ・ ')}
+                    sub={[(() => { const g = genres.data?.find((x) => x.id === it.recipe.genre_id); return g ? `${genreEmoji(g)} ${g.name}` : '' })(), `材料 ${it.recipe.ingredients.length}`, relativeDay(it.at)].filter(Boolean).join(' ・ ')}
                     stars={<RatingStars value={it.recipe.rating} max={3} />} onOpen={() => setRecipeOpen(it.recipe)} />
                 ))}
               </section>

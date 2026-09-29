@@ -15,8 +15,6 @@ import { deletePhotos, photoUrl, uploadPhoto } from '@/lib/images/upload'
 import { parseRecipeText } from '@/lib/recipeParser'
 import { paths } from '@/app/routes'
 import { useSession } from '@/features/auth/useSession'
-import { useGenres } from '@/features/genres/hooks'
-import { genreEmoji } from '@/features/genres/api'
 import { celebrateFrom } from '@/features/game/celebrate'
 import { nextWorkerTime, WORKER_SCHEDULE_LABEL } from '@/features/ai/api'
 import { useEnqueueJob } from '@/features/ai/hooks'
@@ -24,6 +22,7 @@ import { useCreateRecipe, useRecipe, useRecipes, useUpdateRecipe } from './hooks
 import { RatingInput } from '@/components/ui/Rating'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from './family'
 import { PurposePicker } from './purpose'
+import { GenrePicker } from '@/features/genres/GenreManager'
 import { cx } from '@/lib/cx'
 
 type Tab = 'manual' | 'text' | 'photo'
@@ -47,7 +46,6 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
   const nav = useNavigate()
   const toast = useToast()
   const { userId } = useSession()
-  const genres = useGenres()
   const create = useCreateRecipe()
   const update = useUpdateRecipe()
   const enqueue = useEnqueueJob()
@@ -152,14 +150,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
     } finally { setSaving(false) }
   }
 
-  const genreChips = (
-    <div className="flex flex-col gap-2">
-      <span className="text-[13px] font-bold text-espresso-700">ジャンル</span>
-      <div className="flex flex-wrap gap-2">
-        {(genres.data ?? []).map((g) => <Chip key={g.id} active={form.genreId === g.id} onClick={() => set('genreId', form.genreId === g.id ? null : g.id)}>{genreEmoji(g.name)} {g.name}</Chip>)}
-      </div>
-    </div>
-  )
+  const genreChips = <GenrePicker value={form.genreId} onChange={(id) => set('genreId', id)} />
 
   return (
     <>

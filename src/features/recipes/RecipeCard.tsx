@@ -19,7 +19,7 @@ export function RecipeCard({ recipe, genre, onToggleFavorite, versions = 1 }: { 
   const sub = recipe.ingredients.slice(0, 3).map((i) => i.name).join('・')
   return (
     <Link to={paths.recipe(recipe.id)} className={cx('relative block overflow-hidden rounded-card border border-line bg-paper shadow-card active:scale-[0.99]', genre && cx('border-t-4', genreAccent[genre.color]))}>
-      <ImageThumb src={photoUrl(recipe.hero_image, 'thumb')} className="aspect-[4/3] w-full" emoji={genre ? genreEmoji(genre.name) : '🍽️'} />
+      <ImageThumb src={photoUrl(recipe.hero_image, 'thumb')} className="aspect-[4/3] w-full" emoji={genre ? genreEmoji(genre) : '🍽️'} />
       <div className="flex flex-col gap-0.5 p-3">
         <p className="line-clamp-2 text-[14px] font-bold leading-snug">{recipe.title}</p>
         {sub && <p className="truncate text-[11px] text-muted">{sub}</p>}

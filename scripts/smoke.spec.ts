@@ -22,10 +22,10 @@ const G = { coffee: 'aaaaaaaa-0000-4000-8000-000000000001', american: 'aaaaaaaa-
 const base = { user_id: USER_ID, created_at: ts(3), updated_at: ts(3) }
 const fixtures: Record<string, object[]> = {
   genres: [
-    { ...base, id: G.coffee, name: 'コーヒー', color: 'wood', sort_order: 1 },
-    { ...base, id: G.american, name: 'アメリカンサンド', color: 'brick', sort_order: 2 },
-    { ...base, id: G.croissant, name: 'クロワッサンサンド', color: 'mustard', sort_order: 3 },
-    { ...base, id: G.bev, name: 'ベバレッジ', color: 'green', sort_order: 4 },
+    { ...base, id: G.coffee, name: 'コーヒー', color: 'wood', emoji: '', sort_order: 1 },
+    { ...base, id: G.american, name: 'アメリカンサンド', color: 'brick', emoji: '', sort_order: 2 },
+    { ...base, id: G.croissant, name: 'クロワッサンサンド', color: 'mustard', emoji: '', sort_order: 3 },
+    { ...base, id: G.bev, name: 'ベバレッジ', color: 'green', emoji: '', sort_order: 4 },
   ],
   clips: [
     { ...base, id: 'c1000000-0000-4000-8000-000000000001', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, rating: 4, needs_review: false, created_at: ts(1), updated_at: ts(1) },
@@ -262,4 +262,33 @@ test('recipes: menu and reference recipes are split, and a recipe can switch sid
   await expect.poll(() => patches.length).toBe(1)
   expect(patches[0]).toMatchObject({ purpose: 'menu' })
 
+})
+
+test('genres: add and edit from the recipe list and the recipe editor', async ({ page }, info) => {
+  await stubSupabase(page)
+  const writes: { method: string; body: unknown }[] = []
+  page.on('request', (r) => { if (['POST', 'PATCH'].includes(r.method()) && r.url().includes('/rest/v1/genres')) writes.push({ method: r.method(), body: r.postDataJSON() }) })
+
+  await page.goto('#/recipes')
+  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).first().click()
+  const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
+  await expect(manager).toBeVisible()
+  // 既存のジャンルを開いて、アイコンと名前を変える
+  await manager.getByRole('button', { name: 'コーヒー を編集' }).click()
+  const edit = page.getByRole('dialog', { name: 'ジャンルを編集' })
+  await edit.getByLabel('ジャンル名').fill('コーヒー・ティー')
+  await edit.getByRole('radio', { name: '🍵' }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-genre-edit.png` })
+  await edit.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => writes.length).toBe(1)
+  expect(writes[0]).toMatchObject({ method: 'PATCH', body: { name: 'コーヒー・ティー', emoji: '🍵' } })
+
+  // レシピを作る画面から新しいジャンルを足す
+  await page.goto('#/recipes/new')
+  await page.getByRole('button', { name: '新しいジャンル' }).click()
+  const add = page.getByRole('dialog', { name: 'ジャンルを追加' })
+  await add.getByLabel('ジャンル名').fill('デザート')
+  await add.getByRole('button', { name: '追加する' }).click()
+  await expect.poll(() => writes.length).toBe(2)
+  expect(writes[1]).toMatchObject({ method: 'POST', body: { name: 'デザート', emoji: '' } })
 })

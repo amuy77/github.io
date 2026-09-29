@@ -51,7 +51,7 @@ export function RecipeDetailPage() {
 
   return (
     <>
-      <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre.name)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(r.created_at.slice(0, 10))}`} back={paths.recipes}
+      <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(r.created_at.slice(0, 10))}`} back={paths.recipes}
         actions={<>
           <IconButton label="お気に入り" onClick={() => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })} className={r.favorite ? 'text-mustard-400' : ''}><IconStar filled={r.favorite} /></IconButton>
           <IconButton label="編集" onClick={() => nav(paths.recipeEdit(r.id))}><IconEdit /></IconButton>
@@ -103,7 +103,7 @@ export function RecipeDetailPage() {
         <Card className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <PurposeBadge value={r.purpose} className="px-2.5 py-1 text-[12px]" />
-            {genre && <Tag>{genreEmoji(genre.name)} {genre.name}</Tag>}
+            {genre && <Tag>{genreEmoji(genre)} {genre.name}</Tag>}
             <Tag>{SOURCE_LABEL[r.source_kind]}</Tag>
           </div>
           <SectionTitle className="mt-0">材料</SectionTitle>

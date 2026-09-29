@@ -14,11 +14,10 @@ import { paths } from '@/app/routes'
 import { celebrate } from '@/features/game/celebrate'
 import { CATEGORIES } from '@/features/clips/categories'
 import { useDeleteClip, useUpdateClip } from '@/features/clips/hooks'
-import { useGenres } from '@/features/genres/hooks'
-import { genreEmoji } from '@/features/genres/api'
 import { useDeleteRecipe, useRecipes, useUpdateRecipe } from '@/features/recipes/hooks'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from '@/features/recipes/family'
 import { PurposePicker } from '@/features/recipes/purpose'
+import { GenrePicker } from '@/features/genres/GenreManager'
 import { AiFixPanel } from './AiFixPanel'
 
 const Footer = ({ onLater, onDiscard, onOk, okLabel, busy }: { onLater: () => void; onDiscard: () => void; onOk: () => void; okLabel: string; busy: boolean }) => (
@@ -96,7 +95,6 @@ export function RecipeReviewSheet({ recipe, onClose }: { recipe: RecipeRow | nul
 
 function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () => void }) {
   const toast = useToast()
-  const genres = useGenres()
   const all = useRecipes()
   const update = useUpdateRecipe()
   const del = useDeleteRecipe()
@@ -141,10 +139,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
       <PurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
       <RatingInput label="このレシピの評価" max={3} value={rating} onChange={setRating} disabled={busy} />
       <Input label="レシピ名" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">ジャンル</span>
-        <div className="flex flex-wrap gap-2">{(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(genreId === g.id ? null : g.id)}>{genreEmoji(g.name)} {g.name}</Chip>)}</div>
-      </div>
+      <GenrePicker value={genreId} onChange={setGenreId} />
 
       <div className="flex flex-col gap-2 rounded-card border border-line bg-oat-50 p-3">
         <span className="text-[13px] font-bold text-espresso-700">同じ料理のレシピはもうある？</span>

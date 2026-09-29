@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
-import { IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
+import { GenreManagerSheet } from '@/features/genres/GenreManager'
 import type { RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
 import { paths } from '@/app/routes'
 import { useGenres } from '@/features/genres/hooks'
@@ -23,6 +24,7 @@ export function RecipesPage() {
   const [genreId, setGenreId] = useState<string | 'all' | 'none'>('all')
   const [favOnly, setFavOnly] = useState(false)
   const [minRating, setMinRating] = useState<0 | 3 | 2 | -1>(0) // -1 = 保留だけ
+  const [managing, setManaging] = useState(false)
   const [purposePick, setPurposePick] = useState<RecipePurpose | 'all' | null>(null) // null = まだ選んでいない（メニューがあればメニュー）
 
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
@@ -47,7 +49,7 @@ export function RecipesPage() {
     const gs = genres.data ?? []
     const by = new Map<string | null, RecipeRow[]>()
     for (const r of filtered) { const k = r.genre_id && gs.some((g) => g.id === r.genre_id) ? r.genre_id : null; by.set(k, [...(by.get(k) ?? []), r]) }
-    const out = gs.filter((g) => by.has(g.id)).map((g) => ({ key: g.id, title: `${genreEmoji(g.name)} ${g.name}`, genre: g, items: by.get(g.id)! }))
+    const out = gs.filter((g) => by.has(g.id)).map((g) => ({ key: g.id, title: `${genreEmoji(g)} ${g.name}`, genre: g, items: by.get(g.id)! }))
     if (by.has(null)) out.push({ key: 'none', title: '🍽️ ジャンルなし', genre: null as never, items: by.get(null)! })
     return out
   }, [filtered, genres.data])
@@ -76,11 +78,12 @@ export function RecipesPage() {
         </label>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <Chip active={genreId === 'all'} onClick={() => setGenreId('all')} count={total}>すべて</Chip>
-          {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={reps.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g.name)} {g.name}</Chip>)}
+          {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={reps.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g)} {g.name}</Chip>)}
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
           <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★★★</Chip>
           <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★★以上</Chip>
           <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
+          <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
 
         {recipes.isLoading || genres.isLoading ? (
@@ -103,7 +106,8 @@ export function RecipesPage() {
             </section>
           ))
         )}
-        <p className="pt-2 text-center text-xs text-muted">ジャンルの追加・並び替えは <button type="button" className="font-bold underline underline-offset-2" onClick={() => nav(paths.settings)}>設定</button> から</p>
+        <p className="pt-2 text-center text-xs text-muted"><button type="button" className="font-bold underline underline-offset-2" onClick={() => setManaging(true)}>ジャンルの追加・編集・並び替え</button></p>
+        <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />
       </div>
     </>
   )
