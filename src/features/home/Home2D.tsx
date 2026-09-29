@@ -63,7 +63,8 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
       ) : (
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1"><MascotSays mood={loading ? 'thinking' : worried ? 'worried' : 'happy'}>{says}</MascotSays></div>
-          <TalkButton onClick={() => { setTalking(true); talk.start() }} dot={answers > 0} />
+          {/* お店（3D）の準備中に出る仮の画面では話しかけない（お店が出た瞬間に会話が消えてしまうので） */}
+          {!loading && <TalkButton onClick={() => { setTalking(true); talk.start() }} dot={answers > 0} />}
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">

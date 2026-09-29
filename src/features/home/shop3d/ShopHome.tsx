@@ -168,7 +168,9 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       const w = Math.min(300, box.width - 24)
       const x = Math.round(Math.min(Math.max(pos.x - box.left, w / 2 + 12), box.width - w / 2 - 12)), y = Math.round(pos.y - box.top)
       const hx = Math.round(pos.x - box.left)
-      setHead((h) => (h && h.x === x && h.y === y && h.w === w && h.hx === hx ? h : { x, y, w, hx }))
+      // 頭は息をするたびに少し上下するので、数 px の揺れでは吹き出しを動かさない（ボタンが押しやすいように）
+      const near = (a: number, b: number) => Math.abs(a - b) < 4
+      setHead((h) => (h && near(h.x, x) && near(h.y, y) && h.w === w && near(h.hx, hx) ? h : { x, y, w, hx }))
     }
     place()
     const id = window.setInterval(place, 250)
@@ -262,20 +264,19 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
         )}
       </AnimatePresence>
 
-      {/* 話しかけたときの返事の吹き出し */}
-      <AnimatePresence>
-        {talking && talk.line && head && (
-          <motion.div key={talk.line.text} role="status" aria-label="LaRa の返事" initial={{ opacity: 0, y: 6, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
+      {/* 話しかけたときの返事の吹き出し。出るときだけふわっと。消えるときはすぐ消す
+          （消えるアニメーションは、次の返事や「やめる」が重なると途中で止まって吹き出しが残ることがあるので使わない） */}
+      {talking && talk.line && head && (
+        <>
+          <motion.div key={talk.line.text} role="status" aria-label="LaRa の返事" initial={{ opacity: 0, y: 6, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             className="absolute z-10 -translate-x-1/2 -translate-y-full overflow-y-auto overscroll-contain rounded-card border border-line bg-paper px-3.5 py-2.5 text-[14px] font-bold leading-relaxed shadow-card"
             style={{ left: head.x, top: head.y - 10, width: 'max-content', maxWidth: head.w, maxHeight: Math.max(120, head.y - 70) }}>
             <TalkBubbleBody talk={talk} onLink={(to) => { stopTalk(); nav(to) }} />
           </motion.div>
-        )}
-        {talking && talk.line && head && (
-          <motion.span key="tail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-hidden
+          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} aria-hidden
             className="pointer-events-none absolute z-10 size-3 -translate-x-1/2 rotate-45 border-r border-b border-line bg-paper" style={{ left: head.hx, top: head.y - 16.5 }} />
-        )}
-      </AnimatePresence>
+        </>
+      )}
 
       {/* 下部: 案内シート */}
       <div className="absolute inset-x-0 bottom-0 px-4 pb-3">
