@@ -142,7 +142,7 @@ export function QuickAddPage() {
               </button>
             )}
           </div>
-          <Input label="ヒント（任意）" placeholder="例: ○○カフェ 渋谷 / 2 枚目は裏面" hint="店名（できれば地名も）を入れると、住所・営業時間・看板メニューなどを Web で調べてネタに書き足すよ" value={hint} onChange={(e) => setHint(e.target.value)} disabled={sending} />
+          <Input label="ヒント（任意）" placeholder="例: ○○カフェ 渋谷 / うちのメニュー / 2 枚目は裏面" hint="店名（できれば地名も）を入れると、住所・営業時間・看板メニューなどを Web で調べてネタに書き足すよ。レシピなら「うちのメニュー」と書くとお店のメニューに、書かなければ参考レシピに入るよ" value={hint} onChange={(e) => setHint(e.target.value)} disabled={sending} />
           <Button variant="mustard" size="lg" full icon={<IconSparkles />} loading={sending} onClick={sendToAi}>AI にまかせる（自動で振り分け）</Button>
           <p className="text-center text-xs text-muted">結果は受信トレイに届きます。次の処理は {nextWorkerTime()} ごろ。</p>
           <Button variant="ghost" full disabled={sending} onClick={writeMyself}>AI を使わず自分で書く</Button>

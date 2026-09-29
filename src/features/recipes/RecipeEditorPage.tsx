@@ -184,7 +184,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
             <p className="text-[13px] font-bold">AI にきれいに整えてもらう</p>
             <p className="text-xs text-muted">Claude が {WORKER_SCHEDULE_LABEL}（次は {nextWorkerTime()} ごろ）まとめて処理して、受信トレイに届けます。</p>
             {genreChips}
-            <Input label="ヒント（任意）" placeholder="例: 店のクロワッサンサンド用。分量は 1 人前で" value={hint} onChange={(e) => setHint(e.target.value)} />
+            <Input label="ヒント（任意）" placeholder="例: うちのメニュー。分量は 1 人前で" value={hint} onChange={(e) => setHint(e.target.value)} />
             <Button variant="mustard" icon={<IconSparkles size={16} />} loading={saving} onClick={() => sendToAi('recipe_from_text')} disabled={!text.trim()}>AI のトレイに入れる</Button>
           </Card>
         </div>
@@ -202,7 +202,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
           )}
           <PhotoPicker onFiles={(files) => setPhotoFiles((f) => [...f, ...files.map((file) => ({ file, url: URL.createObjectURL(file) }))])} compact={photoFiles.length > 0} />
           {genreChips}
-          <Input label="ヒント（任意）" placeholder="例: 2 枚目は裏面。分量は 4 人前" value={hint} onChange={(e) => setHint(e.target.value)} />
+          <Input label="ヒント（任意）" placeholder="例: うちのメニュー。2 枚目は裏面。分量は 4 人前" value={hint} onChange={(e) => setHint(e.target.value)} />
           <Button variant="mustard" size="lg" icon={<IconSparkles />} loading={saving} onClick={() => sendToAi('recipe_from_image')} disabled={photoFiles.length === 0}>AI のトレイに入れる</Button>
         </div>
       )}
