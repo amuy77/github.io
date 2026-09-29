@@ -193,6 +193,7 @@ export class ShopScene {
   private nextGesture = 0
   private gesture: { pose: LaraPose; until: number } | null = null
   private react: { pose?: LaraPose; waving?: boolean; until: number } | null = null
+  private listening = false
   /** 寝返り（頭を傾ける向き）と次の寝返りの時刻 */
   private sleepSide = 1
   private nextTurn = 0
@@ -311,6 +312,25 @@ export class ShopScene {
     const spot = SPOTS[this.residentState], arrived = this.arrivedAt >= 0, waking = this.react?.pose === 'wake'
     return { activity: this.residentState, arrived, sleeping: arrived && !!spot.sleeping && !waking, waking, life: lifePart(this.hourNow()), hour: this.hourNow() }
   }
+  /** 話しかけられている間: その場で立ち止まってこっちを向く（寝ていたら起きる）。終わったら元の行動に戻る */
+  setListening(on: boolean) {
+    if (this.listening === on) return
+    this.listening = on
+    const spot = SPOTS[this.residentState], arrived = this.arrivedAt >= 0
+    if (on) { this.gesture = null; this.react = null; this.figure?.setProp('none'); this.showEmote('!') }
+    else { if (arrived) this.figure?.setProp(this.phase2 && spot.then?.prop ? spot.then.prop : spot.prop ?? 'none'); this.holdResident(4) }
+    this.needsRender = true
+  }
+  /** 返事をするときの小さな仕草（話しかけられている間だけ） */
+  residentReply(kind: 'nod' | 'wave' | 'think' | 'happy') {
+    if (!this.listening) return
+    const t = this.lastT
+    if (kind === 'wave') { this.react = { pose: 'stand', waving: true, until: t + 1.6 }; this.showEmote('!') }
+    else if (kind === 'happy') { this.react = { pose: 'hop', until: t + 1.2 }; this.showEmote('♪') }
+    else if (kind === 'think') { this.react = { pose: 'lookaround', until: t + 60 }; this.showEmote('…') }
+    else { this.react = { pose: 'stand', until: t + 0.1 }; this.showEmote('♡') }
+    this.needsRender = true
+  }
   /** しゃべっている間など、しばらく次の場所へ歩き出さない */
   holdResident(sec: number) { this.nextSwitch = Math.max(this.nextSwitch, this.lastT + sec) }
   /** 今の時刻（時。分は小数）。確認用に固定できる */
@@ -336,7 +356,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening } }
   /** デバッグ用: 時刻を固定する（null で今の時刻に戻す） */
   debugSetHour(h: number | null) { this.hourOverride = h; this.updateResidentState(); this.drawSea(this.mode, this.lastT) }
   /** デバッグ用: 今の場所での時間を飛ばして、次の行動を選ばせる（優先の行動があるときは何もしない） */
@@ -1092,6 +1112,7 @@ export class ShopScene {
   }
   /** タップされたとき: くるっと回る / ぴょんと跳ねて ♪ / 手を振る / ♡。座っているときは気持ちマークだけ。寝ているときは起き上がって目をこする */
   private reactTap() {
+    if (this.listening) { this.residentReply('happy'); return }
     const t = this.lastT, spot = SPOTS[this.residentState], walking = this.arrivedAt < 0
     if (!walking && spot.sleeping) { this.react = { pose: 'wake', until: t + 4 }; this.showEmote('…'); this.holdResident(6); return }
     if (!walking && (spot.pose === 'read' || spot.pose === 'rest')) { this.showEmote('♡'); return }
@@ -1230,6 +1251,17 @@ export class ShopScene {
       // 時刻で予定が変わる（夜 11 時に寝る・朝 6 時に起きる）のを 20 秒ごとに見直す
       if (t > this.nextScheduleCheck) { this.nextScheduleCheck = t + 20; this.updateResidentState() }
       this.residentExpression(t)
+      if (this.listening) {
+        // 話しかけられている間は歩かず、こっちを向いて立つ
+        this.holdResident(4)
+        if (this.react && t > this.react.until) this.react = null
+        this.figure.update(t, dt, {
+          walking: false, facing: this.yaw, reduced: !!this.opts.reducedMotion, pose: this.react?.pose ?? 'stand', skip: false, sleepSide: this.sleepSide,
+          waving: !!this.react?.waving, brewing: false, sleeping: false, worried: this.residentMood === 'worried',
+        })
+        this.updateEmote(dt)
+        this.needsRender = true
+      } else {
       const p = this.resident.position
       const paused = t < this.pauseUntil
       let walking = false
@@ -1287,6 +1319,7 @@ export class ShopScene {
       })
       this.updateEmote(dt)
       this.needsRender = true
+      }
     }
     for (let i = this.bounces.length - 1; i >= 0; i--) {
       const b = this.bounces[i]; b.t += dt * 3

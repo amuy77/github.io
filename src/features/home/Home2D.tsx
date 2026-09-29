@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
-import { HomeChat, TalkButton } from './chat/HomeChat'
+import { Link, useNavigate } from 'react-router'
+import { TalkBar, TalkBubbleBody, TalkButton } from './chat/LaraTalk'
+import { useLaraTalk } from './chat/useLaraTalk'
 import { useUnseenAnswers } from './chat/unseenAnswers'
 import { AskChip } from '@/features/ask/AskChip'
 import { SettingsChip } from '@/features/settings/SettingsChip'
@@ -11,7 +12,6 @@ import { paths } from '@/app/routes'
 import { formatMD, greeting, today } from '@/lib/dates'
 import type { HomeCounts } from './useCounts'
 import { CountBadge } from '@/components/ui/Chip'
-import { cx } from '@/lib/cx'
 
 /** 3D が使えないとき／オフ設定のときのホーム（タイル版） */
 export function Home2D({ counts, streak, loading, worried }: { counts: HomeCounts; streak: number; loading?: boolean; worried?: boolean }) {
@@ -21,7 +21,10 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
     { to: paths.menu, em: '🗓️', name: 'メニュー記録', n: counts.menuLogs, accent: 'brick' as const },
     { to: paths.inbox, em: '📬', name: '受信トレイ', n: counts.inbox, accent: 'plum' as const },
   ]
-  const [chatOpen, setChatOpen] = useState(false)
+  const nav = useNavigate()
+  const [talking, setTalking] = useState(false)
+  const talk = useLaraTalk({ counts, streak })
+  const stopTalk = () => { setTalking(false); talk.stop() }
   const answers = useUnseenAnswers().length
   // ホームは画面の端まで使う 3D 版に合わせて外側の余白が無いので、タイル版は自分で左右と下（タブバーの分）の余白を取る
   return (
@@ -43,10 +46,19 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1"><MascotSays mood={loading ? 'thinking' : worried ? 'worried' : 'happy'}>{loading ? 'お店を準備中…' : answers > 0 ? '相談の答え、届いてるよ！' : worried ? '今日の記録、まだだよ？' : `${greeting()} 今日は何を仕込む？`}</MascotSays></div>
-        <TalkButton onClick={() => setChatOpen(true)} dot={answers > 0} />
-      </div>
+      {talking && talk.line ? (
+        <div className="flex flex-col gap-2">
+          <MascotSays mood={talk.thinking ? 'thinking' : 'happy'}>
+            <div role="status" aria-label="LaRa の返事" className="text-[14px]"><TalkBubbleBody talk={talk} onLink={(to) => { stopTalk(); nav(to) }} /></div>
+          </MascotSays>
+          <TalkBar talk={talk} onClose={stopTalk} />
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1"><MascotSays mood={loading ? 'thinking' : worried ? 'worried' : 'happy'}>{loading ? 'お店を準備中…' : answers > 0 ? '相談の答え、届いてるよ！' : worried ? '今日の記録、まだだよ？' : `${greeting()} 今日は何を仕込む？`}</MascotSays></div>
+          <TalkButton onClick={() => { setTalking(true); talk.start() }} dot={answers > 0} />
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         {tiles.map((t) => (
           <Link key={t.to} to={t.to} className="block">
@@ -61,10 +73,6 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
         ))}
       </div>
       <Link to={paths.menuDay(today())} className="block rounded-card bg-green-600 px-4 py-3 text-center font-bold text-white shadow-card">今日のメニューを記録する →</Link>
-      {/* 会話パネルは 3D 版と同じく、タブバーの上の領域の下半分に出す */}
-      <div className={cx('fixed inset-x-0 top-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] z-30 md:bottom-0 md:left-[88px]', !chatOpen && 'pointer-events-none')}>
-        <HomeChat open={chatOpen} onClose={() => setChatOpen(false)} counts={counts} streak={streak} />
-      </div>
     </div>
   )
 }

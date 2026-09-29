@@ -12,7 +12,8 @@ import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
 import { useSettings } from '@/features/settings/useSettings'
 import { outfitFor, outfitInfo } from './outfit'
-import { HomeChat, TalkButton } from '@/features/home/chat/HomeChat'
+import { TalkBar, TalkBubbleBody, TalkButton } from '@/features/home/chat/LaraTalk'
+import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 
 const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
@@ -82,7 +83,12 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const sceneRef = useRef<ShopScene | null>(null)
   const [picked, setPicked] = useState<Exclude<Hotspot, 'resident'> | null>(null)
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number } | null>(null)
-  const [chatOpen, setChatOpen] = useState(false)
+  // 話しかけている間: LaRa はこっちを向いて立ち止まり、頭の上の吹き出しで答える
+  const [talking, setTalking] = useState(false)
+  const [head, setHead] = useState<{ x: number; y: number; w: number; hx: number } | null>(null)
+  const talk = useLaraTalk({ counts, streak })
+  const talkingRef = useRef(talking)
+  talkingRef.current = talking
   const answers = useUnseenAnswers().length
   const answersRef = useRef(answers)
   answersRef.current = answers
@@ -110,10 +116,12 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       assets: { wordmark: WORDMARK, poster: LOGO_FULL },
       onTap: (h) => {
         if (h === 'resident') {
+          if (talkingRef.current) return
           const line = lineFor(scene.residentStatus(), { tap: true, worried: worriedRef.current, inbox: inboxRef.current, outfitLine: outfitInfo(outfitRef.current).line })
           say(scene, line, 2200)
           return
         }
+        if (talkingRef.current) stopTalkRef.current()
         setPicked(h)
       },
     })
@@ -135,6 +143,37 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     hideRef.current = window.setTimeout(() => setBubble(null), ms)
   }
 
+  function startTalk() {
+    window.clearTimeout(hideRef.current)
+    setBubble(null); setPicked(null); setTalking(true)
+    sceneRef.current?.setListening(true)
+    talk.start()
+  }
+  function stopTalk() {
+    setTalking(false); talk.stop()
+    sceneRef.current?.setListening(false)
+  }
+  const stopTalkRef = useRef(stopTalk)
+  stopTalkRef.current = stopTalk
+  // 返事が変わるたびに小さな仕草
+  const mood = talk.line?.mood, lineText = talk.line?.text
+  useEffect(() => { if (talking && mood) sceneRef.current?.residentReply(mood) }, [talking, mood, lineText])
+  // 吹き出しは LaRa の頭の上に。回したときにもついていくよう、話している間はときどき位置を見直す
+  useEffect(() => {
+    if (!talking) return
+    const place = () => {
+      const pos = sceneRef.current?.residentScreenPos(), box = ref.current?.getBoundingClientRect()
+      if (!pos || !box) return
+      const w = Math.min(300, box.width - 24)
+      const x = Math.round(Math.min(Math.max(pos.x - box.left, w / 2 + 12), box.width - w / 2 - 12)), y = Math.round(pos.y - box.top)
+      const hx = Math.round(pos.x - box.left)
+      setHead((h) => (h && h.x === x && h.y === y && h.w === w && h.hx === hx ? h : { x, y, w, hx }))
+    }
+    place()
+    const id = window.setInterval(place, 250)
+    return () => window.clearInterval(id)
+  }, [talking])
+
   // ひとりごと: 開いて 8〜15 秒後、その後は 25〜50 秒おき（寝ているときは寝言をもっとまれに）。
   // LaRa が止まっているときだけ。家具のカードや吹き出しが出ているとき、画面が隠れているとき、動きを減らす設定のときは出さない
   useEffect(() => {
@@ -143,7 +182,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     const speak = () => {
       const scene = sceneRef.current
       const st = scene?.residentStatus()
-      if (!scene || !st || document.hidden || pickedRef.current || bubbleRef.current || !(st.arrived || st.sleeping)) { id = window.setTimeout(speak, 4000); return }
+      if (!scene || !st || document.hidden || pickedRef.current || talkingRef.current || bubbleRef.current || !(st.arrived || st.sleeping)) { id = window.setTimeout(speak, 4000); return }
       say(scene, lineFor(st, { tap: false, worried: worriedRef.current, inbox: inboxRef.current, outfitLine: outfitInfo(outfitRef.current).line, answers: answersRef.current }), 3000)
       scene.holdResident(3.5)
       id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 25000 + Math.random() * 25000)
@@ -209,8 +248,24 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
         )}
       </AnimatePresence>
 
+      {/* 話しかけたときの返事の吹き出し */}
+      <AnimatePresence>
+        {talking && talk.line && head && (
+          <motion.div key={talk.line.text} role="status" aria-label="LaRa の返事" initial={{ opacity: 0, y: 6, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
+            className="absolute z-10 -translate-x-1/2 -translate-y-full overflow-y-auto overscroll-contain rounded-card border border-line bg-paper px-3.5 py-2.5 text-[14px] font-bold leading-relaxed shadow-card"
+            style={{ left: head.x, top: head.y - 10, width: 'max-content', maxWidth: head.w, maxHeight: Math.max(120, head.y - 70) }}>
+            <TalkBubbleBody talk={talk} onLink={(to) => { stopTalk(); nav(to) }} />
+          </motion.div>
+        )}
+        {talking && talk.line && head && (
+          <motion.span key="tail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-hidden
+            className="pointer-events-none absolute z-10 size-3 -translate-x-1/2 rotate-45 border-r border-b border-line bg-paper" style={{ left: head.hx, top: head.y - 16.5 }} />
+        )}
+      </AnimatePresence>
+
       {/* 下部: 案内シート */}
       <div className="absolute inset-x-0 bottom-0 px-4 pb-3">
+        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : (
         <motion.div layout className="flex items-center gap-2 rounded-card sm:gap-3 border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
           <span className={cx('text-[26px]', !info && 'hidden sm:inline')} aria-hidden>{info ? info.em : '👋'}</span>
           <div className="min-w-0 flex-1">
@@ -221,13 +276,13 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
             <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(info.to)}>開く →</button>
           ) : (
             <>
-              <TalkButton onClick={() => setChatOpen(true)} dot={answers > 0} />
+              <TalkButton onClick={startTalk} dot={answers > 0} />
               <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(paths.menuDay(today()))}>今日を記録</button>
             </>
           )}
         </motion.div>
+        )}
       </div>
-      <HomeChat open={chatOpen} onClose={() => setChatOpen(false)} counts={counts} streak={streak} />
     </div>
   )
 }

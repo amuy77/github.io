@@ -397,50 +397,66 @@ test('clips: idea / reference tabs, and the review sheet sets purpose and favour
   expect(patches[0]).toMatchObject({ purpose: 'idea', favorite: true, needs_review: false })
 })
 
-test('home chat: small talk, search, inbox status, and a consult is handed to the routine', async ({ page }, info) => {
+type LaraW = { __lara?: { debugState(): { figure: boolean; listening: boolean } } }
+const listening = (page: Page) => page.evaluate(() => (window as unknown as LaraW).__lara?.debugState().listening)
+
+test('home talk: LaRa turns around and answers in her bubble, and a consult is handed to the routine', async ({ page }, info) => {
   await stubSupabase(page, { noKey: true })
   const sent: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/ai_jobs')) sent.push(r.postDataJSON()) })
   await page.goto('#/')
+  await page.waitForFunction(() => (window as unknown as LaraW).__lara?.debugState().figure, null, { timeout: 20_000 })
   await page.getByRole('button', { name: /話しかける/ }).click()
-  const chat = page.getByRole('dialog', { name: 'LaRa と話す' })
-  const box = chat.getByRole('textbox', { name: 'LaRa に話しかける' })
+  expect(await listening(page)).toBe(true)
+  const bubble = page.getByRole('status', { name: 'LaRa の返事' })
+  await expect(bubble).toBeVisible()
+  const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
   await box.fill('こんにちは')
-  await chat.getByRole('button', { name: '送る' }).click()
-  await expect(chat.getByText(/こんにちは！呼んでくれてうれしい|やっほー！何かあった？/)).toBeVisible()
+  await page.getByRole('button', { name: '送る' }).click()
+  await expect(bubble.getByText(/こんにちは！呼んでくれてうれしい|やっほー！何かあった？/)).toBeVisible()
   await box.fill('BLT ある？')
   await box.press('Enter')
-  await expect(chat.getByText('「BLT」で見つけたよ！')).toBeVisible()
-  await expect(chat.getByRole('button', { name: /BLT サンド/ }).first()).toBeVisible()
-  await chat.getByRole('button', { name: '確認待ちある？' }).click()
-  await expect(chat.getByRole('button', { name: '受信トレイを開く →' })).toBeVisible()
+  await expect(bubble.getByText('「BLT」で見つけたよ！')).toBeVisible()
+  await expect(bubble.getByRole('button', { name: /BLT サンド/ }).first()).toBeVisible()
+  await page.getByRole('button', { name: '確認待ちある？' }).click()
+  await expect(bubble.getByRole('button', { name: '受信トレイを開く →' })).toBeVisible()
   await box.fill('BLT の味をもっと良くしたい')
   await box.press('Enter')
-  await chat.getByRole('button', { name: '預ける' }).click()
-  await expect(chat.getByText('✓ 預けました')).toBeVisible()
+  await bubble.getByRole('button', { name: '預ける' }).click()
+  await expect(bubble.getByText(/預かったよ！/)).toBeVisible()
   await expect.poll(() => sent.length).toBe(1)
   const body = (Array.isArray(sent[0]) ? sent[0][0] : sent[0]) as { kind: string; payload: { question: string } }
   expect(body.kind).toBe('consult')
   expect(body.payload.question).toBe('BLT の味をもっと良くしたい')
-  await page.screenshot({ path: `screenshots/${info.project.name}-home-chat.png` })
-  // リンクを押すとパネルを閉じてその画面へ
-  await chat.getByRole('button', { name: '受信トレイを開く →' }).click()
+  await box.fill('BLT ある？')
+  await box.press('Enter')
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-talk.png` })
+  // やめると、また自由に動き出す
+  await page.getByRole('button', { name: '話すのをやめる' }).click()
+  await expect(bubble).toHaveCount(0)
+  expect(await listening(page)).toBe(false)
+  // 返事のボタンを押すと、その画面へ
+  await page.getByRole('button', { name: /話しかける/ }).click()
+  await page.getByRole('button', { name: '確認待ちある？' }).click()
+  await bubble.getByRole('button', { name: '受信トレイを開く →' }).click()
   await expect(page).toHaveURL(/#\/inbox$/)
 })
 
-test('home chat: a finished consult answer shows up when the panel opens', async ({ page }) => {
+test('home talk: finished consult answers are told first, one by one', async ({ page }) => {
   await stubSupabase(page)
-  const answered = { id: 'e1000000-0000-4000-8000-0000000000c1', user_id: USER_ID, kind: 'consult', status: 'done', payload: { question: 'BLT の味をもっと良くしたい', recipe_id: null, compare_with_id: null }, result: { answer: 'ベーコンを厚切りにして、黒胡椒を効かせてみて！' }, error: null, attempts: 1, started_at: ts(0), finished_at: ts(0), created_at: ts(0) }
+  const job = (n: number, question: string, answer: string) => ({ id: `e1000000-0000-4000-8000-0000000000c${n}`, user_id: USER_ID, kind: 'consult', status: 'done', payload: { question, recipe_id: null, compare_with_id: null }, result: { answer }, error: null, attempts: 1, started_at: ts(0), finished_at: ts(0), created_at: ts(0) })
+  const jobs = [job(1, 'BLT の味をもっと良くしたい', 'ベーコンを厚切りにして、黒胡椒を効かせてみて！'), job(2, '秋の新メニューどうしよう', 'かぼちゃのサンドはどう？')]
   await page.route(`https://${REF}.supabase.co/rest/v1/ai_jobs**`, (route) => route.request().method() === 'GET'
-    ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-0/1', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify([answered]) })
+    ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-1/2', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(jobs) })
     : route.fallback())
   await page.goto('#/')
   await page.getByRole('button', { name: /話しかける/ }).click()
-  const chat = page.getByRole('dialog', { name: 'LaRa と話す' })
-  await expect(chat.getByText(/この前の相談の答えだよ！/)).toBeVisible()
-  await expect(chat.getByText(/黒胡椒を効かせてみて/)).toBeVisible()
-  // 一度見せたら、閉じて開き直しても重ならない
-  await chat.getByRole('button', { name: '閉じる' }).click()
+  const bubble = page.getByRole('status', { name: 'LaRa の返事' })
+  await expect(bubble.getByText(/黒胡椒を効かせてみて/)).toBeVisible()
+  await bubble.getByRole('button', { name: /次の答え/ }).click()
+  await expect(bubble.getByText(/かぼちゃのサンド/)).toBeVisible()
+  // 一度伝えたら、次に話しかけたときはもう言わない
+  await page.getByRole('button', { name: '話すのをやめる' }).click()
   await page.getByRole('button', { name: /話しかける/ }).click()
-  await expect(page.getByRole('dialog', { name: 'LaRa と話す' }).getByText(/この前の相談の答えだよ！/)).toHaveCount(1)
+  await expect(bubble.getByText(/考えてきたよ/)).toHaveCount(0)
 })
