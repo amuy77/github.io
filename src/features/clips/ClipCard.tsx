@@ -6,7 +6,8 @@ import { RatingStars } from '@/components/ui/Rating'
 import { IconStar } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { relativeDay } from '@/lib/dates'
-import { categoryOf, TYPE_LABEL } from './categories'
+import { TYPE_LABEL } from './categories'
+import { useCategoryOf } from './categoryHooks'
 import { paths } from '@/app/routes'
 import { cx } from '@/lib/cx'
 
@@ -16,7 +17,7 @@ export function clipTitle(c: ClipRow): string {
 
 /** ネタ帳の 1 件。付箋（idea）は黄色の紙、それ以外はサムネ付きカード */
 export function ClipCard({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFavorite?: (c: ClipRow) => void }) {
-  const cat = categoryOf(clip.category)
+  const cat = useCategoryOf()(clip.category)
   const thumb = clip.images?.[0] ? photoUrl(clip.images[0], 'thumb') : clip.preview?.image ?? null
   const isIdea = clip.type === 'idea'
   return (

@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
-import { IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
 import type { ClipCategory, ClipRow } from '@/lib/supabase/database.types'
-import { CATEGORIES } from './categories'
+import { useCategoryList } from './categoryHooks'
+import { CategoryManagerSheet } from './CategoryManager'
 import { useClips, useUpdateClip } from './hooks'
 import { ClipCard, clipTitle } from './ClipCard'
 import { ClipEditorSheet } from './ClipEditorSheet'
@@ -18,6 +19,8 @@ export function ClipsPage() {
   const [favOnly, setFavOnly] = useState(false)
   const [minRating, setMinRating] = useState<0 | 4 | -1>(0)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [managing, setManaging] = useState(false)
+  const categories = useCategoryList()
 
   const list = useMemo(() => {
     const all = clips.data ?? []
@@ -45,11 +48,13 @@ export function ClipsPage() {
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <Chip active={cat === 'all'} onClick={() => setCat('all')}>すべて</Chip>
           <Chip active={cat === 'idea'} onClick={() => setCat('idea')}>💡 ひらめき</Chip>
-          {CATEGORIES.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.emoji} {c.label}</Chip>)}
+          {categories.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.emoji} {c.label}</Chip>)}
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
           <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>
           <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
+          <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>カテゴリを追加・編集</Chip>
         </div>
+        <CategoryManagerSheet open={managing} onClose={() => setManaging(false)} />
 
         {clips.isLoading ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[4/5]" />)}</div>

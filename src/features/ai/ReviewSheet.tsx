@@ -12,7 +12,7 @@ import type { ClipCategory, ClipRow, RecipePurpose, RecipeRow } from '@/lib/supa
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
 import { celebrate } from '@/features/game/celebrate'
-import { CATEGORIES } from '@/features/clips/categories'
+import { CategoryPicker } from '@/features/clips/CategoryManager'
 import { useDeleteClip, useUpdateClip } from '@/features/clips/hooks'
 import { useDeleteRecipe, useRecipes, useUpdateRecipe } from '@/features/recipes/hooks'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from '@/features/recipes/family'
@@ -71,10 +71,7 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
       <RatingInput label="どのくらい気になる？" max={5} value={rating} onChange={setRating} disabled={busy} />
       <Input label="名前" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="クロックムッシュ ¥980" />
       <Input label="お店" value={shop} onChange={(e) => setShop(e.target.value)} placeholder="コーヒースタンド Y" />
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">カテゴリ</span>
-        <div className="flex flex-wrap gap-2">{CATEGORIES.map((c) => <Chip key={c.value} active={category === c.value} onClick={() => setCategory(c.value)}>{c.emoji} {c.label}</Chip>)}</div>
-      </div>
+      <CategoryPicker value={category} onChange={setCategory} />
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">{tags.map((t) => <button key={t} type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="inline-flex items-center gap-1 rounded-chip bg-green-600 px-2.5 py-1 text-[12px] font-bold text-white">{t} <IconX size={12} /></button>)}</div>
       )}

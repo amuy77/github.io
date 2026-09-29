@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { updateSettings, useSettings } from './useSettings'
 import { IconLogout } from '@/components/ui/icons'
 import { GenreManager } from '@/features/genres/GenreManager'
+import { CategoryManager } from '@/features/clips/CategoryManager'
 import { LearnedRules } from './LearnedRules'
 import { useBadges } from '@/features/game/useBadges'
 import { BADGES } from '@/features/game/badges'
@@ -28,8 +29,10 @@ export function SettingsPage() {
       <div className="flex flex-col gap-4">
         <SectionTitle>LaRa が覚えたこと</SectionTitle>
         <LearnedRules />
-        <SectionTitle>ジャンル</SectionTitle>
+        <SectionTitle>レシピのジャンル</SectionTitle>
         <GenreManager />
+        <SectionTitle>ネタ帳のカテゴリ</SectionTitle>
+        <CategoryManager />
 
         <SectionTitle count={`${badges.unlocked.length} / ${BADGES.length}`}>バッジ</SectionTitle>
         <Card className="grid grid-cols-4 gap-2 md:grid-cols-6">
