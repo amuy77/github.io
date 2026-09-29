@@ -4,13 +4,15 @@ import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
-import type { RecipeRow } from '@/lib/supabase/database.types'
+import type { RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
 import { paths } from '@/app/routes'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useRecipes, useUpdateRecipe } from './hooks'
 import { RecipeCard } from './RecipeCard'
 import { familyKey, representativeOf } from './family'
+import { PURPOSES } from './purpose'
+import { cx } from '@/lib/cx'
 
 export function RecipesPage() {
   const nav = useNavigate()
@@ -21,11 +23,15 @@ export function RecipesPage() {
   const [genreId, setGenreId] = useState<string | 'all' | 'none'>('all')
   const [favOnly, setFavOnly] = useState(false)
   const [minRating, setMinRating] = useState<0 | 3 | 2 | -1>(0) // -1 = 保留だけ
+  const [purposePick, setPurposePick] = useState<RecipePurpose | 'all' | null>(null) // null = まだ選んでいない（メニューがあればメニュー）
 
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
   // 同じ料理の版は 1 枚にまとめる（代表 = 採用中 → 最新）。版数を覚えておく
   const famCount = useMemo(() => { const m = new Map<string, number>(); for (const r of published) m.set(familyKey(r), (m.get(familyKey(r)) ?? 0) + 1); return m }, [published])
-  const reps = useMemo(() => [...new Set(published.map(familyKey))].map((k) => representativeOf(published.filter((r) => familyKey(r) === k))), [published])
+  const allReps = useMemo(() => [...new Set(published.map(familyKey))].map((k) => representativeOf(published.filter((r) => familyKey(r) === k))), [published])
+  const purposeCount = (p: RecipePurpose) => allReps.filter((r) => r.purpose === p).length
+  const purpose = purposePick ?? (purposeCount('menu') > 0 ? 'menu' : 'all')
+  const reps = useMemo(() => (purpose === 'all' ? allReps : allReps.filter((r) => r.purpose === purpose)), [allReps, purpose])
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return reps.filter((r) => {
@@ -48,11 +54,22 @@ export function RecipesPage() {
 
   const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
   const total = reps.length
+  const grandTotal = allReps.length
 
   return (
     <>
-      <PageHeader title="レシピ図鑑" sub={total ? `${total}品を収録` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(paths.recipeNew)}>作る</Button>} />
+      <PageHeader title="レシピ図鑑" sub={grandTotal ? `${grandTotal}品を収録` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(paths.recipeNew)}>作る</Button>} />
       <div className="flex flex-col gap-3">
+        {grandTotal > 0 && (
+          <div className="grid grid-cols-3 gap-1 rounded-chip border border-line bg-paper p-1" role="tablist" aria-label="レシピの種類">
+            {([...PURPOSES.map((p) => ({ value: p.value as RecipePurpose | 'all', label: `${p.emoji} ${p.value === 'menu' ? 'メニュー' : '参考'}`, n: purposeCount(p.value) })), { value: 'all' as const, label: 'すべて', n: grandTotal }]).map((t) => (
+              <button key={t.value} type="button" role="tab" aria-selected={purpose === t.value} onClick={() => setPurposePick(t.value)}
+                className={cx('h-9 rounded-chip text-[13px] font-bold', purpose === t.value ? (t.value === 'reference' ? 'bg-plum-400 text-white' : 'bg-green-600 text-white') : 'text-espresso-900')}>
+                {t.label} <span className="tabular-nums opacity-80">{t.n}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <label className="flex h-11 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
           <IconSearch size={18} className="text-muted" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
@@ -70,8 +87,10 @@ export function RecipesPage() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[4/5]" />)}</div>
         ) : recipes.isError ? (
           <EmptyState emoji="😵" title="読み込めませんでした" body={(recipes.error as Error).message} action={<Button size="sm" variant="secondary" onClick={() => recipes.refetch()}>もう一度</Button>} />
-        ) : total === 0 ? (
+        ) : grandTotal === 0 ? (
           <EmptyState emoji="📖" title="図鑑はまだ空っぽ" body="手入力でも、テキスト貼り付けでも、写真を AI に任せても OK。最初の 1 品を登録しよう。" action={<Button onClick={() => nav(paths.recipeNew)} icon={<IconPlus size={16} />}>レシピを作る</Button>} />
+        ) : total === 0 ? (
+          <EmptyState emoji={purpose === 'menu' ? '🍽️' : '📚'} title={purpose === 'menu' ? 'お店のメニューはまだありません' : '参考レシピはまだありません'} body={purpose === 'menu' ? '参考レシピを開いて「お店のメニュー」に切り替えるか、新しく作ってね。' : '本や他のお店のレシピを写真で送ると、ここにたまっていくよ。'} />
         ) : filtered.length === 0 ? (
           <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
         ) : (

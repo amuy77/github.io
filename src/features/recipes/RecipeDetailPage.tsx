@@ -22,6 +22,7 @@ import { AiFixButton } from '@/features/ai/AiFixPanel'
 import { useDeleteRecipe, useRecipe, useRecipes, useSetMain, useUpdateRecipe } from './hooks'
 import { familyOf, latestOf, versionName } from './family'
 import { cx } from '@/lib/cx'
+import { PurposeBadge, PurposePicker } from './purpose'
 
 const SOURCE_LABEL = { manual: '手入力', ai_image: 'AI（写真から）', ai_text: 'AI（テキストから）', text_paste: 'テキスト貼り付け' } as const
 
@@ -95,9 +96,13 @@ export function RecipeDetailPage() {
         {r.hero_image && (
           <button type="button" onClick={() => setLightbox(true)} className="overflow-hidden rounded-card border border-line"><ImageThumb src={photoUrl(r.hero_image, 'full')} className="aspect-[4/3]" /></button>
         )}
-        <Card><RatingInput label="評価" max={3} value={r.rating} onChange={(v) => update.mutate({ id: r.id, patch: { rating: v } })} /></Card>
+        <Card className="flex flex-col gap-4">
+          <PurposePicker value={r.purpose} onChange={(v) => v !== r.purpose && update.mutate({ id: r.id, patch: { purpose: v } }, { onSuccess: () => toast(v === 'menu' ? 'お店のメニューにしました' : '参考レシピにしました', 'success') })} />
+          <RatingInput label="評価" max={3} value={r.rating} onChange={(v) => update.mutate({ id: r.id, patch: { rating: v } })} />
+        </Card>
         <Card className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
+            <PurposeBadge value={r.purpose} className="px-2.5 py-1 text-[12px]" />
             {genre && <Tag>{genreEmoji(genre.name)} {genre.name}</Tag>}
             <Tag>{SOURCE_LABEL[r.source_kind]}</Tag>
           </div>
@@ -139,7 +144,7 @@ export function RecipeDetailPage() {
         </div>
         {r.hero_image && <AiFixButton full target={{ type: 'recipe', id: r.id, images: [r.hero_image] }} />}
         <div className="flex items-center justify-between">
-          <Button variant="secondary" icon={<IconCalendar size={16} />} onClick={() => nav(`${paths.menuDay(today())}?add=${r.id}`)}>今日のメニューに入れる</Button>
+          {r.purpose === 'menu' ? <Button variant="secondary" icon={<IconCalendar size={16} />} onClick={() => nav(`${paths.menuDay(today())}?add=${r.id}`)}>今日のメニューに入れる</Button> : <span />}
           <Button variant="ghost" size="sm" icon={<IconTrash size={16} />} className="text-brick-500" onClick={() => setConfirm(true)}>削除</Button>
         </div>
       </div>
