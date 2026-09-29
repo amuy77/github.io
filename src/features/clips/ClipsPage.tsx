@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { PageHeader, EmptyState, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
-import type { ClipCategory, ClipRow } from '@/lib/supabase/database.types'
+import type { ClipCategory, ClipPurpose, ClipRow } from '@/lib/supabase/database.types'
+import { CLIP_PURPOSES } from './purpose'
 import { useCategoryList } from './categoryHooks'
 import { CategoryManagerSheet } from './CategoryManager'
 import { useClips, useUpdateClip } from './hooks'
@@ -11,29 +12,41 @@ import { ClipCard, clipTitle } from './ClipCard'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
 
+const VIEW_KEY = 'lara.clips.view'
+function readView(): Record<string, unknown> { try { return JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? '{}') } catch { return {} } }
+/** useState と同じ使い方で、アプリを開いている間だけ値を覚えておく */
+function useRemembered<T>(key: string, initial: T): [T, (v: T) => void] {
+  const [value, setValue] = useState<T>(() => (key in readView() ? readView()[key] as T : initial))
+  const set = useCallback((v: T) => { setValue(v); try { sessionStorage.setItem(VIEW_KEY, JSON.stringify({ ...readView(), [key]: v })) } catch { /* 覚えられなくても使える */ } }, [key])
+  return [value, set]
+}
+
 export function ClipsPage() {
   const clips = useClips()
   const update = useUpdateClip()
-  const [q, setQ] = useState('')
-  const [cat, setCat] = useState<ClipCategory | 'all' | 'idea'>('all')
-  const [favOnly, setFavOnly] = useState(false)
-  const [minRating, setMinRating] = useState<0 | 4 | -1>(0)
+  // タブ・カテゴリ・★・検索は覚えておく（ネタを開いて戻っても、同じところから続けられるように）
+  const [q, setQ] = useRemembered('q', '')
+  const [cat, setCat] = useRemembered<ClipCategory | 'all'>('cat', 'all')
+  const [favOnly, setFavOnly] = useRemembered('favOnly', false)
+  const [minRating, setMinRating] = useRemembered<0 | 4 | -1>('minRating', 0)
+  const [purpose, setPurpose] = useRemembered<ClipPurpose | 'all'>('purpose', 'all')
   const [editorOpen, setEditorOpen] = useState(false)
   const [managing, setManaging] = useState(false)
   const categories = useCategoryList()
 
   const list = useMemo(() => {
-    const all = clips.data ?? []
+    const all = (clips.data ?? []).filter((c) => purpose === 'all' || c.purpose === purpose)
     const needle = q.trim().toLowerCase()
     return all.filter((c) => {
-      if (cat === 'idea' ? c.type !== 'idea' : cat !== 'all' && c.category !== cat) return false
+      if (cat !== 'all' && c.category !== cat) return false
       if (favOnly && !c.favorite) return false
       if (minRating === -1 ? c.type === 'idea' || c.rating !== null : minRating > 0 && (c.rating ?? 0) < minRating) return false
       if (!needle) return true
       const hay = `${clipTitle(c)} ${c.note} ${c.shop_name ?? ''} ${c.tags.join(' ')} ${c.preview?.title ?? ''}`.toLowerCase()
       return hay.includes(needle)
     })
-  }, [clips.data, q, cat, favOnly, minRating])
+  }, [clips.data, q, cat, favOnly, minRating, purpose])
+  const purposeCount = (p: ClipPurpose) => (clips.data ?? []).filter((c) => c.purpose === p).length
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
 
@@ -41,13 +54,27 @@ export function ClipsPage() {
     <>
       <PageHeader title="ネタ帳" sub={clips.data ? `${clips.data.length}件` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => setEditorOpen(true)}>追加</Button>} />
       <div className="flex flex-col gap-3">
+        {(clips.data?.length ?? 0) > 0 && (
+          <div className="grid grid-cols-4 gap-1 rounded-[18px] border border-line bg-paper p-1" role="tablist" aria-label="ネタの種類">
+            {([
+              ...CLIP_PURPOSES.map((p) => ({ value: p.value as ClipPurpose | 'all', label: `${p.emoji} ${p.label}`, n: purposeCount(p.value) })),
+              { value: 'unsorted' as const, label: '❔ 未分類', n: purposeCount('unsorted') },
+              { value: 'all' as const, label: 'すべて', n: clips.data?.length ?? 0 },
+            ]).map((t) => (
+              <button key={t.value} type="button" role="tab" aria-selected={purpose === t.value} onClick={() => setPurpose(t.value)}
+                className={cx('flex h-12 flex-col items-center justify-center rounded-[14px] text-[12px] font-bold leading-tight', purpose === t.value ? { idea: 'bg-mustard-400 text-espresso-900', reference: 'bg-plum-400 text-white', unsorted: 'bg-oat-100 text-espresso-900', all: 'bg-green-600 text-white' }[t.value] : 'text-espresso-900')}>
+                <span className="whitespace-nowrap">{t.label}</span>
+                <span className="tabular-nums opacity-80">{t.n}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <label className="flex h-11 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
           <IconSearch size={18} className="text-muted" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
         </label>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <Chip active={cat === 'all'} onClick={() => setCat('all')}>すべて</Chip>
-          <Chip active={cat === 'idea'} onClick={() => setCat('idea')}>💡 ひらめき</Chip>
           {categories.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.emoji} {c.label}</Chip>)}
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
           <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>

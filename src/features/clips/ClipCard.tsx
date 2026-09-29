@@ -8,6 +8,7 @@ import { photoUrl } from '@/lib/images/upload'
 import { relativeDay } from '@/lib/dates'
 import { TYPE_LABEL } from './categories'
 import { useCategoryOf } from './categoryHooks'
+import { ClipPurposeBadge } from './purpose'
 import { paths } from '@/app/routes'
 import { cx } from '@/lib/cx'
 
@@ -33,7 +34,7 @@ export function ClipCard({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFa
           <div className="flex flex-col gap-1 p-3">
             <p className="line-clamp-2 text-[14px] font-bold leading-snug">{clipTitle(clip)}</p>
             {(clip.shop_name || clip.preview?.site_name) && <p className="truncate text-[11px] text-muted">{clip.shop_name ?? clip.preview?.site_name}</p>}
-            <RatingStars value={clip.rating} max={5} showHold={false} />
+            <div className="flex flex-wrap items-center gap-1.5"><ClipPurposeBadge value={clip.purpose} /><RatingStars value={clip.rating} max={5} showHold={false} /></div>
             {clip.tags.length > 0 && <div className="flex flex-wrap gap-1">{clip.tags.slice(0, 3).map((t) => <Tag key={t}>{t}</Tag>)}</div>}
           </div>
         </>

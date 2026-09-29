@@ -13,6 +13,7 @@ import { formatMD } from '@/lib/dates'
 import { paths } from '@/app/routes'
 import { TYPE_LABEL } from './categories'
 import { useCategoryOf } from './categoryHooks'
+import { ClipPurposeBadge, ClipPurposePicker } from './purpose'
 import { clipTitle } from './ClipCard'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { RatingInput } from '@/components/ui/Rating'
@@ -64,14 +65,15 @@ export function ClipDetailPage() {
             <Button size="sm" onClick={() => setReview(true)}>確認する</Button>
           </div>
         )}
-        {c.type !== 'idea' && (
-          <Card><RatingInput label="評価" max={5} value={c.rating} onChange={(v) => update.mutate({ id: c.id, patch: { rating: v } })} /></Card>
-        )}
+        <Card className="flex flex-col gap-4">
+          <ClipPurposePicker value={c.purpose} onChange={(v) => v !== c.purpose && update.mutate({ id: c.id, patch: { purpose: v } }, { onSuccess: () => toast(v === 'idea' ? 'アイデアにしました' : '参考にしました', 'success') })} />
+          {c.type !== 'idea' && <RatingInput label="評価" max={5} value={c.rating} onChange={(v) => update.mutate({ id: c.id, patch: { rating: v } })} />}
+        </Card>
         {c.type === 'idea' ? (
           <div className="rounded-[6px] border border-mustard-300 bg-[#FFF2C2] p-5 text-[15px] font-bold leading-relaxed whitespace-pre-wrap">{c.note}</div>
         ) : (
           <Card className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2"><Tag>{cat.emoji} {cat.label}</Tag>{c.tags.map((t) => <Tag key={t}>{t}</Tag>)}</div>
+            <div className="flex flex-wrap items-center gap-2"><ClipPurposeBadge value={c.purpose} className="px-2.5 py-1 text-[12px]" /><Tag>{cat.emoji} {cat.label}</Tag>{c.tags.map((t) => <Tag key={t}>{t}</Tag>)}</div>
             {c.shop_name && <p className="text-sm"><span className="text-muted">お店:</span> <b>{c.shop_name}</b></p>}
             {c.note && <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{c.note}</p>}
             {c.url && (

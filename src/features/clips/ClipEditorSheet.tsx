@@ -8,12 +8,14 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { useToast } from '@/components/ui/Toast'
 import { IconX } from '@/components/ui/icons'
 import { RatingInput } from '@/components/ui/Rating'
-import type { ClipCategory, ClipRow, ClipType, ImageRef, LinkPreview } from '@/lib/supabase/database.types'
+import type { ClipCategory, ClipPurpose, ClipRow, ClipType, ImageRef, LinkPreview } from '@/lib/supabase/database.types'
 import { uploadPhoto, photoUrl, deletePhotos } from '@/lib/images/upload'
 import { useSession } from '@/features/auth/useSession'
 import { celebrateFrom } from '@/features/game/celebrate'
 import { SUGGESTED_TAGS } from './categories'
 import { CategoryPicker } from './CategoryManager'
+import { ClipPurposePicker } from './purpose'
+import { FavoriteToggle } from '@/components/ui/FavoriteToggle'
 import { fetchLinkPreview, FunctionError } from './api'
 import { useCreateClip, useUpdateClip } from './hooks'
 
@@ -77,6 +79,9 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
   const [preview, setPreview] = useState<LinkPreview | null>(clip?.preview ?? null)
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'blocked' | 'error'>('idle')
   const [rating, setRating] = useState<number | null>(clip?.rating ?? null)
+  // 自分で書くネタは参考が基本。ひらめき（付箋）はアイデア
+  const [purpose, setPurpose] = useState<ClipPurpose>(clip?.purpose ?? ((clip?.type ?? draft?.type) === 'idea' ? 'idea' : 'reference'))
+  const [favorite, setFavorite] = useState(clip?.favorite ?? false)
   const [saving, setSaving] = useState(false)
   const saveBtn = useRef<HTMLButtonElement>(null)
 
@@ -121,7 +126,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
       const uploaded: ImageRef[] = []
       for (const p of pending) uploaded.push(await uploadPhoto(p.file, userId))
       const allImages = [...images, ...uploaded]
-      const row = { type, title: title.trim(), note: note.trim(), url: hasUrl ? url.trim() : null, images: allImages, preview: hasUrl ? preview : null, category, tags, shop_name: shop.trim() || null, rating: isIdea ? null : rating, needs_review: false }
+      const row = { type, title: title.trim(), note: note.trim(), url: hasUrl ? url.trim() : null, images: allImages, preview: hasUrl ? preview : null, category, tags, shop_name: shop.trim() || null, rating: isIdea ? null : rating, purpose, favorite, needs_review: false }
       let saved: ClipRow
       if (clip) {
         saved = await update.mutateAsync({ id: clip.id, patch: row })
@@ -147,7 +152,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
     <div className="flex flex-col gap-4 pb-2">
       <div className="flex gap-2">
         <Chip active={!isIdea} onClick={() => setIsIdea(false)}>📌 ネタ</Chip>
-        <Chip active={isIdea} onClick={() => setIsIdea(true)}>💡 ひらめき</Chip>
+        <Chip active={isIdea} onClick={() => { setIsIdea(true); setPurpose('idea') }}>💡 ひらめき</Chip>
       </div>
 
       {!isIdea && (
@@ -190,9 +195,11 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
         </div>
       )}
 
+      <ClipPurposePicker value={purpose} onChange={setPurpose} />
       <CategoryPicker value={category} onChange={setCategory} />
 
       {!isIdea && <RatingInput label="評価" max={5} value={rating} onChange={setRating} />}
+      <FavoriteToggle value={favorite} onChange={setFavorite} />
 
       {!isIdea && <Input label="お店の名前（任意）" placeholder="コーヒースタンド Y" value={shop} onChange={(e) => setShop(e.target.value)} />}
 

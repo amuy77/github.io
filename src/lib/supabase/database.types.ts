@@ -4,6 +4,8 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type ClipType = 'photo' | 'link' | 'note' | 'idea'
+/** idea = 自分のアイデア、reference = 参考、unsorted = まだ仕分けていない */
+export type ClipPurpose = 'idea' | 'reference' | 'unsorted'
 /** ネタ帳のカテゴリの key（既定の 'sandwich' 'drink' 'wine' 'beer' 'coffee' 'shop' 'other' か、追加した 'c_xxxx'） */
 export type ClipCategory = string
 export type RecipeStatus = 'draft' | 'published'
@@ -34,6 +36,8 @@ export type ClipRow = Timestamps & {
   rating: number | null
   /** AI が作って、まだ確認していない */
   needs_review: boolean
+  /** アイデアか参考か */
+  purpose: ClipPurpose
 }
 export type RecipeRow = Timestamps & {
   id: string; user_id: string; title: string; genre_id: string | null; hero_image: ImageRef | null

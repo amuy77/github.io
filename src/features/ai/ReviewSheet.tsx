@@ -8,7 +8,9 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { RatingInput } from '@/components/ui/Rating'
 import { useToast } from '@/components/ui/Toast'
 import { IconCheck, IconChevronRight, IconX } from '@/components/ui/icons'
-import type { ClipCategory, ClipRow, RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
+import type { ClipCategory, ClipPurpose, ClipRow, RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
+import { FavoriteToggle } from '@/components/ui/FavoriteToggle'
+import { ClipPurposePicker } from '@/features/clips/purpose'
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
 import { celebrate } from '@/features/game/celebrate'
@@ -21,7 +23,7 @@ import { GenrePicker } from '@/features/genres/GenreManager'
 import { AiFixPanel } from './AiFixPanel'
 
 const Footer = ({ onLater, onDiscard, onOk, okLabel, busy }: { onLater: () => void; onDiscard: () => void; onOk: () => void; okLabel: string; busy: boolean }) => (
-  <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-line bg-paper px-4 pb-[calc(12px+var(--safe-bottom))] pt-3 md:pb-3">
+  <div className="sticky -bottom-4 -mx-4 -mb-4 flex flex-col gap-2 border-t border-line bg-paper px-4 pb-[calc(16px+var(--safe-bottom))] pt-3 md:pb-4">
     <Button full size="lg" icon={<IconCheck />} loading={busy} onClick={onOk}>{okLabel}</Button>
     <div className="flex gap-2">
       <Button variant="secondary" full disabled={busy} onClick={onLater}>あとで確認</Button>
@@ -49,9 +51,11 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
   const [category, setCategory] = useState<ClipCategory>(clip.category)
   const [tags, setTags] = useState(clip.tags)
   const [rating, setRating] = useState<number | null>(clip.rating)
+  const [purpose, setPurpose] = useState<ClipPurpose>(clip.purpose)
+  const [favorite, setFavorite] = useState(clip.favorite)
   const [busy, setBusy] = useState(false)
 
-  const patch = () => ({ title: title.trim(), note: note.trim(), shop_name: shop.trim() || null, category, tags, rating })
+  const patch = () => ({ title: title.trim(), note: note.trim(), shop_name: shop.trim() || null, category, tags, rating, purpose, favorite })
   const ok = async () => {
     setBusy(true)
     try { await update.mutateAsync({ id: clip.id, patch: { ...patch(), needs_review: false } }); if ((rating ?? 0) >= 4) celebrate('small'); toast('ネタ帳に確定しました', 'success'); onClose() }
@@ -68,7 +72,9 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
         </div>
       )}
       <AiFixPanel collapsible target={{ type: 'clip', id: clip.id, images: clip.images }} onSent={onClose} />
+      <ClipPurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
       <RatingInput label="どのくらい気になる？" max={5} value={rating} onChange={setRating} disabled={busy} />
+      <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
       <Input label="名前" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="クロックムッシュ ¥980" />
       <Input label="お店" value={shop} onChange={(e) => setShop(e.target.value)} placeholder="コーヒースタンド Y" />
       <CategoryPicker value={category} onChange={setCategory} />
@@ -99,6 +105,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   const [genreId, setGenreId] = useState(recipe.genre_id)
   const [rating, setRating] = useState<number | null>(recipe.rating)
   const [purpose, setPurpose] = useState<RecipePurpose>(recipe.purpose)
+  const [favorite, setFavorite] = useState(recipe.favorite)
   const [familyId, setFamilyId] = useState<string | null>(recipe.family_id)
   const [label, setLabel] = useState(recipe.variant_label)
   const [busy, setBusy] = useState(false)
@@ -120,7 +127,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
     if (!label.trim()) setLabel(nextTrialLabel(familyOf(all.data ?? [], rep)))
   }
 
-  const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose })
+  const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose, favorite })
   const ok = async () => {
     setBusy(true)
     try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${{ menu: 'お店のメニュー', reference: '参考レシピ', unsorted: '図鑑（未分類）' }[purpose]}に載せました`, 'success'); onClose() }
@@ -135,6 +142,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
       <AiFixPanel collapsible target={{ type: 'recipe', id: recipe.id, images: recipe.hero_image ? [recipe.hero_image] : [] }} onSent={onClose} />
       <PurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
       <RatingInput label="このレシピの評価" max={3} value={rating} onChange={setRating} disabled={busy} />
+      <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
       <Input label="レシピ名" value={title} onChange={(e) => setTitle(e.target.value)} />
       <GenrePicker value={genreId} onChange={setGenreId} />
 
