@@ -16,6 +16,7 @@ import { outfitFor } from './outfit'
 import { TalkBar, TalkBubbleBody, TalkButton } from '@/features/home/chat/LaraTalk'
 import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
+import { useMenuLogs } from '@/features/menu/hooks'
 
 const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
@@ -60,14 +61,17 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const bubbleRef = useRef(bubble)
   const hideRef = useRef(0)
   const seqRef = useRef<number[]>([])
-  // セリフに使う今の数（レシピ・ネタ・確認待ち・連続記録）
-  const dataRef = useRef({ counts, streak })
+  // セリフに使う今の数（レシピ・ネタ・確認待ち・連続記録）と、今日のメニューがもう記録されているか
+  const [day, setDay] = useState(today)
+  const menuToday = (useMenuLogs(day, day).data?.length ?? 0) > 0
+  const dataRef = useRef({ counts, streak, menuToday })
+  // 最初のあいさつをもう済ませたか（先にタップしたり話しかけたりしたら、それをあいさつ代わりにする）
+  const greetedRef = useRef(false)
   // 続けてタップされた回数（数秒あくと 1 に戻る）
   const tapsRef = useRef({ n: 0, at: 0 })
-  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak }
+  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak, menuToday }
   // 服: 設定（おまかせ / 固定）と今日の日付で決まる。開いたまま日付が変わっても着替えるよう、日付はときどき見直す
   const { outfit: outfitPref } = useSettings()
-  const [day, setDay] = useState(today)
   const outfit = outfitFor(outfitPref, day)
   const outfitRef = useRef(outfit)
 
@@ -81,6 +85,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       onTap: (h) => {
         if (h === 'resident') {
           if (talkingRef.current) return
+          greetedRef.current = true
           const now = Date.now(), taps = tapsRef.current
           taps.n = now - taps.at < 5000 ? taps.n + 1 : 1; taps.at = now
           const st = scene.residentStatus()
@@ -107,11 +112,11 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
 
   /** セリフを選ぶための今の様子（シーンの様子 + 心配・服・日付・数） */
   function voiceCtx(st: ResidentStatus): VoiceCtx {
-    const d = new Date(), { counts: c, streak: s } = dataRef.current
+    const d = new Date(), { counts: c, streak: s, menuToday: done } = dataRef.current
     return {
       activity: st.activity, life: st.life, hour: st.hour, sleeping: st.sleeping, waking: st.waking, worried: worriedRef.current,
       outfit: outfitRef.current, month: d.getMonth() + 1, weekday: d.getDay(),
-      inbox: c.inbox, answers: answersRef.current, recipes: c.recipes, clips: c.clips, streak: s,
+      inbox: c.inbox, answers: answersRef.current, recipes: c.recipes, clips: c.clips, streak: s, menuToday: done,
     }
   }
   /** LaRa の頭の上に吹き出しを出す。並びは 1 つずつ続けて出し、最後のが消えるまで歩き出さない。位置はこの画面の中の座標に直し、画面の端で切れないよう左右を寄せる */
@@ -141,6 +146,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     window.clearTimeout(hideRef.current)
     for (const id of seqRef.current) window.clearTimeout(id)
     setBubble(null); setPicked(null); setTalking(true)
+    greetedRef.current = true
     sceneRef.current?.setListening(true)
     talk.start()
   }
@@ -175,14 +181,17 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     if (reduced) return
     const last = readSeen(), gap = Date.now() - last
     const away = !last ? 'normal' : gap > 2 * 86400_000 ? 'long' : gap < 10 * 60_000 ? 'soon' : 'normal'
-    let greeted = false, id = 0
+    const opened = Date.now()
+    let id = 0
     const speak = () => {
       const scene = sceneRef.current
       const st = scene?.residentStatus()
       if (!scene || !st || document.hidden || pickedRef.current || talkingRef.current || bubbleRef.current || !(st.arrived || st.sleeping)) { id = window.setTimeout(speak, 4000); return }
       const ctx = voiceCtx(st)
-      say(scene, greeted ? monologue(ctx) : greetLine(ctx, away))
-      greeted = true
+      // あいさつは開いてすぐのときだけ（遅れて出ると、来たばかりのように聞こえる）
+      const greet = !greetedRef.current && Date.now() - opened < 12_000
+      greetedRef.current = true
+      say(scene, greet ? greetLine(ctx, away) : monologue(ctx))
       id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 20000 + Math.random() * 20000)
     }
     id = window.setTimeout(speak, 2500 + Math.random() * 1500)

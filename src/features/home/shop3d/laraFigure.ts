@@ -507,7 +507,10 @@ export function buildLaraFigure(): LaraFigure {
   let spinT = -1
   let faceY = 0
   let sway = 0
-  const headTopV = new THREE.Vector3()
+  /** 今の仕草が始まった時刻（一度きりの仕草を始まりから動かす）と、しっぽ追いかけで回った角度 */
+  let lastPose: LaraPose | null = null
+  let poseT0 = 0
+  let chaseA = 0
 
   const applyExpression = () => {
     const closed = ex.blink || ex.sleeping
@@ -619,8 +622,10 @@ export function buildLaraFigure(): LaraFigure {
     setProp(p) { if (p === prop) return; prop = p; for (const [k, g] of Object.entries(props)) g.visible = k === p },
     spin() { spinT = 0 },
     headTop(out) {
-      // 被り物のいちばん上（三日月の角の先 / 猫耳の先）
-      return out.copy(headTopV.set(0, HEAD.cy + (0.04 + looks[outfit].tipY * HOOD_SCALE) * HEAD_SCALE, 0)).applyMatrix4(group.matrixWorld)
+      // 被り物のいちばん上（三日月の角の先 / 猫耳の先）の高さ。寝ころぶ・しゃがむ・つんのめるときも頭についていくよう、頭の真上に取る
+      headG.getWorldPosition(out)
+      out.y += (0.04 + looks[outfit].tipY * HOOD_SCALE) * HEAD_SCALE * root.scale.y * group.scale.y
+      return out
     },
     update(t, dt, m) {
       const reduced = !!m.reduced
@@ -640,6 +645,8 @@ export function buildLaraFigure(): LaraFigure {
 
       const sleeping = !!m.sleeping
       const pose: LaraPose = m.pose ?? 'stand'
+      if (pose !== lastPose) { lastPose = pose; poseT0 = t }
+      const u = t - poseT0
       const seated = sleeping || pose === 'sit' || pose === 'read' || pose === 'rest' || pose === 'wake' || pose === 'strum' || pose === 'swing'
       // 腕: tilt.rotation.z = side × 角度 で外側へ（正 = 右腕が右下、負 = 左腕が左下）
       const armRest = (a: (typeof arms)[number]) => { a.tilt.rotation.z = a.side * 1.05; a.pivot.rotation.x = 0 }
@@ -805,15 +812,17 @@ export function buildLaraFigure(): LaraFigure {
           }
           case 'lie': {
             // 床に仰向けで寝ころび、左右にごろごろ（体の長い軸まわりに転がる）。大きな頭が床に埋まらないよう持ち上げる
-            root.rotation.set(-1.45, reduced ? 0 : Math.sin(t * 1.6) * 0.7, 0)
+            const roll = reduced ? 0 : Math.sin(t * 1.6) * 0.7
+            root.rotation.set(-1.45, roll, 0)
             root.position.y = 0.3
             for (const a of arms) { a.tilt.rotation.z = a.side * 2.2; a.pivot.rotation.x = 0 }
-            wantSway = reduced ? 0 : Math.sin(t * 1.6) * 0.3
+            // しっぽは転がる向きと逆に回して、渦巻きがいつも床の上に出るように
+            wantSway = -0.9 - roll
             break
           }
           case 'strum': {
             // 座ってウクレレ: 左手でネックを持ち、右手で弦をかき鳴らす
-            other.pivot.rotation.x = -1.2; other.tilt.rotation.z = 0.2
+            other.pivot.rotation.x = -2.2; other.tilt.rotation.z = other.side * 0.65
             handArm.pivot.rotation.x = -0.95 + (reduced ? 0 : Math.sin(t * 9) * 0.14); handArm.tilt.rotation.z = -0.15
             headG.rotation.set(0.14, 0, reduced ? 0 : Math.sin(t * 2.2) * 0.1)
             wantSway = reduced ? 0 : Math.sin(t * 2.2) * 0.25
@@ -826,24 +835,24 @@ export function buildLaraFigure(): LaraFigure {
             for (const a of arms) { a.pivot.rotation.x = -0.55; a.tilt.rotation.z = a.side * 0.45 }
             break
           case 'chase':
-            // しっぽを追いかけてくるくる（体ごと回りながら小さく跳ねる）
-            if (!reduced) { group.rotation.y = faceY + t * 6.5; root.position.y = jump + Math.abs(Math.sin(t * 9)) * 0.05 }
+            // しっぽを追いかけてくるくる（今の向きから回り始め、体ごと回りながら小さく跳ねる）
+            if (!reduced) { chaseA += dt * 6.5; group.rotation.y = faceY + chaseA; root.position.y = jump + Math.abs(Math.sin(t * 9)) * 0.05 }
             headG.rotation.set(0.1, 0.45, 0)
             wantSway = 0.5
             break
           case 'doze': {
             // 立ったまま寝落ち: 頭がだんだん前に落ちていく（目は呼び出し側で閉じる）
-            const droop = reduced ? 0.5 : 0.5 + Math.sin(t * 0.9) * 0.5
+            const k = Math.min(1, u / 3.5), droop = reduced ? 0.5 : k * k * (3 - 2 * k)
             headG.rotation.set(0.08 + droop * 0.38, 0, 0.08)
             root.position.y = jump - droop * 0.01
             for (const a of arms) { a.tilt.rotation.z = a.side * 0.75 }
             break
           }
           case 'sneeze': {
-            // くしゃみ: 頭が前にがくっ
-            const k = reduced ? 0 : Math.max(0, Math.sin(t * 8)) ** 6
-            headG.rotation.x = -0.2 + k * 0.6
-            root.position.y = jump + k * 0.03
+            // くしゃみ: 「へっ…」と少し上を向いてから、「くしゅん」で頭が前にがくっ（1 回だけ）
+            const k = reduced ? 0 : u < 0.35 ? -u / 0.35 : Math.max(0, 1 - (u - 0.35) / 0.3)
+            headG.rotation.x = k < 0 ? k * 0.25 : k * 0.6
+            root.position.y = jump + Math.max(0, k) * 0.03
             break
           }
           case 'trip':
@@ -872,6 +881,12 @@ export function buildLaraFigure(): LaraFigure {
           default:
             break
         }
+      }
+      // しっぽ追いかけが終わったら、回った分を向きに入れて、そこからなめらかに振り向く
+      if (pose !== 'chase' && chaseA !== 0) {
+        const a = faceY + chaseA
+        faceY = Math.atan2(Math.sin(a), Math.cos(a)); chaseA = 0
+        if (spinT < 0) group.rotation.y = faceY
       }
       if (prop !== 'none') orientProp(propTilt)
       // 尻尾: 少し遅れて揺れ、渦はゆっくり回る（「付いてくる」感じ）

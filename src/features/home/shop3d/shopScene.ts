@@ -119,6 +119,8 @@ const SPOTS: Record<ResidentActivity, Spot> = {
   // ふらふら散歩: 行き先はその都度、通り道の点から気まぐれに選ぶ（WANDER）
   wander: { node: 'FM', face: 'camera', pose: 'lookaround', stay: [3, 6] },
 }
+/** 座っている・寝ころんでいる姿勢（この上に立ち姿の仕草は重ねない） */
+const SEATED_POSES: readonly LaraPose[] = ['read', 'rest', 'strum', 'swing', 'lie', 'crouch']
 /** ふらふら散歩で立ち寄る点 */
 const WANDER = ['FM', 'B', 'A', 'FL', 'W', 'dance', 'K', 'sweep', 'C']
 /** 1 日の区分ごとの行動の選ばれやすさ（寝る時間は寝るだけ） */
@@ -314,6 +316,7 @@ export class ShopScene {
   /** LaRa の 3D フィギュアをお店に住まわせる。false で撤去 */
   setResident(enabled: boolean) {
     if (this.resident) { this.scene.remove(this.resident); this.hotspots = this.hotspots.filter((h) => h !== this.resident); this.figure?.dispose(); this.resident = null; this.figure = null }
+    if (this.ukeDecor) this.ukeDecor.visible = true
     if (!enabled) return
     const fig = buildLaraFigure()
     fig.setOutfit(this.residentOutfit)
@@ -343,8 +346,8 @@ export class ShopScene {
     if (this.listening === on) return
     this.listening = on
     const spot = SPOTS[this.residentState], arrived = this.arrivedAt >= 0
-    if (on) { this.gesture = null; this.react = null; this.figure?.setProp('none'); this.showEmote('!') }
-    else { if (arrived) this.figure?.setProp(this.phase2 && spot.then?.prop ? spot.then.prop : spot.prop ?? 'none'); this.holdResident(4) }
+    if (on) { this.gesture = null; this.react = null; this.setResidentProp('none'); this.showEmote('!') }
+    else { if (arrived) this.setResidentProp(this.phase2 && spot.then?.prop ? spot.then.prop : spot.prop ?? 'none'); this.holdResident(4) }
     this.needsRender = true
   }
   /** 返事をするときの小さな仕草（話しかけられている間だけ） */
@@ -358,7 +361,16 @@ export class ShopScene {
     this.needsRender = true
   }
   /** しゃべっている間など、しばらく次の場所へ歩き出さない */
-  holdResident(sec: number) { this.nextSwitch = Math.max(this.nextSwitch, this.lastT + sec) }
+  holdResident(sec: number) {
+    this.nextSwitch = Math.max(this.nextSwitch, this.lastT + sec)
+    // 歩いている途中なら、その場で立ち止まる（吹き出しが置いていかれないように）
+    if (this.arrivedAt < 0) this.pauseUntil = Math.max(this.pauseUntil, this.lastT + sec)
+  }
+  /** 手に持つ小物を替える。ウクレレを手に取っている間は、ベンチに立てかけてある方を隠す */
+  private setResidentProp(p: LaraProp) {
+    this.figure?.setProp(p)
+    if (this.ukeDecor) this.ukeDecor.visible = p !== 'ukulele'
+  }
   /** 今の時刻（時。分は小数）。確認用に固定できる */
   private hourNow() {
     if (this.hourOverride != null) return this.hourOverride
@@ -377,7 +389,7 @@ export class ShopScene {
       // 起こされた直後は眠そうに、まばたきが多い
       if (t >= this.blinkAt) { this.blinkUntil = t + (waking ? 0.5 : 0.14); this.blinkAt = t + (waking ? 0.8 + Math.random() : 3 + Math.random() * 5) }
     }
-    const g = this.gesture?.pose
+    const g = this.react?.pose ?? this.gesture?.pose   // いま見えている仕草（タップの反応が優先）
     const shut = g === 'stretch' || g === 'yawn' || g === 'doze' || g === 'sneeze'   // 伸び・あくび・寝落ち・くしゃみの間は目を閉じる
     this.figure.setExpression({ blink: !sleeping && (t < this.blinkUntil || shut), worried: this.residentMood === 'worried', sleeping })
   }
@@ -1076,10 +1088,9 @@ export class ShopScene {
     if (!this.resident) return
     const target = act === 'wander' ? this.wanderNode() : SPOTS[act].node
     this.targetNode = target
-    if (this.ukeDecor) this.ukeDecor.visible = true
-    this.residentState = act; this.arrivedAt = -1; this.gesture = null; this.react = null; this.pauseUntil = 0
+    this.residentState = act; this.arrivedAt = -1; this.gesture = null; this.react = null; this.pauseUntil = 0; this.nextSwitch = 0
     this.skip = !teleport && !this.opts.reducedMotion && Math.random() < 0.15
-    if (!keepProp) this.figure?.setProp('none')
+    if (!keepProp) this.setResidentProp('none')
     const p = this.resident.position
     if (teleport) {
       this.residentAt = target; p.fromArray(NODES[target]); this.residentNodes = [target]
@@ -1110,14 +1121,13 @@ export class ShopScene {
   private arrive(t: number) {
     this.arrivedAt = t; this.phase2 = false
     const spot = SPOTS[this.residentState]
-    if (this.residentState === 'ukulele' && this.ukeDecor) this.ukeDecor.visible = false   // 立てかけてあったのを手に取る
     if (this.residentState === 'mailbox') this.mailSeen = Math.max(this.mailSeen, this.counts.inbox)
-    this.figure?.setProp(spot.prop ?? 'none')
+    this.setResidentProp(spot.prop ?? 'none')
     // 夜の窓辺では月と星を眺めて ☆
     const emote = this.residentState === 'window' && (this.mode === 'night' || lifePart(this.hourNow()) === 'late') ? '☆' : spot.emote
     if (emote) this.showEmote(emote)
     const [a, b] = spot.stay ?? [12, 25]
-    this.nextSwitch = t + a + Math.random() * (b - a)
+    this.nextSwitch = Math.max(this.nextSwitch, t + a + Math.random() * (b - a))   // しゃべっている途中に着いたら、その分も待つ
     this.nextGesture = t + 4 + Math.random() * 4
     this.nextTurn = t + 20 + Math.random() * 20
   }
@@ -1145,9 +1155,14 @@ export class ShopScene {
     if (spot.sleeping) return
     const h = this.hourNow(), life = lifePart(h)
     const standing = !spot.pose || ['gaze', 'daze', 'lookaround', 'water', 'sweep', 'wipe'].includes(spot.pose)
+    const seated = !!spot.pose && SEATED_POSES.includes(spot.pose)
     const sleepy = life === 'late' && Math.random() < (h - 21) / 4   // 9 時過ぎから、11 時に近いほどあくび
     const pool = spot.gestures ?? []
-    if (sleepy) { this.gesture = { pose: 'yawn', until: t + 2.4 }; this.showEmote('…'); if (Math.random() < 0.3) this.emitSay('yawn'); return }
+    if (sleepy) {
+      // 座っているときは姿勢はそのままで「…」だけ（立ち姿のあくびを重ねると、座面に足が埋まる）
+      if (!seated) this.gesture = { pose: 'yawn', until: t + 2.4 }
+      this.showEmote('…'); if (Math.random() < 0.3) this.emitSay('yawn'); return
+    }
     if (this.residentState === 'counter' && ((h >= 13 && h < 16) || life === 'late') && Math.random() < 0.2) { this.gesture = { pose: 'doze', until: t + 4 }; return }
     if (standing && Math.random() < 0.05) { this.gesture = { pose: 'sneeze', until: t + 1.2 }; this.showEmote('!'); this.emitSay('sneeze'); return }
     if (pool.length && Math.random() < 0.8) {
@@ -1161,8 +1176,11 @@ export class ShopScene {
     if (this.listening) { this.residentReply('happy'); return }
     const t = this.lastT, spot = SPOTS[this.residentState], walking = this.arrivedAt < 0
     if (!walking && spot.sleeping) { this.react = { pose: 'wake', until: t + 4 }; this.showEmote('…'); this.holdResident(6); return }
+    // 立ったまま寝落ちしかけていたら、タップではっと起きる（あとで勝手に起きる分はなし）
+    if (this.gesture?.pose === 'doze') { this.gesture = null; this.react = { pose: 'hop', until: t + 1 }; this.showEmote('!'); return }
+    this.gesture = null
     // 座っている・寝ころんでいるときは、その姿勢のまま気持ちマークだけ
-    if (!walking && spot.pose && ['read', 'rest', 'strum', 'swing', 'lie', 'crouch'].includes(spot.pose)) { this.showEmote(spot.pose === 'lie' ? '♪' : '♡'); return }
+    if (!walking && spot.pose && SEATED_POSES.includes(spot.pose)) { this.showEmote(spot.pose === 'lie' ? '♪' : '♡'); return }
     const r = Math.random()
     if (walking || r < 0.4) this.figure?.spin()
     else if (r < 0.65) { this.react = { pose: 'hop', until: t + 1.4 }; this.showEmote('♪') }
@@ -1345,7 +1363,7 @@ export class ShopScene {
         }
         if (spot.then && !this.phase2 && t - this.arrivedAt > spot.then.after) {
           this.phase2 = true
-          if (spot.then.prop) this.figure.setProp(spot.then.prop)
+          if (spot.then.prop) this.setResidentProp(spot.then.prop)
           if (spot.then.emote) this.showEmote(spot.then.emote)
           if (this.residentState === 'shelf') this.emitSay('foundBook')
         }

@@ -28,6 +28,8 @@ export interface VoiceCtx {
   recipes: number
   clips: number
   streak: number
+  /** 今日のメニューがもう記録されている */
+  menuToday: boolean
 }
 
 const lines = (key: string): Say[] => VOICE_LINES[key] ?? []
@@ -42,11 +44,12 @@ const remember = (say: Say) => {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent)) } catch { /* private mode */ }
 }
 
-/** 一覧から 1 つ。最近言ったものはなるべく避ける。{n} を数に置き換える */
+/** 一覧から 1 つ。最近言ったものはなるべく避ける（全部言ったあとは、言ってから時間がたった古い方の半分から）。{n} を数に置き換える */
 function pickFrom(pool: Say[], n?: number): Say | null {
   if (!pool.length) return null
   const fresh = pool.filter((s) => !recent.includes(s.join('/')))
-  const src = fresh.length ? fresh : pool
+  const byAge = () => [...pool].sort((a, b) => recent.indexOf(a.join('/')) - recent.indexOf(b.join('/')))
+  const src = fresh.length ? fresh : pool.length > 1 ? byAge().slice(0, Math.ceil(pool.length / 2)) : pool
   const say = src[Math.floor(Math.random() * src.length)]
   remember(say)
   return n == null ? say : say.map((x) => x.replaceAll('{n}', String(n)))
@@ -72,12 +75,15 @@ const dataCands = (ctx: VoiceCtx) => [
   { key: 'data.recipes', w: ctx.recipes > 0 ? 1 : 0, n: ctx.recipes },
   { key: 'data.clips', w: ctx.clips > 0 ? 1 : 0, n: ctx.clips },
   { key: ctx.streak > 0 ? 'data.streak' : 'data.streakZero', w: 1, n: ctx.streak },
-  { key: 'data.menuDone', w: !ctx.worried && ctx.life !== 'morning' && ctx.streak > 0 ? 0.5 : 0 },
+  { key: 'data.menuDone', w: ctx.menuToday ? 0.5 : 0 },
 ]
+
+/** 起こされたとき: 昼寝なら昼寝の寝起き（夜の言葉を言わない）、夜なら夜の寝起き */
+const wakeKey = (ctx: VoiceCtx) => (ctx.activity === 'nap' ? 'nap.wake' : 'sleep.wake')
 
 /** ひとりごと（自分からしゃべる） */
 export function monologue(ctx: VoiceCtx): Say {
-  if (ctx.waking) return pickFrom(lines('sleep.wake')) ?? ['ん…']
+  if (ctx.waking) return pickFrom(lines(wakeKey(ctx))) ?? ['ん…']
   if (ctx.sleeping) return pickFrom(lines(ctx.activity === 'nap' ? 'activity.nap' : 'sleep.talk')) ?? ['むにゃ…']
   if (ctx.worried && Math.random() < 0.3) return pickFrom(lines('worried')) ?? []
   if (ctx.answers > 0 && Math.random() < 0.3) return pickFrom(lines('data.answers')) ?? []
@@ -95,7 +101,7 @@ export function monologue(ctx: VoiceCtx): Say {
 
 /** タップされたとき。taps は続けて何回目か（数秒あくと 1 に戻る） */
 export function tapLine(ctx: VoiceCtx, taps: number, walking: boolean): Say {
-  if (ctx.waking || ctx.sleeping) return pickFrom(lines('sleep.wake')) ?? ['ん…']
+  if (ctx.waking || ctx.sleeping) return pickFrom(lines(wakeKey(ctx))) ?? ['ん…']
   if (taps >= 4) return pickFrom(lines('tap.many')) ?? []
   if (taps >= 2) return pickFrom(lines('tap.again')) ?? []
   if (walking) return pickFrom(lines('tap.walking')) ?? []
