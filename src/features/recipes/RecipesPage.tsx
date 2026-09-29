@@ -63,11 +63,16 @@ export function RecipesPage() {
       <PageHeader title="レシピ図鑑" sub={grandTotal ? `${grandTotal}品を収録` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(paths.recipeNew)}>作る</Button>} />
       <div className="flex flex-col gap-3">
         {grandTotal > 0 && (
-          <div className="grid grid-cols-3 gap-1 rounded-chip border border-line bg-paper p-1" role="tablist" aria-label="レシピの種類">
-            {([...PURPOSES.map((p) => ({ value: p.value as RecipePurpose | 'all', label: `${p.emoji} ${p.value === 'menu' ? 'メニュー' : '参考'}`, n: purposeCount(p.value) })), { value: 'all' as const, label: 'すべて', n: grandTotal }]).map((t) => (
+          <div className="grid grid-cols-4 gap-1 rounded-[18px] border border-line bg-paper p-1" role="tablist" aria-label="レシピの種類">
+            {([
+              ...PURPOSES.map((p) => ({ value: p.value as RecipePurpose | 'all', label: `${p.emoji} ${p.short}`, n: purposeCount(p.value) })),
+              { value: 'unsorted' as const, label: '❔ 未分類', n: purposeCount('unsorted') },
+              { value: 'all' as const, label: 'すべて', n: grandTotal },
+            ]).map((t) => (
               <button key={t.value} type="button" role="tab" aria-selected={purpose === t.value} onClick={() => setPurposePick(t.value)}
-                className={cx('h-9 rounded-chip text-[13px] font-bold', purpose === t.value ? (t.value === 'reference' ? 'bg-plum-400 text-white' : 'bg-green-600 text-white') : 'text-espresso-900')}>
-                {t.label} <span className="tabular-nums opacity-80">{t.n}</span>
+                className={cx('flex h-12 flex-col items-center justify-center rounded-[14px] text-[12px] font-bold leading-tight', purpose === t.value ? { reference: 'bg-plum-400 text-white', unsorted: 'bg-mustard-400 text-espresso-900', menu: 'bg-green-600 text-white', all: 'bg-green-600 text-white' }[t.value] : 'text-espresso-900')}>
+                <span className="whitespace-nowrap">{t.label}</span>
+                <span className="tabular-nums opacity-80">{t.n}</span>
               </button>
             ))}
           </div>
@@ -93,7 +98,8 @@ export function RecipesPage() {
         ) : grandTotal === 0 ? (
           <EmptyState emoji="📖" title="図鑑はまだ空っぽ" body="手入力でも、テキスト貼り付けでも、写真を AI に任せても OK。最初の 1 品を登録しよう。" action={<Button onClick={() => nav(paths.recipeNew)} icon={<IconPlus size={16} />}>レシピを作る</Button>} />
         ) : total === 0 ? (
-          <EmptyState emoji={purpose === 'menu' ? '🍽️' : '📚'} title={purpose === 'menu' ? 'お店のメニューはまだありません' : '参考レシピはまだありません'} body={purpose === 'menu' ? '参考レシピを開いて「お店のメニュー」に切り替えるか、新しく作ってね。' : '本や他のお店のレシピを写真で送ると、ここにたまっていくよ。'} />
+          <EmptyState emoji={{ menu: '🍽️', reference: '📚', unsorted: '✨', all: '📖' }[purpose]} title={{ menu: 'お店のメニューはまだありません', reference: '参考レシピはまだありません', unsorted: '未分類のレシピはありません', all: '' }[purpose]}
+            body={{ menu: '未分類や参考のレシピを開いて「お店のメニュー」を選ぶか、新しく作ってね。', reference: 'レシピを開いて「参考レシピ」を選ぶと、ここに入るよ。', unsorted: '全部仕分けできてるよ！', all: '' }[purpose]} />
         ) : filtered.length === 0 ? (
           <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
         ) : (

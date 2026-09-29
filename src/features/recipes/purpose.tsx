@@ -1,18 +1,17 @@
 import type { RecipePurpose } from '@/lib/supabase/database.types'
 import { cx } from '@/lib/cx'
 
-export const PURPOSES: { value: RecipePurpose; emoji: string; label: string; sub: string }[] = [
-  { value: 'menu', emoji: '🍽️', label: 'お店のメニュー', sub: '確定して出しているレシピ' },
-  { value: 'reference', emoji: '📚', label: '参考レシピ', sub: '本・他のお店・研究用' },
+/** 選べる 2 つ（未分類は「まだ選んでいない」状態なので選択肢には出さない） */
+export const PURPOSES: { value: Exclude<RecipePurpose, 'unsorted'>; emoji: string; label: string; short: string; sub: string }[] = [
+  { value: 'menu', emoji: '🍽️', label: 'お店のメニュー', short: 'メニュー', sub: '確定して出しているレシピ' },
+  { value: 'reference', emoji: '📚', label: '参考レシピ', short: '参考', sub: '本・他のお店・研究用' },
 ]
-
-export const purposeOf = (v: RecipePurpose) => PURPOSES.find((p) => p.value === v) ?? PURPOSES[1]
 
 /** 確定メニューか参考レシピかを選ぶ 2 択 */
 export function PurposePicker({ value, onChange, disabled }: { value: RecipePurpose; onChange: (v: RecipePurpose) => void; disabled?: boolean }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[13px] font-bold text-espresso-700">どっちのレシピ？</span>
+      <span className="text-[13px] font-bold text-espresso-700">どっちのレシピ？{value === 'unsorted' && <span className="ml-1.5 font-normal text-muted">（まだ未分類）</span>}</span>
       <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="レシピの種類">
         {PURPOSES.map((p) => (
           <button key={p.value} type="button" role="radio" aria-checked={value === p.value} disabled={disabled} onClick={() => onChange(p.value)}
@@ -29,9 +28,7 @@ export function PurposePicker({ value, onChange, disabled }: { value: RecipePurp
 
 /** カードや見出しに付ける小さな印 */
 export function PurposeBadge({ value, className }: { value: RecipePurpose; className?: string }) {
-  return (
-    <span className={cx('whitespace-nowrap rounded-chip px-1.5 py-0.5 text-[10px] font-bold', value === 'menu' ? 'bg-green-600 text-white' : 'bg-plum-400/15 text-plum-400', className)}>
-      {value === 'menu' ? '🍽️ メニュー' : '📚 参考'}
-    </span>
-  )
+  const style = { menu: 'bg-green-600 text-white', reference: 'bg-plum-400/15 text-plum-400', unsorted: 'border border-dashed border-line text-muted' }[value]
+  const text = { menu: '🍽️ メニュー', reference: '📚 参考', unsorted: '未分類' }[value]
+  return <span className={cx('whitespace-nowrap rounded-chip px-1.5 py-0.5 text-[10px] font-bold', style, className)}>{text}</span>
 }

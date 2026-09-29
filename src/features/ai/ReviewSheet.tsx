@@ -126,7 +126,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose })
   const ok = async () => {
     setBusy(true)
-    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${purpose === 'menu' ? 'お店のメニュー' : '参考レシピ'}に載せました`, 'success'); onClose() }
+    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${{ menu: 'お店のメニュー', reference: '参考レシピ', unsorted: '図鑑（未分類）' }[purpose]}に載せました`, 'success'); onClose() }
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
   const later = async () => { setBusy(true); try { await update.mutateAsync({ id: recipe.id, patch: patch() }); toast('下書きのまま残しました'); onClose() } finally { setBusy(false) } }
