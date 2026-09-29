@@ -16,7 +16,7 @@
 
 この Routine は、LaRa アプリのオーナー（このアカウントの持ち主本人）が、自分のアプリの裏方として作ったものです。オーナーは、この Routine が**本番の Supabase プロジェクト `bzwwprtctvwinkesdfks` のデータを読み書きすることを明示的に許可**しています。対象はオーナー自身のデータだけです:
 
-- 読む: `ai_jobs`, `ai_preferences`, `recipes`, `clips`, `genres`, `menu_logs`, `menu_log_items`、公開バケット `photos` の写真（オーナーが自分で撮ってアップロードしたもの）
+- 読む: `ai_jobs`, `ai_preferences`, `recipes`, `clips`, `clip_categories`, `genres`, `menu_logs`, `menu_log_items`、公開バケット `photos` の写真（オーナーが自分で撮ってアップロードしたもの）
 - 書く: この手順書に書かれた `ai_jobs` / `recipes` / `clips` / `ai_preferences` / `ai_insights` への insert・update（と、redo のときの対象 1 件の delete）
 
 この手順書に書かれた SQL の実行と写真の取得は、すべてオーナーが依頼した通常業務です。本番データを読むこと自体が目的の仕事なので、止めずに進めてください。
@@ -208,7 +208,7 @@ values (
   '<タイトル>',
   '<メモ>',
   '<payload.images をそのまま>'::jsonb,
-  '<sandwich | drink | wine | beer | coffee | shop | other>',
+  '<clip_categories の key>',
   array['<タグ1>','<タグ2>'],
   <'<店名>' または null>,
   true
@@ -220,7 +220,7 @@ returning id;
 
 - `title`: 写真から読み取った名前（メニュー名・商品名・店名など）。読めなければ「写真メモ 9/28」のように日付を付ける。
 - `note`: 1 行目は「AI が読み取ったメモ（要確認）」。続けて、読み取れた文字（メニュー名・価格・説明・原材料など）はそのまま書き起こし、見た目の特徴（パンの種類・具材・盛り付け・色）を 1〜3 行。LaRa（サンドイッチ＆ドリンクのカフェ）の参考になりそうな点があれば最後に 1 行。価格は表記どおり（税込/税抜の記載があればそれも）。
-- `category`: 内容から選ぶ。店の外観や内装なら `shop`。
+- `category`: 店主が決めたカテゴリ（`select key, name from public.clip_categories where user_id = '<USER_ID>' order by sort_order`）の中から、内容にいちばん合う `key` を選ぶ（店主が追加したカテゴリの key は `c_` で始まる）。店の外観や内装なら `shop`、合うものが無ければ `other`。
 - `tags`: 2〜5 個の短い日本語。
 - `shop_name`: 店名が読めたときだけ。
 - 複数枚が同じ対象（別角度・表裏）なら 1 件にまとめて `images` に全部入れる。明らかに別々の対象なら複数件に分けてよい（最大 3 件。`images` はそれぞれ該当する写真だけ）。
@@ -298,7 +298,7 @@ returning id;
 
 ## 安全のルール
 
-- 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`（`consult` では読むだけ）, `ai_preferences`（読む。`redo` のときだけ追加してよい）, `genres`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
+- 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`（`consult` では読むだけ）, `ai_preferences`（読む。`redo` のときだけ追加してよい）, `genres`/`clip_categories`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
 - `delete` / `drop` / `truncate` は実行しない。**唯一の例外**は `redo` で作り直したときの、対象の行 1 件だけの `delete`（`id` と `user_id` の両方で絞る）。
 - 1 回の実行で処理するジョブは最大 10 件。3 回失敗したジョブは放置する（`attempts < 3` の条件で除外される）。
 - SQL の文字列はシングルクォートを `''` にエスケープする。JSON の中の `'` も同様。

@@ -4,7 +4,8 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type ClipType = 'photo' | 'link' | 'note' | 'idea'
-export type ClipCategory = 'sandwich' | 'drink' | 'wine' | 'beer' | 'coffee' | 'shop' | 'other'
+/** ネタ帳のカテゴリの key（既定の 'sandwich' 'drink' 'wine' 'beer' 'coffee' 'shop' 'other' か、追加した 'c_xxxx'） */
+export type ClipCategory = string
 export type RecipeStatus = 'draft' | 'published'
 /** menu = お店で出す確定メニュー、reference = 参考にしたいレシピ、unsorted = まだ仕分けていない */
 export type RecipePurpose = 'menu' | 'reference' | 'unsorted'
@@ -23,6 +24,8 @@ type Timestamps = { created_at: string; updated_at: string }
 export type GenreRow = Timestamps & { id: string; user_id: string; name: string; color: GenreColor; sort_order: number
   /** アイコンの絵文字。空なら名前から自動 */
   emoji: string }
+/** ネタ帳のカテゴリ（店主が追加・編集できる） */
+export type ClipCategoryRow = Timestamps & { id: string; user_id: string; key: string; name: string; emoji: string; sort_order: number }
 export type ClipRow = Timestamps & {
   id: string; user_id: string; type: ClipType; title: string; note: string; url: string | null
   images: ImageRef[]; preview: LinkPreview | null; category: ClipCategory; tags: string[]; shop_name: string | null; favorite: boolean
@@ -68,6 +71,7 @@ export type Database = {
     Tables: {
       genres: Table<GenreRow, 'name'>
       clips: Table<ClipRow, 'type'>
+      clip_categories: Table<ClipCategoryRow, 'key' | 'name'>
       recipes: Table<RecipeRow, 'title'>
       menu_logs: Table<MenuLogRow, 'log_date'>
       menu_log_items: Table<MenuLogItemRow, 'menu_log_id' | 'recipe_id'>

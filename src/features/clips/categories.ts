@@ -1,16 +1,4 @@
-import type { ClipCategory, ClipType } from '@/lib/supabase/database.types'
-
-export const CATEGORIES: { value: ClipCategory; label: string; emoji: string }[] = [
-  { value: 'sandwich', label: 'サンド', emoji: '🥪' },
-  { value: 'drink', label: 'ドリンク', emoji: '🥤' },
-  { value: 'coffee', label: 'コーヒー', emoji: '☕' },
-  { value: 'wine', label: 'ワイン', emoji: '🍷' },
-  { value: 'beer', label: 'ビール', emoji: '🍺' },
-  { value: 'shop', label: 'お店', emoji: '🏪' },
-  { value: 'other', label: 'その他', emoji: '✨' },
-]
-
-export const categoryOf = (v: ClipCategory) => CATEGORIES.find((c) => c.value === v) ?? CATEGORIES[CATEGORIES.length - 1]
+import type { ClipType } from '@/lib/supabase/database.types'
 
 export const TYPE_LABEL: Record<ClipType, { label: string; emoji: string }> = {
   photo: { label: '写真', emoji: '📷' },

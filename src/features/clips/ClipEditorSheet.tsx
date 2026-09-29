@@ -12,7 +12,8 @@ import type { ClipCategory, ClipRow, ClipType, ImageRef, LinkPreview } from '@/l
 import { uploadPhoto, photoUrl, deletePhotos } from '@/lib/images/upload'
 import { useSession } from '@/features/auth/useSession'
 import { celebrateFrom } from '@/features/game/celebrate'
-import { CATEGORIES, SUGGESTED_TAGS } from './categories'
+import { SUGGESTED_TAGS } from './categories'
+import { CategoryPicker } from './CategoryManager'
 import { fetchLinkPreview, FunctionError } from './api'
 import { useCreateClip, useUpdateClip } from './hooks'
 
@@ -189,10 +190,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">カテゴリ</span>
-        <div className="flex flex-wrap gap-2">{CATEGORIES.map((c) => <Chip key={c.value} active={category === c.value} onClick={() => setCategory(c.value)}>{c.emoji} {c.label}</Chip>)}</div>
-      </div>
+      <CategoryPicker value={category} onChange={setCategory} />
 
       {!isIdea && <RatingInput label="評価" max={5} value={rating} onChange={setRating} />}
 

@@ -11,7 +11,8 @@ import { IconEdit, IconLink, IconStar, IconTrash } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { formatMD } from '@/lib/dates'
 import { paths } from '@/app/routes'
-import { categoryOf, TYPE_LABEL } from './categories'
+import { TYPE_LABEL } from './categories'
+import { useCategoryOf } from './categoryHooks'
 import { clipTitle } from './ClipCard'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { RatingInput } from '@/components/ui/Rating'
@@ -32,6 +33,7 @@ export function ClipDetailPage() {
   const [confirm, setConfirm] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [review, setReview] = useState(false)
+  const categoryOf = useCategoryOf()
 
   if (clip.isLoading) return <><PageHeader title="ネタ" back={paths.clips} /><Skeleton className="aspect-[4/3]" /></>
   const c = clip.data

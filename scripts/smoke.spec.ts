@@ -34,6 +34,15 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: 'c1000000-0000-4000-8000-000000000004', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, rating: 3, needs_review: false, created_at: ts(6), updated_at: ts(6) },
     { ...base, id: 'c1000000-0000-4000-8000-000000000005', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
   ],
+  clip_categories: [
+    { ...base, id: 'k1000000-0000-4000-8000-000000000001', key: 'sandwich', name: 'サンド', emoji: '🥪', sort_order: 1 },
+    { ...base, id: 'k1000000-0000-4000-8000-000000000002', key: 'drink', name: 'ドリンク', emoji: '🥤', sort_order: 2 },
+    { ...base, id: 'k1000000-0000-4000-8000-000000000003', key: 'coffee', name: 'コーヒー', emoji: '☕', sort_order: 3 },
+    { ...base, id: 'k1000000-0000-4000-8000-000000000004', key: 'wine', name: 'ワイン', emoji: '🍷', sort_order: 4 },
+    { ...base, id: 'k1000000-0000-4000-8000-000000000005', key: 'beer', name: 'ビール', emoji: '🍺', sort_order: 5 },
+    { ...base, id: 'k1000000-0000-4000-8000-000000000006', key: 'shop', name: 'お店', emoji: '🏪', sort_order: 6 },
+    { ...base, id: 'k1000000-0000-4000-8000-000000000007', key: 'other', name: 'その他', emoji: '✨', sort_order: 7 },
+  ],
   recipes: [
     { ...base, id: 'd1000000-0000-4000-8000-000000000001', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '3枚' }, { name: 'レタス', amount: '2枚' }, { name: 'トマト', amount: '1/2個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストしてマヨを塗る', '具をはさんで半分に切る'], notes: '', source_clip_id: 'c1000000-0000-4000-8000-000000000001', source_kind: 'manual', source_job_id: null, status: 'published', favorite: true, rating: 2, family_id: null, variant_label: '', is_main: false, purpose: 'menu', created_at: ts(5), updated_at: ts(5) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, purpose: 'menu', created_at: ts(1), updated_at: ts(1) },
@@ -180,7 +189,7 @@ test('home: settings button opens settings', async ({ page }) => {
 test('clip editor opens from list', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/clips')
-  await page.getByRole('button', { name: '追加' }).click()
+  await page.getByRole('button', { name: '追加', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-clip-editor.png` })
 })
@@ -340,4 +349,26 @@ test('recipes: the list keeps its tab after opening a recipe, and the detail pag
   await expect(page.locator('h1').first()).not.toHaveText(first ?? '')
   await page.getByRole('button', { name: '戻る' }).first().click()
   await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ })).toHaveAttribute('aria-selected', 'true')
+})
+
+test('clip categories: add from the clip list, and その他 cannot be deleted', async ({ page }, info) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/clip_categories')) posts.push(r.postDataJSON()) })
+  await page.goto('#/clips')
+  await page.getByRole('button', { name: 'カテゴリを追加・編集' }).click()
+  const manager = page.getByRole('dialog', { name: 'カテゴリの追加・編集' })
+  await expect(manager.getByText('ワイン')).toBeVisible()
+  await manager.getByRole('button', { name: 'その他 を編集' }).click()
+  await expect(page.getByRole('dialog', { name: 'カテゴリを編集' }).getByText('消せません', { exact: false })).toBeVisible()
+  await page.getByRole('dialog', { name: 'カテゴリを編集' }).getByRole('button', { name: '閉じる' }).click()
+  await manager.getByRole('button', { name: 'カテゴリを追加' }).click()
+  const add = page.getByRole('dialog', { name: 'カテゴリを追加' })
+  await add.getByLabel('カテゴリ名').fill('スイーツ')
+  await add.getByRole('radio', { name: '🍰' }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-category-add.png` })
+  await add.getByRole('button', { name: '追加する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0]).toMatchObject({ name: 'スイーツ', emoji: '🍰' })
+  expect((posts[0] as { key: string }).key).toMatch(/^c_[a-z0-9]{10}$/)
 })
