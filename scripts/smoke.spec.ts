@@ -28,11 +28,11 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: G.bev, name: 'ベバレッジ', color: 'green', emoji: '', sort_order: 4 },
   ],
   clips: [
-    { ...base, id: 'c1000000-0000-4000-8000-000000000001', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, rating: 4, needs_review: false, created_at: ts(1), updated_at: ts(1) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000002', type: 'link', title: '', note: '断面の見せ方が良い', url: 'https://www.instagram.com/p/xxxx/', images: [], preview: { title: '', instagram_blocked: true }, category: 'sandwich', tags: ['Instagram', '見せ方'], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(2), updated_at: ts(2) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000003', type: 'idea', title: '秋メニュー案', note: '栗とマスカルポーネのクロワッサン。はちみつ少し。', url: null, images: [], preview: null, category: 'other', tags: [], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(4), updated_at: ts(4) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000004', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, rating: 3, needs_review: false, created_at: ts(6), updated_at: ts(6) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000005', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000001', purpose: 'reference', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, rating: 4, needs_review: false, created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000002', purpose: 'reference', type: 'link', title: '', note: '断面の見せ方が良い', url: 'https://www.instagram.com/p/xxxx/', images: [], preview: { title: '', instagram_blocked: true }, category: 'sandwich', tags: ['Instagram', '見せ方'], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(2), updated_at: ts(2) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000003', purpose: 'idea', type: 'idea', title: '秋メニュー案', note: '栗とマスカルポーネのクロワッサン。はちみつ少し。', url: null, images: [], preview: null, category: 'other', tags: [], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(4), updated_at: ts(4) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000004', purpose: 'reference', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, rating: 3, needs_review: false, created_at: ts(6), updated_at: ts(6) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000005', purpose: 'unsorted', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
   ],
   clip_categories: [
     { ...base, id: 'k1000000-0000-4000-8000-000000000001', key: 'sandwich', name: 'サンド', emoji: '🥪', sort_order: 1 },
@@ -372,4 +372,27 @@ test('clip categories: add from the clip list, and その他 cannot be deleted',
   await expect.poll(() => posts.length).toBe(1)
   expect(posts[0]).toMatchObject({ name: 'スイーツ', emoji: '🍰' })
   expect((posts[0] as { key: string }).key).toMatch(/^c_[a-z0-9]{10}$/)
+})
+
+test('clips: idea / reference tabs, and the review sheet sets purpose and favourite', async ({ page }, info) => {
+  await stubSupabase(page)
+  const patches: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/clips')) patches.push(r.postDataJSON()) })
+  await page.goto('#/clips')
+  const tabs = page.getByRole('tablist', { name: 'ネタの種類' })
+  await tabs.getByRole('tab', { name: /アイデア/ }).click()
+  await expect(page.getByText('秋メニュー案')).toBeVisible()
+  await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
+  await tabs.getByRole('tab', { name: /参考/ }).click()
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+
+  await page.goto('#/inbox')
+  await page.getByText('ピスタチオラテ ¥720').click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('radio', { name: /アイデア/ }).click()
+  await dialog.getByRole('switch', { name: /お気に入り/ }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-review-clip-purpose.png` })
+  await dialog.getByRole('button', { name: 'これで OK' }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0]).toMatchObject({ purpose: 'idea', favorite: true, needs_review: false })
 })
