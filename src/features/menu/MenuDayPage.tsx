@@ -49,7 +49,8 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
     return false
   }, [items, note, initial])
 
-  const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
+  // 選べるのはお店のメニューだけ（参考レシピは出さない）。記録済みのものは参考でも残す
+  const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published' && (r.purpose === 'menu' || items.has(r.id))), [recipes.data, items])
   const sections = useMemo(() => {
     const gs = genres.data ?? []
     const out = gs.map((g) => ({ key: g.id, title: `${genreEmoji(g.name)} ${g.name}`, items: published.filter((r) => r.genre_id === g.id) })).filter((s) => s.items.length)
@@ -80,7 +81,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
         </>} />
       <div className="flex flex-col gap-4">
         {recipes.isLoading ? <Skeleton className="h-40" /> : published.length === 0 ? (
-          <EmptyState emoji="📖" title="まずレシピを登録しよう" body="図鑑にレシピがあると、ここでチェックするだけで記録できます。" action={<Button onClick={() => nav(paths.recipeNew)}>レシピを作る</Button>} />
+          <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="図鑑で「お店のメニュー」にしたレシピが、ここでチェックするだけで記録できます。参考レシピは出てきません。" action={<Button onClick={() => nav(paths.recipes)}>レシピ図鑑へ</Button>} />
         ) : (
           sections.map((s) => (
             <section key={s.key} className="flex flex-col gap-2">

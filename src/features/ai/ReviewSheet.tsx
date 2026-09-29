@@ -8,7 +8,7 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { RatingInput } from '@/components/ui/Rating'
 import { useToast } from '@/components/ui/Toast'
 import { IconCheck, IconChevronRight, IconX } from '@/components/ui/icons'
-import type { ClipCategory, ClipRow, RecipeRow } from '@/lib/supabase/database.types'
+import type { ClipCategory, ClipRow, RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
 import { celebrate } from '@/features/game/celebrate'
@@ -18,6 +18,7 @@ import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useDeleteRecipe, useRecipes, useUpdateRecipe } from '@/features/recipes/hooks'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from '@/features/recipes/family'
+import { PurposePicker } from '@/features/recipes/purpose'
 import { AiFixPanel } from './AiFixPanel'
 
 const Footer = ({ onLater, onDiscard, onOk, okLabel, busy }: { onLater: () => void; onDiscard: () => void; onOk: () => void; okLabel: string; busy: boolean }) => (
@@ -102,6 +103,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   const [title, setTitle] = useState(recipe.title)
   const [genreId, setGenreId] = useState(recipe.genre_id)
   const [rating, setRating] = useState<number | null>(recipe.rating)
+  const [purpose, setPurpose] = useState<RecipePurpose>(recipe.purpose)
   const [familyId, setFamilyId] = useState<string | null>(recipe.family_id)
   const [label, setLabel] = useState(recipe.variant_label)
   const [busy, setBusy] = useState(false)
@@ -123,10 +125,10 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
     if (!label.trim()) setLabel(nextTrialLabel(familyOf(all.data ?? [], rep)))
   }
 
-  const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim() })
+  const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose })
   const ok = async () => {
     setBusy(true)
-    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を図鑑に載せました`, 'success'); onClose() }
+    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${purpose === 'menu' ? 'お店のメニュー' : '参考レシピ'}に載せました`, 'success'); onClose() }
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
   const later = async () => { setBusy(true); try { await update.mutateAsync({ id: recipe.id, patch: patch() }); toast('下書きのまま残しました'); onClose() } finally { setBusy(false) } }
@@ -136,6 +138,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
     <div className="flex flex-col gap-4">
       {recipe.hero_image && <ImageThumb src={photoUrl(recipe.hero_image, 'full')} className="aspect-[4/3] rounded-card" />}
       <AiFixPanel collapsible target={{ type: 'recipe', id: recipe.id, images: recipe.hero_image ? [recipe.hero_image] : [] }} onSent={onClose} />
+      <PurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
       <RatingInput label="このレシピの評価" max={3} value={rating} onChange={setRating} disabled={busy} />
       <Input label="レシピ名" value={title} onChange={(e) => setTitle(e.target.value)} />
       <div className="flex flex-col gap-2">

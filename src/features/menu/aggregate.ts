@@ -51,7 +51,7 @@ export function notServedRecently(allLogs: MenuLogWithItems[], recipes: RecipeRo
   for (const l of allLogs) for (const it of l.menu_log_items) if (!last.has(it.recipe_id) || l.log_date > last.get(it.recipe_id)!) last.set(it.recipe_id, l.log_date)
   const t = parseIso(today()).getTime()
   return recipes
-    .filter((r) => r.status === 'published')
+    .filter((r) => r.status === 'published' && r.purpose === 'menu')
     .map((r) => { const ls = last.get(r.id) ?? null; const daysSince = ls ? Math.round((t - parseIso(ls).getTime()) / 86_400_000) : null; return { recipe: r, lastServed: ls, daysSince } })
     .filter((x) => x.daysSince === null || x.daysSince >= thresholdDays)
     .sort((a, b) => (b.daysSince ?? 9999) - (a.daysSince ?? 9999))

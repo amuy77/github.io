@@ -10,7 +10,7 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { useToast } from '@/components/ui/Toast'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { IconClipboard, IconPlus, IconSparkles, IconTrash, IconX } from '@/components/ui/icons'
-import type { ImageRef, Ingredient, RecipeRow, RecipeSourceKind } from '@/lib/supabase/database.types'
+import type { ImageRef, Ingredient, RecipePurpose, RecipeRow, RecipeSourceKind } from '@/lib/supabase/database.types'
 import { deletePhotos, photoUrl, uploadPhoto } from '@/lib/images/upload'
 import { parseRecipeText } from '@/lib/recipeParser'
 import { paths } from '@/app/routes'
@@ -23,6 +23,7 @@ import { useEnqueueJob } from '@/features/ai/hooks'
 import { useCreateRecipe, useRecipe, useRecipes, useUpdateRecipe } from './hooks'
 import { RatingInput } from '@/components/ui/Rating'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from './family'
+import { PurposePicker } from './purpose'
 import { cx } from '@/lib/cx'
 
 type Tab = 'manual' | 'text' | 'photo'
@@ -40,7 +41,7 @@ export function RecipeEditorPage() {
   return <Editor key={id ?? fromId ?? 'new'} recipe={existing.data ?? null} from={fromId ? from.data ?? null : null} initialTab={id || fromId ? 'manual' : initialTab} />
 }
 
-interface FormState { title: string; genreId: string | null; ingredients: Ingredient[]; steps: string[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string }
+interface FormState { title: string; genreId: string | null; ingredients: Ingredient[]; steps: string[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string; purpose: RecipePurpose }
 
 function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: RecipeRow | null; initialTab: Tab }) {
   const nav = useNavigate()
@@ -59,6 +60,8 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
       title: src?.title ?? '', genreId: src?.genre_id ?? null, ingredients: src?.ingredients?.length ? src.ingredients : [{ name: '', amount: '' }],
       steps: src?.steps?.length ? src.steps : [''], notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
       rating: recipe?.rating ?? null,
+      // 手で作るレシピはお店のメニューが基本。試作は元の版に合わせる
+      purpose: recipe?.purpose ?? from?.purpose ?? 'menu',
       familyId: recipe ? recipe.family_id : from ? familyKey(from) : null,
       label: recipe ? recipe.variant_label : from ? nextTrialLabel(familyOf(allRecipes.data ?? [from], from)) : '',
     }
@@ -132,7 +135,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
         ingredients: form.ingredients.map((i) => ({ name: i.name.trim(), amount: i.amount.trim() })).filter((i) => i.name),
         steps: form.steps.map((s) => s.trim()).filter(Boolean),
         notes: form.notes.trim(), source_kind: form.sourceKind, status: 'published' as const,
-        rating: form.rating, family_id: form.familyId, variant_label: form.familyId || isFamilyHead ? form.label.trim() : '',
+        rating: form.rating, purpose: form.purpose, family_id: form.familyId, variant_label: form.familyId || isFamilyHead ? form.label.trim() : '',
       }
       if (recipe) {
         const saved = await update.mutateAsync({ id: recipe.id, patch: row })
@@ -207,6 +210,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
       {tab === 'manual' && (
         <div className="flex flex-col gap-4">
           <Input label="レシピ名" placeholder="BLT サンド" value={form.title} onChange={(e) => set('title', e.target.value)} />
+          <PurposePicker value={form.purpose} onChange={(v) => set('purpose', v)} />
           {genreChips}
           <RatingInput label="評価" max={3} value={form.rating} onChange={(v) => set('rating', v)} />
 

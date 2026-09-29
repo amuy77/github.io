@@ -35,11 +35,11 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: 'c1000000-0000-4000-8000-000000000005', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
   ],
   recipes: [
-    { ...base, id: 'd1000000-0000-4000-8000-000000000001', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '3枚' }, { name: 'レタス', amount: '2枚' }, { name: 'トマト', amount: '1/2個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストしてマヨを塗る', '具をはさんで半分に切る'], notes: '', source_clip_id: 'c1000000-0000-4000-8000-000000000001', source_kind: 'manual', source_job_id: null, status: 'published', favorite: true, rating: 2, family_id: null, variant_label: '', is_main: false, created_at: ts(5), updated_at: ts(5) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, created_at: ts(1), updated_at: ts(1) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000002', title: 'エッグサラダ', genre_id: G.american, hero_image: null, ingredients: [{ name: '卵', amount: '2個' }, { name: 'マヨ', amount: '大さじ2' }], steps: ['ゆで卵を作る', '刻んで和える'], notes: 'ディル少々', source_clip_id: null, source_kind: 'text_paste', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, created_at: ts(12), updated_at: ts(12) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, created_at: ts(20), updated_at: ts(20) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000004', title: 'ハムチーズクロワッサン', genre_id: G.croissant, hero_image: null, ingredients: [{ name: 'クロワッサン', amount: '1個' }], steps: ['温める'], notes: '', source_clip_id: null, source_kind: 'ai_image', source_job_id: null, status: 'draft', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, created_at: ts(0), updated_at: ts(0) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000001', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '3枚' }, { name: 'レタス', amount: '2枚' }, { name: 'トマト', amount: '1/2個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストしてマヨを塗る', '具をはさんで半分に切る'], notes: '', source_clip_id: 'c1000000-0000-4000-8000-000000000001', source_kind: 'manual', source_job_id: null, status: 'published', favorite: true, rating: 2, family_id: null, variant_label: '', is_main: false, purpose: 'menu', created_at: ts(5), updated_at: ts(5) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, purpose: 'menu', created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000002', title: 'エッグサラダ', genre_id: G.american, hero_image: null, ingredients: [{ name: '卵', amount: '2個' }, { name: 'マヨ', amount: '大さじ2' }], steps: ['ゆで卵を作る', '刻んで和える'], notes: 'ディル少々', source_clip_id: null, source_kind: 'text_paste', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'menu', created_at: ts(12), updated_at: ts(12) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'reference', created_at: ts(20), updated_at: ts(20) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000004', title: 'ハムチーズクロワッサン', genre_id: G.croissant, hero_image: null, ingredients: [{ name: 'クロワッサン', amount: '1個' }], steps: ['温める'], notes: '', source_clip_id: null, source_kind: 'ai_image', source_job_id: null, status: 'draft', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'reference', created_at: ts(0), updated_at: ts(0) },
   ],
   ai_jobs: [
     { id: 'e1000000-0000-4000-8000-000000000001', user_id: USER_ID, kind: 'recipe_from_image', status: 'pending', payload: { image_paths: ['x/a.jpg', 'x/b.jpg'], hint: '裏面あり' }, result: null, error: null, attempts: 0, started_at: null, finished_at: null, created_at: ts(0) },
@@ -235,4 +235,31 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   await expect(page.getByText('LaRa が覚えたこと')).toBeVisible()
   await expect(page.getByText('写っているレシピを 1 つずつすべてレシピの下書きにする')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
+})
+
+test('recipes: menu and reference recipes are split, and a recipe can switch sides', async ({ page }, info) => {
+  await stubSupabase(page)
+  const patches: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/recipes')) patches.push(r.postDataJSON()) })
+  // まだ記録のない日のメニュー記録には、お店のメニューだけが並ぶ（記録済みの参考レシピは消さずに残す）
+  await page.goto(`#/menu/${iso(daysAgo(5))}`)
+  await expect(page.getByRole('button', { name: 'エッグサラダ' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ハンドドリップ 深煎り' })).toHaveCount(0)
+
+  await page.goto('#/recipes')
+  const tabs = page.getByRole('tablist', { name: 'レシピの種類' })
+  // メニューがあるので最初はメニュー。参考のハンドドリップは出ない
+  await expect(tabs.getByRole('tab', { name: /メニュー/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByText('エッグサラダ')).toBeVisible()
+  await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
+  await tabs.getByRole('tab', { name: /参考/ }).click()
+  await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
+  await expect(page.getByText('エッグサラダ')).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-recipes-reference.png`, fullPage: true })
+
+  await page.getByText('ハンドドリップ 深煎り').click()
+  await page.getByRole('radio', { name: /お店のメニュー/ }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0]).toMatchObject({ purpose: 'menu' })
+
 })
