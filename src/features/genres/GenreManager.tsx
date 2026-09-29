@@ -7,11 +7,12 @@ import { Confirm, Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
 import { IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
-import { autoEmoji, GENRE_COLORS, GENRE_EMOJI_CHOICES, genreEmoji } from './api'
+import { autoEmoji, GENRE_EMOJI_CHOICES, genreEmoji } from './api'
+import { GENRE_PALETTE, genreColor } from '@/lib/genreColors'
 import { useGenreMutations, useGenres } from './hooks'
 import { cx } from '@/lib/cx'
 
-const swatchOf = (c: GenreColor) => GENRE_COLORS.find((x) => x.value === c)?.swatch ?? 'bg-green-600'
+const hexOf = (c: GenreColor) => genreColor(c).hex
 
 /** ジャンルの一覧（並び替え・編集・追加）。設定画面と、図鑑などから開くシートで使う */
 export function GenreManager() {
@@ -34,7 +35,7 @@ export function GenreManager() {
       {list.map((g, i) => (
         <Card key={g.id} className="flex items-center gap-2 py-2">
           <button type="button" onClick={() => setEditing(g)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <span className={cx('size-2.5 shrink-0 rounded-full', swatchOf(g.color))} aria-hidden />
+            <span className="size-2.5 shrink-0 rounded-full" style={{ background: hexOf(g.color) }} aria-hidden />
             <span className="text-xl" aria-hidden>{genreEmoji(g)}</span>
             <span className="truncate font-bold">{g.name}</span>
           </button>
@@ -91,7 +92,7 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end gap-3">
-        <span className={cx('grid size-14 shrink-0 place-items-center rounded-card text-3xl', swatchOf(color))} aria-hidden>{shown}</span>
+        <span className="grid size-14 shrink-0 place-items-center rounded-card text-3xl" style={{ background: hexOf(color) }} aria-hidden>{shown}</span>
         <div className="min-w-0 flex-1">
           <Input label="ジャンル名" placeholder="例: デザート / ホットサンド" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save() }} />
         </div>
@@ -114,10 +115,13 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">色</span>
-        <div className="flex flex-wrap gap-2">
-          {GENRE_COLORS.map((c) => (
-            <Chip key={c.value} active={color === c.value} onClick={() => setColor(c.value)} icon={<span className={cx('size-3.5 rounded-full', c.swatch)} aria-hidden />}>{c.label}</Chip>
+        <span className="text-[13px] font-bold text-espresso-700">色 <span className="font-normal text-muted">（{genreColor(color).label}）</span></span>
+        <div className="grid grid-cols-6 gap-2 sm:grid-cols-9" role="radiogroup" aria-label="色">
+          {GENRE_PALETTE.map((c) => (
+            <button key={c.value} type="button" role="radio" aria-checked={color === c.value} aria-label={c.label} title={c.label} onClick={() => setColor(c.value)}
+              className={cx('grid aspect-square place-items-center rounded-full border-2', color === c.value ? 'border-espresso-900' : 'border-transparent')}>
+              <span className="size-[80%] rounded-full" style={{ background: c.hex }} />
+            </button>
           ))}
         </div>
       </div>

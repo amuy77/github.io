@@ -4,7 +4,7 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Stamp } from '@/components/ui/Chip'
 import { IconStar } from '@/components/ui/icons'
 import { RatingStars } from '@/components/ui/Rating'
-import { genreAccent } from '@/components/ui/Card'
+import { genreColor } from '@/lib/genreColors'
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
 import { genreEmoji } from '@/features/genres/api'
@@ -18,7 +18,7 @@ export function isNew(iso: string): boolean {
 export function RecipeCard({ recipe, genre, onToggleFavorite, versions = 1 }: { recipe: RecipeRow; genre?: GenreRow | null; onToggleFavorite?: (r: RecipeRow) => void; versions?: number }) {
   const sub = recipe.ingredients.slice(0, 3).map((i) => i.name).join('・')
   return (
-    <Link to={paths.recipe(recipe.id)} className={cx('relative block overflow-hidden rounded-card border border-line bg-paper shadow-card active:scale-[0.99]', genre && cx('border-t-4', genreAccent[genre.color]))}>
+    <Link to={paths.recipe(recipe.id)} className={cx('relative block overflow-hidden rounded-card border border-line bg-paper shadow-card active:scale-[0.99]', genre && 'border-t-4')} style={genre ? { borderTopColor: genreColor(genre.color).hex } : undefined}>
       <ImageThumb src={photoUrl(recipe.hero_image, 'thumb')} className="aspect-[4/3] w-full" emoji={genre ? genreEmoji(genre) : '🍽️'} />
       <div className="flex flex-col gap-0.5 p-3">
         <p className="line-clamp-2 text-[14px] font-bold leading-snug">{recipe.title}</p>

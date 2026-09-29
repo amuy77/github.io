@@ -12,7 +12,8 @@ export type RecipePurpose = 'menu' | 'reference' | 'unsorted'
 export type RecipeSourceKind = 'manual' | 'ai_image' | 'ai_text' | 'text_paste'
 export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'redo' | 'consult' | 'weekly_insights'
 export type AiJobStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled'
-export type GenreColor = 'green' | 'mustard' | 'brick' | 'plum' | 'wood'
+export type { GenreColor } from '@/lib/genreColors'
+import type { GenreColor } from '@/lib/genreColors'
 
 export interface ImageRef { path: string; thumb_path: string; w: number; h: number; bytes: number }
 export interface Ingredient { name: string; amount: string }
