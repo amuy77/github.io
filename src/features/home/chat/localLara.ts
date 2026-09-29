@@ -24,8 +24,8 @@ export interface LaraContext {
 
 const has = (t: string, ...words: string[]) => words.some((w) => t.includes(w))
 const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length)]
-/** 夜（18 時〜朝 5 時）は、日なたや雲など昼の景色を言わない */
-const isNight = (h: number) => h >= 18 || h < 5
+/** 夜（18 時〜朝 6 時。お店が暗くなるのと同じ）は、日なたや雲など昼の景色を言わない */
+const isNight = (h: number) => h >= 18 || h < 6
 
 /** 相談っぽい言い方（その場では答えず、預かる） */
 export const looksLikeConsult = (t: string) => has(t, '相談', 'どうしたら', 'どうすれば', 'アドバイス', '改善', '良くしたい', 'よくしたい', '美味しく', 'おいしく', 'どう思う', '悩', '迷って', 'コツ')
@@ -38,7 +38,8 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
   const say = (slot: Parameters<typeof chatLine>[0], vars?: Record<string, string | number>) => chatLine(slot, vars, r)
 
   // --- あいさつ・お礼・ねぎらい
-  if (has(t, 'おはよ')) return { text: say(isNight(ctx.hour) ? 'ohayoNight' : 'ohayo') + streakLine(streak, r) }
+  // 朝ごはんや起きたばかりの話は、朝（6〜10 時）だけ
+  if (has(t, 'おはよ')) return { text: say(isNight(ctx.hour) ? 'ohayoNight' : ctx.hour < 10 ? 'ohayo' : 'ohayoDay') + streakLine(streak, r) }
   if (has(t, 'こんにちは', 'こんちは', 'やっほ', 'ハロー', 'hello')) return { text: say(isNight(ctx.hour) ? 'helloNight' : 'hello') + streakLine(streak, r) }
   if (has(t, 'こんばんは')) return { text: say('konbanwa') + streakLine(streak, r) }
   if (has(t, 'おつかれ', 'お疲れ', 'つかれた', '疲れた')) return { text: say('tired') + (ctx.todayLogged ? '' : '\n' + say('tiredLog')), links: ctx.todayLogged ? undefined : [{ label: '今日のメニューを記録', to: paths.menuDay(today()) }] }

@@ -177,6 +177,29 @@ test('3D home: LaRa keeps her daily schedule and never gets stuck', async ({ pag
   expect(again).toMatchObject({ forced: 'mailbox', state: 'mailbox' })
 })
 
+test('chat voice: every reply keeps its facts ({vars}) and the words the app looks for', async () => {
+  const { CHAT_LINES, chatLine } = await import('../src/features/home/chat/chatVoice')
+  // 数や名前が入る場面は、どのセリフにも必ずその {変数} がある（口調を変えても中身が落ちない）
+  const facts: Record<string, string[]> = {
+    inboxSome: ['n'], pending: ['n'], todoInbox: ['n'], todoOld: ['title'], recordDone: ['streak'], recordNotYetStreak: ['streak'],
+    recommendTop: ['title'], recommendOld: ['title'], idea: ['title', 'shop'], found: ['q'], notFound: ['q'], streakLine: ['streak'],
+    consulted: ['time'], answerHead: ['q'],
+  }
+  const all = { n: 3, title: 'BLT', shop: '（店）', q: 'BLT', streak: 5, time: '9:00' }
+  for (const [slot, list] of Object.entries(CHAT_LINES) as [keyof typeof CHAT_LINES, string[]][]) {
+    expect(list.length, `${slot}: 2 通り以上`).toBeGreaterThanOrEqual(2)
+    for (const line of list) {
+      const used = [...line.matchAll(/\{(\w+)\}/g)].map((m) => m[1])
+      expect(used.filter((v) => !(facts[slot] ?? []).includes(v)), `${slot}: 「${line}」 uses an unknown {var}`).toEqual([])
+      for (const v of facts[slot] ?? []) expect(used, `${slot}: 「${line}」 drops {${v}}`).toContain(v)
+    }
+    for (let i = 0; i < list.length; i++) expect(chatLine(slot, all, () => i / list.length + 0.01)).not.toMatch(/[{}]/)
+  }
+  for (const l of CHAT_LINES.found) expect(l).toMatch(/「\{q\}」.*見つけた|見つけた.*「\{q\}」/)
+  for (const l of CHAT_LINES.consulted) expect(l).toContain('預かった')
+  for (const l of CHAT_LINES.answerHead) expect(l).toContain('「{q}」の相談')
+})
+
 test('LaRa voice: every scene has lines, and every bubble is short', async () => {
   const { VOICE_LINES } = await import('../src/features/home/shop3d/voiceLines')
   const awake = ['machine', 'mailbox', 'window', 'water', 'waterBanana', 'read', 'rest', 'sweep', 'wipe', 'chalkboard', 'shelf', 'dance', 'nap',
@@ -453,6 +476,8 @@ test('home talk: LaRa turns around and answers in her bubble, and a consult is h
   await box.press('Enter')
   await bubble.getByRole('button', { name: '預ける' }).click()
   await expect(bubble.getByText(/預かった/)).toBeVisible()
+  // 何時ごろ答えが届くかも、ちゃんと言う
+  await expect(bubble.getByText(/\d+:\d\d ごろ/)).toBeVisible()
   await expect.poll(() => sent.length).toBe(1)
   const body = (Array.isArray(sent[0]) ? sent[0][0] : sent[0]) as { kind: string; payload: { question: string } }
   expect(body.kind).toBe('consult')
@@ -482,7 +507,11 @@ test('home talk: the easygoing voice still says the facts (counts, names, button
   await page.getByRole('button', { name: /話しかける/ }).click()
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
   const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
-  const ask = async (q: string) => { await box.fill(q); await box.press('Enter'); await expect(bubble.getByText(`「${q}」`)).toBeVisible() }
+  // 話しかけて、返事が出るのを待つ。どの返事にも {変数} が埋まらずに残っていない
+  const ask = async (q: string) => {
+    await box.fill(q); await box.press('Enter'); await expect(bubble.getByText(`「${q}」`)).toBeVisible()
+    await expect(bubble.getByText(/\{(n|title|shop|q|streak|time)\}/)).toHaveCount(0)
+  }
   // 確認待ち: その件数が、のんきな口調の中にもそのまま入る
   await ask('確認待ちある？')
   await expect(bubble.getByText(new RegExp(`確認待ち.*${inbox} 件`))).toBeVisible()
@@ -499,8 +528,10 @@ test('home talk: the easygoing voice still says the facts (counts, names, button
   // 記録: 連続日数か「まだ」のどちらか
   await ask('記録どう？')
   await expect(bubble.getByText(/\d+ 日連続|記録.*まだ/)).toBeVisible()
-  // {変数} が埋まらずに残っていない
-  await expect(bubble.getByText(/\{(n|title|shop|q|streak|time)\}/)).toHaveCount(0)
+  // ネタ: ネタ帳から 1 つ、名前とボタン
+  await ask('ネタちょうだい')
+  await expect(bubble.locator('p').last()).toContainText(/「.+」/)
+  await expect(bubble.getByRole('button', { name: 'ネタを開く →' })).toBeVisible()
 })
 
 test('home talk: finished consult answers are told first, one by one', async ({ page }) => {
@@ -511,7 +542,10 @@ test('home talk: finished consult answers are told first, one by one', async ({ 
     ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-1/2', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(jobs) })
     : route.fallback())
   await page.goto('#/')
-  await page.getByRole('button', { name: /話しかける/ }).click()
+  // 答えが届いたこと（ボタンの点）をアプリが読み込んでから話しかける
+  const talkButton = page.getByRole('button', { name: /話しかける/ })
+  await expect(talkButton.getByLabel('相談の答えが届いています')).toBeVisible()
+  await talkButton.click()
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
   await expect(bubble.getByText(/黒胡椒を効かせてみて/)).toBeVisible()
   await expect(bubble.getByText(/「BLT の味をもっと良くしたい」の相談/)).toBeVisible()
