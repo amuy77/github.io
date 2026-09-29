@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +13,7 @@ import { useRecipes, useUpdateRecipe } from './hooks'
 import { RecipeCard } from './RecipeCard'
 import { familyKey, representativeOf } from './family'
 import { PURPOSES } from './purpose'
+import { readListView, useListViewState, writeListView } from './listView'
 import { cx } from '@/lib/cx'
 
 export function RecipesPage() {
@@ -20,12 +21,13 @@ export function RecipesPage() {
   const recipes = useRecipes()
   const genres = useGenres()
   const update = useUpdateRecipe()
-  const [q, setQ] = useState('')
-  const [genreId, setGenreId] = useState<string | 'all' | 'none'>('all')
-  const [favOnly, setFavOnly] = useState(false)
-  const [minRating, setMinRating] = useState<0 | 3 | 2 | -1>(0) // -1 = 保留だけ
+  // タブ・ジャンル・★・検索は覚えておく（レシピを開いて戻っても、仕分けの続きからできるように）
+  const [q, setQ] = useListViewState('q')
+  const [genreId, setGenreId] = useListViewState('genreId') // 'all' | 'none' | ジャンル id
+  const [favOnly, setFavOnly] = useListViewState('favOnly')
+  const [minRating, setMinRating] = useListViewState('minRating') // -1 = 保留だけ
   const [managing, setManaging] = useState(false)
-  const [purposePick, setPurposePick] = useState<RecipePurpose | 'all' | null>(null) // null = まだ選んでいない（メニューがあればメニュー）
+  const [purposePick, setPurposePick] = useListViewState('purpose') // null = まだ選んでいない（メニューがあればメニュー）
 
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
   // 同じ料理の版は 1 枚にまとめる（代表 = 採用中 → 最新）。版数を覚えておく
@@ -53,6 +55,23 @@ export function RecipesPage() {
     if (by.has(null)) out.push({ key: 'none', title: '🍽️ ジャンルなし', genre: null as never, items: by.get(null)! })
     return out
   }, [filtered, genres.data])
+
+  // 並んでいる順を覚えておく（詳細画面の「次へ」用）
+  useEffect(() => { if (recipes.data) writeListView({ order: sections.flatMap((s) => s.items.map((r) => r.id)) }) }, [sections, recipes.data])
+  // スクロール位置を覚えて、戻ってきたら同じ場所から
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current || !recipes.data || !genres.data) return
+    restored.current = true
+    const y = readListView().scrollY
+    if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y))
+  }, [recipes.data, genres.data])
+  useEffect(() => {
+    let raf = 0
+    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (restored.current) writeListView({ scrollY: window.scrollY }) }) }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
+  }, [])
 
   const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
   const total = reps.length

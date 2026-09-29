@@ -319,3 +319,25 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
   await expect.poll(() => writes.length).toBe(2)
   expect(writes[1]).toMatchObject({ method: 'POST', body: { name: 'デザート', emoji: '' } })
 })
+
+test('recipes: the list keeps its tab after opening a recipe, and the detail page steps to the next one', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/recipes')
+  const tabs = page.getByRole('tablist', { name: 'レシピの種類' })
+  await tabs.getByRole('tab', { name: /未分類/ }).click()
+  await page.getByText('ハンドドリップ 深煎り').click()
+  await page.getByRole('radio', { name: /お店のメニュー/ }).click()
+  await page.goBack()
+  // 戻っても未分類のまま
+  await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /未分類/ })).toHaveAttribute('aria-selected', 'true')
+
+  await page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ }).click()
+  await page.locator('main a[href*="#/recipes/"]').first().click()
+  await expect(page.getByText(/「すべて」の 1 \/ 3/)).toBeVisible()
+  const first = await page.locator('h1').first().textContent()
+  await page.getByRole('button', { name: '次へ →' }).click()
+  await expect(page.getByText(/「すべて」の 2 \/ 3/)).toBeVisible()
+  await expect(page.locator('h1').first()).not.toHaveText(first ?? '')
+  await page.getByRole('button', { name: '戻る' }).first().click()
+  await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ })).toHaveAttribute('aria-selected', 'true')
+})

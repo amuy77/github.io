@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { PageHeader, EmptyState, Skeleton, SectionTitle } from '@/components/ui/Page'
 import { Button, IconButton } from '@/components/ui/Button'
@@ -23,6 +23,7 @@ import { useDeleteRecipe, useRecipe, useRecipes, useSetMain, useUpdateRecipe } f
 import { familyOf, latestOf, versionName } from './family'
 import { cx } from '@/lib/cx'
 import { PurposeBadge, PurposePicker } from './purpose'
+import { PURPOSE_TAB_LABEL, readListView } from './listView'
 
 const SOURCE_LABEL = { manual: '手入力', ai_image: 'AI（写真から）', ai_text: 'AI（テキストから）', text_paste: 'テキスト貼り付け' } as const
 
@@ -42,6 +43,16 @@ export function RecipeDetailPage() {
   const r = recipe.data
   const sourceClip = useClip(r?.source_clip_id ?? undefined)
   const fam = useMemo(() => (r ? familyOf(all.data ?? [r], r) : []), [all.data, r])
+  // 「次へ」で別のレシピに移ったら上から見せる
+  useEffect(() => { window.scrollTo(0, 0) }, [id])
+  // 図鑑で並んでいた順の前後（仕分けを続けやすいように）
+  const around = useMemo(() => {
+    const view = readListView()
+    const i = r ? view.order.indexOf(r.id) : -1
+    if (i < 0) return null
+    const exists = (id: string | undefined) => !!id && (all.data ?? []).some((x) => x.id === id)
+    return { index: i, total: view.order.length, tab: PURPOSE_TAB_LABEL[view.purpose ?? 'all'], prev: exists(view.order[i - 1]) ? view.order[i - 1] : null, next: exists(view.order[i + 1]) ? view.order[i + 1] : null }
+  }, [r, all.data])
 
   if (recipe.isLoading) return <><PageHeader title="レシピ" back={paths.recipes} /><Skeleton className="aspect-[4/3]" /></>
   if (!r) return <><PageHeader title="レシピ" back={paths.recipes} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
@@ -57,6 +68,13 @@ export function RecipeDetailPage() {
           <IconButton label="編集" onClick={() => nav(paths.recipeEdit(r.id))}><IconEdit /></IconButton>
         </>} />
       <div className="flex flex-col gap-4">
+        {around && around.total > 1 && (
+          <div className="flex items-center gap-2 rounded-card border border-line bg-paper px-2 py-1.5 text-[13px] shadow-card">
+            <Button variant="ghost" size="sm" disabled={!around.prev} onClick={() => around.prev && nav(paths.recipe(around.prev), { replace: true })}>← 前</Button>
+            <span className="flex-1 text-center font-bold text-espresso-700">「{around.tab}」の {around.index + 1} / {around.total}</span>
+            <Button variant={around.next ? 'primary' : 'ghost'} size="sm" disabled={!around.next} onClick={() => around.next && nav(paths.recipe(around.next), { replace: true })}>次へ →</Button>
+          </div>
+        )}
         {r.status === 'draft' && (
           <div className="flex items-center gap-3 rounded-card border border-mustard-300 bg-mustard-300/20 p-3 text-sm">
             <span className="text-xl" aria-hidden>📬</span>
