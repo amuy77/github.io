@@ -4,13 +4,6 @@ import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
 /** アイコンに選べる絵文字 */
 export const GENRE_EMOJI_CHOICES = ['🥪', '🥐', '🥖', '🍞', '🥯', '🌯', '🍔', '🌭', '🥗', '🥣', '🍰', '🍪', '🧁', '🍩', '☕', '🍵', '🥤', '🧃', '🍹', '🍸', '🍷', '🍺', '🥛', '🍋', '🍓', '🥑', '🧀', '🥓', '🍳', '🍽️']
 
-export const GENRE_COLORS: { value: GenreColor; label: string; swatch: string }[] = [
-  { value: 'green', label: 'グリーン', swatch: 'bg-green-600' },
-  { value: 'mustard', label: 'マスタード', swatch: 'bg-mustard-400' },
-  { value: 'brick', label: 'ブリック', swatch: 'bg-brick-500' },
-  { value: 'plum', label: 'プラム', swatch: 'bg-plum-400' },
-  { value: 'wood', label: 'ウッド', swatch: 'bg-wood-300' },
-]
 
 export const GENRE_EMOJI: Record<string, string> = { 'コーヒー': '☕', 'アメリカンサンド': '🥪', 'クロワッサンサンド': '🥐', 'ベバレッジ': '🥤', 'ドリンク': '🥤', 'デザート': '🍰', 'スープ': '🥣', 'サラダ': '🥗' }
 /** ジャンルのアイコン。選んだ絵文字があればそれ、無ければ名前から自動 */

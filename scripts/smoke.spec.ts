@@ -314,10 +314,11 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
   const edit = page.getByRole('dialog', { name: 'ジャンルを編集' })
   await edit.getByLabel('ジャンル名').fill('コーヒー・ティー')
   await edit.getByRole('radio', { name: '🍵' }).click()
+  await edit.getByRole('radio', { name: 'セージ' }).click()
   await page.screenshot({ path: `screenshots/${info.project.name}-genre-edit.png` })
   await edit.getByRole('button', { name: '保存する' }).click()
   await expect.poll(() => writes.length).toBe(1)
-  expect(writes[0]).toMatchObject({ method: 'PATCH', body: { name: 'コーヒー・ティー', emoji: '🍵' } })
+  expect(writes[0]).toMatchObject({ method: 'PATCH', body: { name: 'コーヒー・ティー', emoji: '🍵', color: 'sage' } })
 
   // レシピを作る画面から新しいジャンルを足す
   await page.goto('#/recipes/new')

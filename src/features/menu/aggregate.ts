@@ -1,16 +1,11 @@
-import type { GenreColor, GenreRow, RecipeRow } from '@/lib/supabase/database.types'
+import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
+import { genreColor } from '@/lib/genreColors'
 import type { MenuLogWithItems } from './api'
 import { addDays, parseIso, today } from '@/lib/dates'
 
-/** グラフ用の色（ブランド色より少し彩度高め。dataviz スキルの検証済み） */
-export const CHART_COLORS: Record<GenreColor | 'none', string> = {
-  green: '#2A8A66',
-  mustard: '#E39E2E',
-  brick: '#CC5A3B',
-  plum: '#8A6CD6',
-  wood: '#C2712A',
-  none: '#9A8F85',
-}
+/** グラフ用の色（ブランド色より少し彩度高め）。ジャンル色ごとの対応は src/lib/genreColors.ts */
+export const CHART_NONE = '#9A8F85'
+
 
 export interface GenreShare { key: string; name: string; color: string; count: number; share: number }
 export interface RecipeFreq { recipe: RecipeRow; days: number; sold: number | null; lastServed: string }
@@ -25,8 +20,8 @@ export function genreShares(logs: MenuLogWithItems[], recipes: RecipeRow[], genr
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
   const total = [...counts.values()].reduce((a, b) => a + b, 0)
-  const out: GenreShare[] = genres.filter((g) => counts.has(g.id)).map((g) => ({ key: g.id, name: g.name, color: CHART_COLORS[g.color], count: counts.get(g.id)!, share: total ? counts.get(g.id)! / total : 0 }))
-  if (counts.has('none')) out.push({ key: 'none', name: 'ジャンルなし', color: CHART_COLORS.none, count: counts.get('none')!, share: total ? counts.get('none')! / total : 0 })
+  const out: GenreShare[] = genres.filter((g) => counts.has(g.id)).map((g) => ({ key: g.id, name: g.name, color: genreColor(g.color).chart, count: counts.get(g.id)!, share: total ? counts.get(g.id)! / total : 0 }))
+  if (counts.has('none')) out.push({ key: 'none', name: 'ジャンルなし', color: CHART_NONE, count: counts.get('none')!, share: total ? counts.get('none')! / total : 0 })
   return out.sort((a, b) => b.count - a.count)
 }
 
@@ -68,5 +63,5 @@ export function dateRange(from: string, to: string): string[] {
 /** その日の「主なジャンル」の色（カレンダーのドット用） */
 export function dominantColor(log: MenuLogWithItems, recipes: RecipeRow[], genres: GenreRow[]): string {
   const shares = genreShares([log], recipes, genres)
-  return shares[0]?.color ?? CHART_COLORS.none
+  return shares[0]?.color ?? CHART_NONE
 }
