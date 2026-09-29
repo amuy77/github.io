@@ -53,7 +53,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published' && (r.purpose === 'menu' || items.has(r.id))), [recipes.data, items])
   const sections = useMemo(() => {
     const gs = genres.data ?? []
-    const out = gs.map((g) => ({ key: g.id, title: `${genreEmoji(g.name)} ${g.name}`, items: published.filter((r) => r.genre_id === g.id) })).filter((s) => s.items.length)
+    const out = gs.map((g) => ({ key: g.id, title: `${genreEmoji(g)} ${g.name}`, items: published.filter((r) => r.genre_id === g.id) })).filter((s) => s.items.length)
     const none = published.filter((r) => !r.genre_id || !gs.some((g) => g.id === r.genre_id))
     if (none.length) out.push({ key: 'none', title: '🍽️ ジャンルなし', items: none })
     return out

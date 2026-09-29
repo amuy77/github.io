@@ -20,7 +20,9 @@ export interface Insight { kind: 'praise' | 'bias' | 'popular' | 'suggestion' | 
 
 type Timestamps = { created_at: string; updated_at: string }
 
-export type GenreRow = Timestamps & { id: string; user_id: string; name: string; color: GenreColor; sort_order: number }
+export type GenreRow = Timestamps & { id: string; user_id: string; name: string; color: GenreColor; sort_order: number
+  /** アイコンの絵文字。空なら名前から自動 */
+  emoji: string }
 export type ClipRow = Timestamps & {
   id: string; user_id: string; type: ClipType; title: string; note: string; url: string | null
   images: ImageRef[]; preview: LinkPreview | null; category: ClipCategory; tags: string[]; shop_name: string | null; favorite: boolean
