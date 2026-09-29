@@ -12,6 +12,8 @@ import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
 import { useSettings } from '@/features/settings/useSettings'
 import { outfitFor, outfitInfo } from './outfit'
+import { HomeChat, TalkButton } from '@/features/home/chat/HomeChat'
+import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 
 const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
@@ -58,10 +60,11 @@ type ResidentStatus = ReturnType<ShopScene['residentStatus']>
 const BUBBLE_MAX = 240
 const pickOne = (a: string[]) => a[Math.floor(Math.random() * a.length)]
 /** 今の様子に合うセリフを 1 つ。tap はタップしたとき（お店番中はときどき今日の服の話）、それ以外はひとりごと */
-function lineFor(st: ResidentStatus, o: { tap: boolean; worried: boolean; inbox: number; outfitLine: string }): string {
+function lineFor(st: ResidentStatus, o: { tap: boolean; worried: boolean; inbox: number; outfitLine: string; answers?: number }): string {
   if (st.waking) return pickOne(WAKE_LINES)
   if (st.sleeping) return pickOne(ACTIVITY_LINES[st.activity] ?? RESIDENT_LINES.sleep)
   if (o.worried && Math.random() < (o.tap ? 1 : 0.4)) return pickOne(WORRIED_LINES)
+  if (!o.tap && o.answers && Math.random() < 0.35) return '相談の答え、届いてるよ。「話しかける」から見てね'
   if (!o.tap && o.inbox > 0 && st.activity !== 'mailbox' && Math.random() < 0.25) return '何か届いてたよ。受信トレイ見てね'
   if (st.life === 'late' && st.hour >= 22 && Math.random() < 0.3) return 'そろそろ眠くなってきた…'
   const nightish = st.life === 'late'
@@ -79,6 +82,10 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const sceneRef = useRef<ShopScene | null>(null)
   const [picked, setPicked] = useState<Exclude<Hotspot, 'resident'> | null>(null)
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
+  const answers = useUnseenAnswers().length
+  const answersRef = useRef(answers)
+  answersRef.current = answers
   // 照明の時間帯。開いたままでも 1 分ごとに見直す
   const [part, setPart] = useState(dayPart)
   const partRef = useRef(part)
@@ -137,7 +144,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       const scene = sceneRef.current
       const st = scene?.residentStatus()
       if (!scene || !st || document.hidden || pickedRef.current || bubbleRef.current || !(st.arrived || st.sleeping)) { id = window.setTimeout(speak, 4000); return }
-      say(scene, lineFor(st, { tap: false, worried: worriedRef.current, inbox: inboxRef.current, outfitLine: outfitInfo(outfitRef.current).line }), 3000)
+      say(scene, lineFor(st, { tap: false, worried: worriedRef.current, inbox: inboxRef.current, outfitLine: outfitInfo(outfitRef.current).line, answers: answersRef.current }), 3000)
       scene.holdResident(3.5)
       id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 25000 + Math.random() * 25000)
     }
@@ -204,8 +211,8 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
 
       {/* 下部: 案内シート */}
       <div className="absolute inset-x-0 bottom-0 px-4 pb-3">
-        <motion.div layout className="flex items-center gap-3 rounded-card border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
-          <span className="text-[26px]" aria-hidden>{info ? info.em : '👋'}</span>
+        <motion.div layout className="flex items-center gap-2 rounded-card sm:gap-3 border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
+          <span className={cx('text-[26px]', !info && 'hidden sm:inline')} aria-hidden>{info ? info.em : '👋'}</span>
           <div className="min-w-0 flex-1">
             <p className="font-display truncate text-[15px] font-bold">{info ? info.name : greeting()}</p>
             <p className="truncate text-xs text-muted">{info ? info.sub : part === 'night' ? 'お店は閉店。小物をタップすると各画面へ。' : '小物をタップすると各画面へ。ドラッグで少し回せるよ。'}</p>
@@ -213,10 +220,14 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
           {info ? (
             <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(info.to)}>開く →</button>
           ) : (
-            <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(paths.menuDay(today()))}>今日を記録</button>
+            <>
+              <TalkButton onClick={() => setChatOpen(true)} dot={answers > 0} />
+              <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(paths.menuDay(today()))}>今日を記録</button>
+            </>
           )}
         </motion.div>
       </div>
+      <HomeChat open={chatOpen} onClose={() => setChatOpen(false)} counts={counts} streak={streak} />
     </div>
   )
 }

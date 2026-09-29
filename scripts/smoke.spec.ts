@@ -396,3 +396,51 @@ test('clips: idea / reference tabs, and the review sheet sets purpose and favour
   await expect.poll(() => patches.length).toBe(1)
   expect(patches[0]).toMatchObject({ purpose: 'idea', favorite: true, needs_review: false })
 })
+
+test('home chat: small talk, search, inbox status, and a consult is handed to the routine', async ({ page }, info) => {
+  await stubSupabase(page, { noKey: true })
+  const sent: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/ai_jobs')) sent.push(r.postDataJSON()) })
+  await page.goto('#/')
+  await page.getByRole('button', { name: /話しかける/ }).click()
+  const chat = page.getByRole('dialog', { name: 'LaRa と話す' })
+  const box = chat.getByRole('textbox', { name: 'LaRa に話しかける' })
+  await box.fill('こんにちは')
+  await chat.getByRole('button', { name: '送る' }).click()
+  await expect(chat.getByText(/こんにちは！呼んでくれてうれしい|やっほー！何かあった？/)).toBeVisible()
+  await box.fill('BLT ある？')
+  await box.press('Enter')
+  await expect(chat.getByText('「BLT」で見つけたよ！')).toBeVisible()
+  await expect(chat.getByRole('button', { name: /BLT サンド/ }).first()).toBeVisible()
+  await chat.getByRole('button', { name: '確認待ちある？' }).click()
+  await expect(chat.getByRole('button', { name: '受信トレイを開く →' })).toBeVisible()
+  await box.fill('BLT の味をもっと良くしたい')
+  await box.press('Enter')
+  await chat.getByRole('button', { name: '預ける' }).click()
+  await expect(chat.getByText('✓ 預けました')).toBeVisible()
+  await expect.poll(() => sent.length).toBe(1)
+  const body = (Array.isArray(sent[0]) ? sent[0][0] : sent[0]) as { kind: string; payload: { question: string } }
+  expect(body.kind).toBe('consult')
+  expect(body.payload.question).toBe('BLT の味をもっと良くしたい')
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-chat.png` })
+  // リンクを押すとパネルを閉じてその画面へ
+  await chat.getByRole('button', { name: '受信トレイを開く →' }).click()
+  await expect(page).toHaveURL(/#\/inbox$/)
+})
+
+test('home chat: a finished consult answer shows up when the panel opens', async ({ page }) => {
+  await stubSupabase(page)
+  const answered = { id: 'e1000000-0000-4000-8000-0000000000c1', user_id: USER_ID, kind: 'consult', status: 'done', payload: { question: 'BLT の味をもっと良くしたい', recipe_id: null, compare_with_id: null }, result: { answer: 'ベーコンを厚切りにして、黒胡椒を効かせてみて！' }, error: null, attempts: 1, started_at: ts(0), finished_at: ts(0), created_at: ts(0) }
+  await page.route(`https://${REF}.supabase.co/rest/v1/ai_jobs**`, (route) => route.request().method() === 'GET'
+    ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-0/1', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify([answered]) })
+    : route.fallback())
+  await page.goto('#/')
+  await page.getByRole('button', { name: /話しかける/ }).click()
+  const chat = page.getByRole('dialog', { name: 'LaRa と話す' })
+  await expect(chat.getByText(/この前の相談の答えだよ！/)).toBeVisible()
+  await expect(chat.getByText(/黒胡椒を効かせてみて/)).toBeVisible()
+  // 一度見せたら、閉じて開き直しても重ならない
+  await chat.getByRole('button', { name: '閉じる' }).click()
+  await page.getByRole('button', { name: /話しかける/ }).click()
+  await expect(page.getByRole('dialog', { name: 'LaRa と話す' }).getByText(/この前の相談の答えだよ！/)).toHaveCount(1)
+})
