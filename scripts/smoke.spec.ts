@@ -143,6 +143,31 @@ test('3D home: tapping each piece of furniture opens its card', async ({ page },
   await page.screenshot({ path: `screenshots/${info.project.name}-home-tap.png` })
 })
 
+test('3D home: LaRa keeps her daily schedule and never gets stuck', async ({ page }) => {
+  type W = { __lara: {
+    debugState(): { figure: boolean; state: string; life: string; forced: string | null; counts: { inbox: number } }
+    debugSetHour(h: number | null): void; debugGoto(a: string | null): void; debugNext(): void; setCounts(c: { inbox: number }): void
+  } }
+  const state = () => page.evaluate(() => (window as unknown as W).__lara.debugState())
+  await stubSupabase(page)
+  await page.goto('#/')
+  await page.waitForFunction(() => (window as unknown as Partial<W>).__lara?.debugState().figure, null, { timeout: 20_000 })
+  // 夜 9 時半は照明は夜でも起きている（夜ふかし）、夜中の 1 時は寝ている
+  await page.evaluate(() => (window as unknown as W).__lara.debugSetHour(21.5))
+  const late = await state()
+  expect(late.life).toBe('late')
+  expect(late.forced).not.toBe('sleep')
+  await page.evaluate(() => (window as unknown as W).__lara.debugSetHour(1))
+  expect(await state()).toMatchObject({ life: 'sleep', forced: 'sleep', state: 'sleep' })
+  // 昼: 郵便受けで知らせた後は郵便受けに縛られず次の行動を選べる。新しい未読が届くとまた郵便受けへ
+  await page.evaluate(() => { const l = (window as unknown as W).__lara; l.debugSetHour(14); l.debugGoto('mailbox') })
+  expect((await state()).forced).toBeNull()
+  await page.evaluate(() => (window as unknown as W).__lara.debugNext())
+  expect((await state()).state).not.toBe('mailbox')
+  const again = await page.evaluate(() => { const l = (window as unknown as W).__lara; l.setCounts({ inbox: l.debugState().counts.inbox + 1 }); return l.debugState() })
+  expect(again).toMatchObject({ forced: 'mailbox', state: 'mailbox' })
+})
+
 test('home: settings button opens settings', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/')
