@@ -11,6 +11,8 @@ export interface ShopSceneOptions {
   /** 郵便受けの上に重ねる HTML バッジ（位置はシーンが毎フレーム更新） */
   badgeEl?: HTMLElement | null
   reducedMotion?: boolean
+  /** LaRa に何か起きたとき（くしゃみ・つまずく・寝落ちから起きる・本を見つける・カモメ・流れ星・あくび）。吹き出しでひとこと言わせるのに使う */
+  onSay?: (event: ResidentEvent) => void
   /** ブランド素材（無ければ文字看板だけ） */
   assets?: { wordmark?: string; poster?: string }
 }
@@ -47,6 +49,9 @@ function makeRand(seed: number) {
 /** 住人の行動。sleep（夜 11 時〜朝 6 時）と mailbox（新しい未読が届いたとき）は優先。それ以外は時間帯ごとに気ままに選ぶ */
 export type ResidentActivity = 'counter' | 'machine' | 'mailbox' | 'sleep' | 'window' | 'water' | 'waterBanana' | 'read' | 'rest' | 'sweep'
   | 'wipe' | 'chalkboard' | 'shelf' | 'dance' | 'nap'
+  | 'daze' | 'snack' | 'roll' | 'ukulele' | 'plantTalk' | 'chase' | 'peek' | 'perch' | 'wander'
+/** 吹き出しでひとこと言うきっかけになる出来事 */
+export type ResidentEvent = 'sneeze' | 'trip' | 'doze' | 'foundBook' | 'gull' | 'star' | 'yawn'
 /**
  * LaRa の 1 日。照明の時間帯（DayPart: 夜 8 時から暗い）とは別に時刻で決める。
  * 夜ふかし（late: 夜 8〜11 時）は照明は夜でも起きていて、閉店の片付けや月を眺めて過ごす
@@ -74,41 +79,58 @@ const NODES: Record<string, [number, number, number]> = {
   A: [1.15, 0, -0.35], C: [-2.7, 0, -0.2], FL: [-2.0, 0, 1.1], FM: [-0.6, 0, 1.1], B: [1.4, 0, 1.15], W: [2.05, 0, -1.65],
   sleep: [2.05, 0.36, -2.2], window: [2.35, 0, -1.72], mailbox: [1.9, 0, 1.55],
   water: [-1.85, 0, 1.35], waterBanana: [1.3, 0, -1.8], read: [-0.07, 0.37, 1.72], rest: [0.85, 0.37, 2.22], sweep: [1.05, 0, 0.98],
-  K: [1.25, 0, -1.35], chalkboard: [0.2, 0.4, -2.12], shelf: [-2.66, 0, -0.35], dance: [-1.05, 0, 1.3],
+  K: [1.25, 0, -1.35], chalkboard: [0.2, 0.4, -2.12], shelf: [-2.66, 0, -0.35], dance: [-1.05, 0, 1.3], roll: [-0.72, 0, 1.62],
 }
 /** 通り道のつながり（家具を突き抜けないように置いた線） */
 const EDGES: [string, string][] = [
   ['counter', 'machine'], ['counter', 'PR'], ['machine', 'PL'], ['PR', 'A'], ['PL', 'C'],
   ['A', 'B'], ['A', 'W'], ['A', 'waterBanana'], ['W', 'waterBanana'], ['W', 'window'], ['W', 'sleep'], ['A', 'sweep'], ['FM', 'sweep'],
   ['B', 'mailbox'], ['B', 'sweep'], ['B', 'rest'], ['B', 'FM'], ['FM', 'FL'], ['FM', 'read'], ['C', 'FL'], ['FL', 'water'],
-  ['A', 'K'], ['K', 'chalkboard'], ['C', 'shelf'], ['FM', 'dance'], ['FL', 'dance'],
+  ['A', 'K'], ['K', 'chalkboard'], ['C', 'shelf'], ['FM', 'dance'], ['FL', 'dance'], ['FM', 'roll'], ['dance', 'roll'],
 ]
 /** 行動ごとの場所・向き・仕草・小物・気持ちマーク・いる時間・合間の仕草 */
 const SPOTS: Record<ResidentActivity, Spot> = {
-  counter: { node: 'counter', face: 'camera', gestures: ['stretch', 'lookaround', 'hop'] },
-  machine: { node: 'machine', face: -0.55, brewing: true, gestures: ['lookaround'] },
+  counter: { node: 'counter', face: 'camera', gestures: ['stretch', 'lookaround', 'hop', 'scratch', 'daze'] },
+  machine: { node: 'machine', face: -0.55, brewing: true, gestures: ['lookaround', 'scratch'] },
   mailbox: { node: 'mailbox', face: 'camera', waving: true, emote: '!', stay: [8, 11] },
   sleep: { node: 'sleep', face: 'camera', sleeping: true, emote: 'z' },
-  window: { node: 'window', face: Math.PI, pose: 'gaze', emote: '♪', gestures: ['stretch', 'lookaround', 'hop'] },
+  window: { node: 'window', face: Math.PI, pose: 'gaze', emote: '♪', gestures: ['stretch', 'lookaround', 'hop', 'daze'] },
   water: { node: 'water', face: -0.98, pose: 'water', prop: 'watering', emote: '♪', gestures: ['lookaround'] },
   waterBanana: { node: 'waterBanana', face: -2.47, pose: 'water', prop: 'watering', gestures: ['lookaround'] },
   read: { node: 'read', face: 1.76, pose: 'read', prop: 'book', emote: '!', stay: [25, 40] },
   rest: { node: 'rest', face: 'camera', pose: 'rest', prop: 'cup', emote: '♡', stay: [25, 40] },
-  sweep: { node: 'sweep', face: 'camera', pose: 'sweep', prop: 'broom', emote: '♪', gestures: ['lookaround', 'stretch'] },
+  sweep: { node: 'sweep', face: 'camera', pose: 'sweep', prop: 'broom', emote: '♪', gestures: ['lookaround', 'stretch', 'scratch'] },
   wipe: { node: 'counter', face: 'camera', pose: 'wipe', prop: 'cloth', emote: '♪', gestures: ['lookaround'] },
   chalkboard: { node: 'chalkboard', face: Math.PI, pose: 'write', prop: 'chalk', stay: [15, 25], gestures: ['lookaround'] },
   // 本棚で本を探して、見つけたらスツールへ持っていって読む
   shelf: { node: 'shelf', face: -Math.PI / 2, pose: 'browse', stay: [5, 6], then: { after: 2.5, pose: 'peruse', prop: 'book', emote: '!' }, next: 'read' },
   dance: { node: 'dance', face: 'camera', pose: 'dance', emote: '♪', stay: [9, 13] },
   nap: { node: 'sleep', face: 'camera', sleeping: true, emote: 'z', stay: [35, 50] },
+  // お店の真ん中でただぼーっと / カウンターのサンドイッチをつまみ食い / 床でごろごろ / ベンチでウクレレ
+  daze: { node: 'FM', face: 'camera', pose: 'daze', emote: '…', stay: [8, 14], gestures: ['scratch', 'lookaround'] },
+  snack: { node: 'counter', face: 'camera', pose: 'eat', prop: 'snack', emote: '♡', stay: [7, 10] },
+  roll: { node: 'roll', face: Math.PI / 2, pose: 'lie', emote: '♪', stay: [8, 12] },
+  ukulele: { node: 'sleep', face: 'camera', pose: 'strum', prop: 'ukulele', emote: '♪', stay: [14, 22] },
+  // しゃがんでモンステラに話しかける / しっぽを追いかけてくるくる / からっぽの郵便受けをのぞく / スツールで足ぶらぶら
+  plantTalk: { node: 'water', face: -0.98, pose: 'crouch', emote: '♡', stay: [8, 12] },
+  chase: { node: 'dance', face: 'camera', pose: 'chase', emote: '!', stay: [4, 6] },
+  peek: { node: 'mailbox', face: Math.PI / 2, pose: 'peek', emote: '…', stay: [5, 7] },
+  perch: { node: 'read', face: 1.76, pose: 'swing', stay: [12, 20] },
+  // ふらふら散歩: 行き先はその都度、通り道の点から気まぐれに選ぶ（WANDER）
+  wander: { node: 'FM', face: 'camera', pose: 'lookaround', stay: [3, 6] },
 }
+/** ふらふら散歩で立ち寄る点 */
+const WANDER = ['FM', 'B', 'A', 'FL', 'W', 'dance', 'K', 'sweep', 'C']
 /** 1 日の区分ごとの行動の選ばれやすさ（寝る時間は寝るだけ） */
 const PLAN: Record<LifePart, [ResidentActivity, number][]> = {
-  morning: [['machine', 4], ['counter', 2], ['wipe', 2], ['water', 2], ['waterBanana', 1], ['sweep', 2], ['window', 1], ['chalkboard', 2], ['dance', 1]],
-  day: [['counter', 3], ['wipe', 1], ['machine', 1], ['window', 2], ['water', 1], ['waterBanana', 1], ['read', 2], ['rest', 2], ['sweep', 1], ['shelf', 2], ['dance', 2], ['nap', 1], ['chalkboard', 1]],
-  evening: [['counter', 2], ['wipe', 2], ['window', 3], ['read', 2], ['rest', 2], ['machine', 1], ['shelf', 1], ['dance', 1], ['chalkboard', 1]],
-  // 夜ふかし: 閉店の片付け、明日のメニュー、月を眺める、読書、ホットミルク
-  late: [['wipe', 3], ['sweep', 2], ['chalkboard', 2], ['window', 3], ['read', 2], ['rest', 2], ['shelf', 1]],
+  morning: [['machine', 4], ['counter', 2], ['wipe', 2], ['water', 2], ['waterBanana', 1], ['sweep', 2], ['window', 1], ['chalkboard', 2], ['dance', 1],
+    ['daze', 1], ['snack', 1], ['plantTalk', 1], ['perch', 1], ['wander', 1]],
+  day: [['counter', 3], ['wipe', 1], ['machine', 1], ['window', 2], ['water', 1], ['waterBanana', 1], ['read', 2], ['rest', 2], ['sweep', 1], ['shelf', 2], ['dance', 2], ['nap', 1], ['chalkboard', 1],
+    ['daze', 2], ['snack', 2], ['roll', 1], ['ukulele', 2], ['plantTalk', 1], ['chase', 1], ['peek', 1], ['perch', 2], ['wander', 2]],
+  evening: [['counter', 2], ['wipe', 2], ['window', 3], ['read', 2], ['rest', 2], ['machine', 1], ['shelf', 1], ['dance', 1], ['chalkboard', 1],
+    ['daze', 1], ['snack', 2], ['ukulele', 2], ['perch', 1], ['wander', 1], ['chase', 1]],
+  // 夜ふかし: 閉店の片付け、明日のメニュー、月を眺める、読書、ホットミルク、ウクレレ、ぼーっと
+  late: [['wipe', 3], ['sweep', 2], ['chalkboard', 2], ['window', 3], ['read', 2], ['rest', 2], ['shelf', 1], ['daze', 2], ['ukulele', 2], ['snack', 1], ['perch', 1]],
   sleep: [['sleep', 1]],
 }
 const nodeDist = (a: string, b: string) => Math.hypot(NODES[a][0] - NODES[b][0], NODES[a][1] - NODES[b][1], NODES[a][2] - NODES[b][2])
@@ -202,6 +224,10 @@ export class ShopScene {
   /** 曲がり角で立ち止まってきょろきょろする時刻まで / 今の道のりはスキップで歩くか */
   private pauseUntil = 0
   private skip = false
+  /** 今向かっている（着いた）通り道の点。ふらふら散歩は行き先がその都度変わるので SPOTS とは別に持つ */
+  private targetNode = 'counter'
+  /** ベンチに立てかけてあるウクレレ（弾いている間は隠す） */
+  private ukeDecor: THREE.Object3D | null = null
   /** 郵便受けで知らせ終わった未読の数（これより増えたら郵便受けへ行く） */
   private mailSeen = 0
   /** 確認用に時刻を固定する（null なら今の時刻） */
@@ -351,7 +377,8 @@ export class ShopScene {
       // 起こされた直後は眠そうに、まばたきが多い
       if (t >= this.blinkAt) { this.blinkUntil = t + (waking ? 0.5 : 0.14); this.blinkAt = t + (waking ? 0.8 + Math.random() : 3 + Math.random() * 5) }
     }
-    const shut = this.gesture?.pose === 'stretch' || this.gesture?.pose === 'yawn'   // 伸び・あくびの間は目を閉じる
+    const g = this.gesture?.pose
+    const shut = g === 'stretch' || g === 'yawn' || g === 'doze' || g === 'sneeze'   // 伸び・あくび・寝落ち・くしゃみの間は目を閉じる
     this.figure.setExpression({ blink: !sleeping && (t < this.blinkUntil || shut), worried: this.residentMood === 'worried', sleeping })
   }
 
@@ -512,7 +539,8 @@ export class ShopScene {
     box(bench, 0.84, 0.08, 0.5, C.cushionA, -0.44, 0.46, 0.02, { rough: 1 }); box(bench, 0.84, 0.08, 0.5, C.cushionB, 0.44, 0.46, 0.02, { rough: 1 })
     box(bench, 0.34, 0.3, 0.12, C.coral, -0.72, 0.62, -0.16, { rx: -0.2, rz: 0.12, rough: 1 }); box(bench, 0.32, 0.28, 0.12, C.sea, 0.72, 0.61, -0.16, { rx: -0.2, rz: -0.1, rough: 1 })
     // ウクレレ（ベンチに立てかけ）
-    const uke = new THREE.Group(); S.add(uke); uke.position.set(3.02, 0.02, -2.02); uke.rotation.set(-0.25, -0.4, 0.12)
+    // 弾くときに手に取って隠すので、まとめない（room に直接置く）
+    const uke = new THREE.Group(); room.add(uke); uke.position.set(3.02, 0.02, -2.02); uke.rotation.set(-0.25, -0.4, 0.12); this.ukeDecor = uke
     sph(uke, 0.13, C.ukulele, 0, 0.14, 0, { seg: 10, sz: 0.35 }); sph(uke, 0.1, C.ukulele, 0, 0.32, 0, { seg: 10, sz: 0.35 })
     cyl(uke, 0.03, 0.03, 0.02, C.ink, 0, 0.19, 0.045, { rx: Math.PI / 2, seg: 10 }); box(uke, 0.05, 0.36, 0.03, C.oakD, 0, 0.58, 0)
 
@@ -1046,7 +1074,9 @@ export class ShopScene {
   /** 行動を始める: 通り道の最短経路で場所へ向かう（teleport なら瞬間移動。keepProp なら持っている小物を持ったまま歩く） */
   private goTo(act: ResidentActivity, teleport = false, keepProp = false) {
     if (!this.resident) return
-    const target = SPOTS[act].node
+    const target = act === 'wander' ? this.wanderNode() : SPOTS[act].node
+    this.targetNode = target
+    if (this.ukeDecor) this.ukeDecor.visible = true
     this.residentState = act; this.arrivedAt = -1; this.gesture = null; this.react = null; this.pauseUntil = 0
     this.skip = !teleport && !this.opts.reducedMotion && Math.random() < 0.15
     if (!keepProp) this.figure?.setProp('none')
@@ -1069,10 +1099,18 @@ export class ShopScene {
     this.residentTarget.copy(this.residentPath[0])
     this.needsRender = true
   }
+  /** ふらふら散歩の行き先: 今いる点以外から気まぐれに */
+  private wanderNode() {
+    const opts = WANDER.filter((n) => n !== this.residentAt)
+    return opts[Math.floor(Math.random() * opts.length)]
+  }
+  /** 出来事を知らせて、ひとこと言わせる */
+  private emitSay(e: ResidentEvent) { this.opts.onSay?.(e) }
   /** 場所に着いたとき: 小物を持ち、気持ちマークを出し、次の行動・次の小さな仕草までの時間を決める */
   private arrive(t: number) {
     this.arrivedAt = t; this.phase2 = false
     const spot = SPOTS[this.residentState]
+    if (this.residentState === 'ukulele' && this.ukeDecor) this.ukeDecor.visible = false   // 立てかけてあったのを手に取る
     if (this.residentState === 'mailbox') this.mailSeen = Math.max(this.mailSeen, this.counts.inbox)
     this.figure?.setProp(spot.prop ?? 'none')
     // 夜の窓辺では月と星を眺めて ☆
@@ -1089,6 +1127,7 @@ export class ShopScene {
     const add = (a: ResidentActivity, n: number) => w.set(a, (w.get(a) ?? 0) + n)
     if (this.counts.inbox > 0) add('mailbox', 2)
     if (this.residentMood === 'worried') { add('counter', 3); add('chalkboard', 2) }
+    if (this.counts.inbox > 0) w.delete('peek')   // 何か届いているときは「からっぽ」をのぞかない
     w.delete(this.residentState)
     const plan = [...w]
     if (!plan.length) return
@@ -1096,14 +1135,21 @@ export class ShopScene {
     for (const [a, n] of plan) { r -= n; if (r <= 0) { this.goTo(a); return } }
     this.goTo(plan[plan.length - 1][0])
   }
-  /** 着いてから 4〜8 秒ごとの小さな仕草: 場所ごとの候補から 1 つ（夜ふかしの遅い時間ほどあくび）。踊っているときはくるっと回る。候補が無い場所ではときどき鼻歌 ♪ */
+  /**
+   * 着いてから 4〜8 秒ごとの小さな仕草: 場所ごとの候補から 1 つ。夜ふかしの遅い時間ほどあくび、昼下がりと夜はカウンターで立ったまま寝落ち、
+   * ときどきくしゃみ。踊っているときはくるっと回る。候補が無い場所ではときどき鼻歌 ♪
+   */
   private idleGesture(t: number, spot: Spot) {
     this.nextGesture = t + 4 + Math.random() * 4
     if (this.residentState === 'dance') { this.figure?.spin(); this.showEmote('♪'); return }
-    const h = this.hourNow()
-    const sleepy = lifePart(h) === 'late' && Math.random() < (h - 21) / 4   // 9 時過ぎから、11 時に近いほどあくび
+    if (spot.sleeping) return
+    const h = this.hourNow(), life = lifePart(h)
+    const standing = !spot.pose || ['gaze', 'daze', 'lookaround', 'water', 'sweep', 'wipe'].includes(spot.pose)
+    const sleepy = life === 'late' && Math.random() < (h - 21) / 4   // 9 時過ぎから、11 時に近いほどあくび
     const pool = spot.gestures ?? []
-    if (sleepy && !spot.sleeping) { this.gesture = { pose: 'yawn', until: t + 2.4 }; this.showEmote('…'); return }
+    if (sleepy) { this.gesture = { pose: 'yawn', until: t + 2.4 }; this.showEmote('…'); if (Math.random() < 0.3) this.emitSay('yawn'); return }
+    if (this.residentState === 'counter' && ((h >= 13 && h < 16) || life === 'late') && Math.random() < 0.2) { this.gesture = { pose: 'doze', until: t + 4 }; return }
+    if (standing && Math.random() < 0.05) { this.gesture = { pose: 'sneeze', until: t + 1.2 }; this.showEmote('!'); this.emitSay('sneeze'); return }
     if (pool.length && Math.random() < 0.8) {
       const g = pool[Math.floor(Math.random() * pool.length)]
       this.gesture = { pose: g, until: t + 2.4 }
@@ -1115,7 +1161,8 @@ export class ShopScene {
     if (this.listening) { this.residentReply('happy'); return }
     const t = this.lastT, spot = SPOTS[this.residentState], walking = this.arrivedAt < 0
     if (!walking && spot.sleeping) { this.react = { pose: 'wake', until: t + 4 }; this.showEmote('…'); this.holdResident(6); return }
-    if (!walking && (spot.pose === 'read' || spot.pose === 'rest')) { this.showEmote('♡'); return }
+    // 座っている・寝ころんでいるときは、その姿勢のまま気持ちマークだけ
+    if (!walking && spot.pose && ['read', 'rest', 'strum', 'swing', 'lie', 'crouch'].includes(spot.pose)) { this.showEmote(spot.pose === 'lie' ? '♪' : '♡'); return }
     const r = Math.random()
     if (walking || r < 0.4) this.figure?.spin()
     else if (r < 0.65) { this.react = { pose: 'hop', until: t + 1.4 }; this.showEmote('♪') }
@@ -1279,21 +1326,28 @@ export class ShopScene {
           this.residentPath.shift()
           this.residentTarget.copy(this.residentPath[0])
           walking = true
-          // 曲がり角でときどき立ち止まって、きょろきょろ
-          if (!this.opts.reducedMotion && Math.random() < 0.2) this.pauseUntil = t + 1.2 + Math.random() * 0.8
+          // 曲がり角でときどき立ち止まって、きょろきょろ。まれにつまずく
+          const r = this.opts.reducedMotion ? 1 : Math.random()
+          if (r < 0.04) { this.pauseUntil = t + 1.5; this.react = { pose: 'trip', until: t + 0.8 }; this.showEmote('!'); this.emitSay('trip') }
+          else if (r < 0.22) this.pauseUntil = t + 1.2 + Math.random() * 0.8
         }
       }
       const spot = SPOTS[this.residentState]
       const arrived = !walking && !paused
-      if (arrived && this.arrivedAt < 0) { this.residentAt = spot.node; this.arrive(t) }
+      if (arrived && this.arrivedAt < 0) { this.residentAt = this.targetNode; this.arrive(t) }
       const free = !this.forcedActivity() && !this.opts.reducedMotion
       if (arrived) {
         facing = spot.face === 'camera' ? this.yaw : spot.face
-        if (this.gesture && t > this.gesture.until) this.gesture = null
+        if (this.gesture && t > this.gesture.until) {
+          // 立ったまま寝落ちしかけたら、はっと起きる
+          if (this.gesture.pose === 'doze') { this.react = { pose: 'hop', until: t + 1 }; this.showEmote('!'); this.emitSay('doze') }
+          this.gesture = null
+        }
         if (spot.then && !this.phase2 && t - this.arrivedAt > spot.then.after) {
           this.phase2 = true
           if (spot.then.prop) this.figure.setProp(spot.then.prop)
           if (spot.then.emote) this.showEmote(spot.then.emote)
+          if (this.residentState === 'shelf') this.emitSay('foundBook')
         }
         if (free && !this.gesture && !this.react && t > this.nextGesture) this.idleGesture(t, spot)
         if (spot.sleeping && !this.opts.reducedMotion && !this.react) {
@@ -1303,15 +1357,19 @@ export class ShopScene {
         // 窓辺にいるときにカモメが横切ったら手を振る。夜に流れ星が流れたら ☆
         if (this.residentState === 'window' && !this.flyWaved) {
           const since = t - this.flyAt
-          if (this.mode !== 'night' && since > 1.5 && since < 5) { this.flyWaved = true; this.react = { pose: 'stand', waving: true, until: t + 2 }; this.showEmote('!') }
-          else if (this.mode === 'night' && since > 0.2 && since < 1.5) { this.flyWaved = true; this.react = { pose: 'hop', until: t + 1.4 }; this.showEmote('☆') }
+          if (this.mode !== 'night' && since > 1.5 && since < 5) { this.flyWaved = true; this.react = { pose: 'stand', waving: true, until: t + 2 }; this.showEmote('!'); this.emitSay('gull') }
+          else if (this.mode === 'night' && since > 0.2 && since < 1.5) { this.flyWaved = true; this.react = { pose: 'hop', until: t + 1.4 }; this.showEmote('☆'); this.emitSay('star') }
         }
-        if (free && t > this.nextSwitch) { if (spot.next) this.goTo(spot.next, false, true); else this.pickNext() }
+        if (free && t > this.nextSwitch) {
+          if (spot.next) this.goTo(spot.next, false, true)
+          else if (this.residentState === 'wander' && Math.random() < 0.5) this.goTo('wander')   // ふらふら、もう一か所
+          else this.pickNext()
+        }
       }
       if (this.react && t > this.react.until) this.react = null
       const waking = this.react?.pose === 'wake'
       const spotPose = this.phase2 && spot.then ? spot.then.pose : spot.pose
-      const pose = paused ? 'lookaround' : arrived ? this.react?.pose ?? this.gesture?.pose ?? spotPose : undefined
+      const pose = paused ? this.react?.pose ?? 'lookaround' : arrived ? this.react?.pose ?? this.gesture?.pose ?? spotPose : undefined
       this.figure.update(t, dt, {
         walking, facing, reduced: !!this.opts.reducedMotion, pose, skip: walking && this.skip, sleepSide: this.sleepSide,
         waving: arrived && (!!spot.waving || !!this.react?.waving), brewing: arrived && !!spot.brewing && !this.react, sleeping: arrived && !!spot.sleeping && !waking,

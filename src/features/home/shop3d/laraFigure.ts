@@ -13,15 +13,19 @@ import type { LaraOutfit } from './outfit'
 
 export type { LaraOutfit }
 /** 手に持つ小物 */
-export type LaraProp = 'none' | 'cup' | 'watering' | 'book' | 'broom' | 'cloth' | 'chalk'
+export type LaraProp = 'none' | 'cup' | 'watering' | 'book' | 'broom' | 'cloth' | 'chalk' | 'snack' | 'ukulele'
 /**
  * 止まっているときの仕草。stand: ふつう / sit: 座る / read: 座って本を読む / rest: 座ってコーヒー /
  * water: じょうろで水やり / sweep: ほうきで掃く / gaze: 窓の外を眺める / stretch: 伸び / lookaround: きょろきょろ / hop: 小さく跳ねる /
  * wipe: 布巾でカウンターを拭く / write: 黒板にチョークで書く / browse: 本棚の上の段へ手を伸ばす / peruse: 立って本を読む /
- * dance: 鼻歌で踊る / wake: 座ったまま目をこする（起こされたとき） / yawn: あくび
+ * dance: 鼻歌で踊る / wake: 座ったまま目をこする（起こされたとき） / yawn: あくび /
+ * daze: ぼーっとする / eat: つまみ食い / lie: 床に寝ころんでごろごろ / strum: 座ってウクレレ / crouch: しゃがんで植物に話しかける /
+ * chase: しっぽを追いかけてくるくる / doze: 立ったまま寝落ちしかける / sneeze: くしゃみ / trip: つまずく / peek: のぞきこむ /
+ * swing: 座って足をぶらぶら / scratch: 頭をかく
  */
 export type LaraPose = 'stand' | 'sit' | 'read' | 'rest' | 'water' | 'sweep' | 'gaze' | 'stretch' | 'lookaround' | 'hop'
   | 'wipe' | 'write' | 'browse' | 'peruse' | 'dance' | 'wake' | 'yawn'
+  | 'daze' | 'eat' | 'lie' | 'strum' | 'crouch' | 'chase' | 'doze' | 'sneeze' | 'trip' | 'peek' | 'swing' | 'scratch'
 export interface LaraExpression { blink?: boolean; worried?: boolean; sleeping?: boolean }
 export interface LaraMotion {
   /** 歩行中（体の揺れ・腕振り・足踏み） */
@@ -68,6 +72,8 @@ const COL = {
   mug: 0xfdf8f0, coral: 0xf08a6b, mint: 0x9fd4c7, oak: 0xb08d63, straw: 0xe3c27a, page: 0xfff8ea,
   // かぼちゃ（ハロウィン）
   pumpkin: 0xf7922f, pumpkinD: 0xd96a1c, stem: 0x7f9a3f, stemD: 0x5c7a2c,
+  // ウクレレ（お店のベンチに立てかけてあるのと同じ色）
+  uke: 0xd39a5c,
   // ベイマックス: 少し青みの白、ひじ・ひざの薄いグレー、額と胸の「●—●」の黒
   snow: 0xfdfdff, snowGray: 0xd8dde6, dot: 0x26272b,
 }
@@ -223,8 +229,10 @@ export function buildLaraFigure(): LaraFigure {
   // 小物は腕の角度に関係なく体に対してまっすぐ立て、持ち方の傾きだけ仕草ごとに付ける（update の orientProp）
   const handArm = arms.find((a) => a.side > 0)!
   const propG = new THREE.Group(); propG.position.set(0, -0.3, 0.02); handArm.tilt.add(propG)
-  const props: Record<Exclude<LaraProp, 'none'>, THREE.Group> = { cup: new THREE.Group(), watering: new THREE.Group(), book: new THREE.Group(), broom: new THREE.Group(), cloth: new THREE.Group(), chalk: new THREE.Group() }
+  const props: Record<Exclude<LaraProp, 'none'>, THREE.Group> = { cup: new THREE.Group(), watering: new THREE.Group(), book: new THREE.Group(), broom: new THREE.Group(), cloth: new THREE.Group(), chalk: new THREE.Group(), snack: new THREE.Group(), ukulele: new THREE.Group() }
   for (const g of Object.values(props)) { g.visible = false; propG.add(g) }
+  // ウクレレだけは手ではなく胸の前に抱える（弾く手が動いても楽器は動かない）
+  const lap = new THREE.Group(); lap.position.set(0.01, 0.31, 0.2); lap.rotation.set(-0.15, 0, 0.95); root.add(lap); lap.add(props.ukulele)
   {
     // マグカップ（コーラルの帯）
     const c = props.cup
@@ -248,6 +256,16 @@ export function buildLaraFigure(): LaraFigure {
     solid(new THREE.BoxGeometry(0.11, 0.022, 0.08), COL.mint, props.cloth, { line: 0.006 }).position.set(0, -0.01, 0.03)
     // チョーク（白い短い棒）
     const ch = solid(new THREE.CylinderGeometry(0.011, 0.011, 0.07, 6), COL.page, props.chalk, { line: 0.005 }); ch.position.set(0, 0.03, 0.03)
+    // つまみ食いのサンドイッチ（パン 2 枚 + レタス）
+    const sn = props.snack
+    for (const y of [0.018, -0.018]) solid(new THREE.BoxGeometry(0.08, 0.02, 0.06), COL.straw, sn, { line: 0.006 }).position.set(0, 0.04 + y, 0.04)
+    solid(new THREE.BoxGeometry(0.086, 0.012, 0.066), COL.stem, sn, { line: 0 }).position.set(0, 0.04, 0.04)
+    // ウクレレ（胴・サウンドホール・ネック）
+    const uk = props.ukulele
+    const ub = solid(new THREE.SphereGeometry(0.075, 14, 10), COL.uke, uk, { line: 0.008 }); ub.scale.set(1, 1, 0.35)
+    const ub2 = solid(new THREE.SphereGeometry(0.058, 14, 10), COL.uke, uk, { line: 0.008 }); ub2.position.y = 0.09; ub2.scale.set(1, 1, 0.35)
+    const hole = new THREE.Mesh(G(new THREE.CircleGeometry(0.018, 12)), inkMat()); hole.position.set(0, 0.03, 0.027); uk.add(hole)
+    solid(new THREE.BoxGeometry(0.028, 0.2, 0.02), COL.clothInner, uk, { line: 0.006 }).position.set(0, 0.24, 0)
   }
   let prop: LaraProp = 'none'
   // パーカーのひも: フードの下（首元）から体に沿って 2 本垂れ、先に結び目。首元に小さなちょうちょ結び
@@ -622,7 +640,7 @@ export function buildLaraFigure(): LaraFigure {
 
       const sleeping = !!m.sleeping
       const pose: LaraPose = m.pose ?? 'stand'
-      const seated = sleeping || pose === 'sit' || pose === 'read' || pose === 'rest' || pose === 'wake'
+      const seated = sleeping || pose === 'sit' || pose === 'read' || pose === 'rest' || pose === 'wake' || pose === 'strum' || pose === 'swing'
       // 腕: tilt.rotation.z = side × 角度 で外側へ（正 = 右腕が右下、負 = 左腕が左下）
       const armRest = (a: (typeof arms)[number]) => { a.tilt.rotation.z = a.side * 1.05; a.pivot.rotation.x = 0 }
       const legRest = () => { for (const l of legs) l.hip.rotation.x = seated ? -1.45 : 0 }   // 座るときは足を前へ
@@ -770,6 +788,86 @@ export function buildLaraFigure(): LaraFigure {
             for (const a of arms) { a.tilt.rotation.z = a.side * 1.9; a.pivot.rotation.x = -0.35 }
             headG.rotation.x = -0.28
             root.scale.set(1, 1.03, 1)
+            break
+          case 'daze':
+            // ぼーっと: 首をかしげたまま、ゆっくり揺れる
+            headG.rotation.set(0.06, 0, 0.24 + (reduced ? 0 : Math.sin(t * 0.7) * 0.05))
+            root.position.y = jump + (reduced ? 0 : Math.sin(t * 0.9) * 0.01)
+            wantSway = reduced ? 0 : Math.sin(t * 0.5) * 0.12
+            break
+          case 'eat': {
+            // つまみ食い: 右手を口元へ運んでもぐもぐ
+            const k = reduced ? 0 : Math.sin(t * 12)
+            handArm.pivot.rotation.x = -2.0 + k * 0.05; handArm.tilt.rotation.z = -0.3
+            headG.rotation.set(0.12 + k * 0.03, 0, 0)
+            propTilt = [-1.4, 0, 0]
+            break
+          }
+          case 'lie': {
+            // 床に仰向けで寝ころび、左右にごろごろ（体の長い軸まわりに転がる）。大きな頭が床に埋まらないよう持ち上げる
+            root.rotation.set(-1.45, reduced ? 0 : Math.sin(t * 1.6) * 0.7, 0)
+            root.position.y = 0.3
+            for (const a of arms) { a.tilt.rotation.z = a.side * 2.2; a.pivot.rotation.x = 0 }
+            wantSway = reduced ? 0 : Math.sin(t * 1.6) * 0.3
+            break
+          }
+          case 'strum': {
+            // 座ってウクレレ: 左手でネックを持ち、右手で弦をかき鳴らす
+            other.pivot.rotation.x = -1.2; other.tilt.rotation.z = 0.2
+            handArm.pivot.rotation.x = -0.95 + (reduced ? 0 : Math.sin(t * 9) * 0.14); handArm.tilt.rotation.z = -0.15
+            headG.rotation.set(0.14, 0, reduced ? 0 : Math.sin(t * 2.2) * 0.1)
+            wantSway = reduced ? 0 : Math.sin(t * 2.2) * 0.25
+            break
+          }
+          case 'crouch':
+            // しゃがんで植物をのぞきこむ
+            root.scale.set(1, 0.84, 1)
+            headG.rotation.set(0.32, 0, reduced ? 0 : Math.sin(t * 0.9) * 0.1)
+            for (const a of arms) { a.pivot.rotation.x = -0.55; a.tilt.rotation.z = a.side * 0.45 }
+            break
+          case 'chase':
+            // しっぽを追いかけてくるくる（体ごと回りながら小さく跳ねる）
+            if (!reduced) { group.rotation.y = faceY + t * 6.5; root.position.y = jump + Math.abs(Math.sin(t * 9)) * 0.05 }
+            headG.rotation.set(0.1, 0.45, 0)
+            wantSway = 0.5
+            break
+          case 'doze': {
+            // 立ったまま寝落ち: 頭がだんだん前に落ちていく（目は呼び出し側で閉じる）
+            const droop = reduced ? 0.5 : 0.5 + Math.sin(t * 0.9) * 0.5
+            headG.rotation.set(0.08 + droop * 0.38, 0, 0.08)
+            root.position.y = jump - droop * 0.01
+            for (const a of arms) { a.tilt.rotation.z = a.side * 0.75 }
+            break
+          }
+          case 'sneeze': {
+            // くしゃみ: 頭が前にがくっ
+            const k = reduced ? 0 : Math.max(0, Math.sin(t * 8)) ** 6
+            headG.rotation.x = -0.2 + k * 0.6
+            root.position.y = jump + k * 0.03
+            break
+          }
+          case 'trip':
+            // つまずいて前につんのめる
+            root.rotation.x = 0.5
+            for (const a of arms) { a.pivot.rotation.x = -1.3; a.tilt.rotation.z = a.side * 0.6 }
+            headG.rotation.x = -0.15
+            break
+          case 'peek':
+            // 前かがみで郵便受けをのぞく
+            root.rotation.x = 0.18
+            headG.rotation.set(0.25, reduced ? 0 : Math.sin(t * 1.5) * 0.3, 0)
+            break
+          case 'swing':
+            // 座って足をぶらぶら
+            legs.forEach((l, i) => { l.hip.rotation.x = -1.45 + (reduced ? 0 : Math.sin(t * 4 + i * Math.PI) * 0.35) })
+            for (const a of arms) { a.tilt.rotation.z = a.side * 0.6; a.pivot.rotation.x = -0.2 }
+            headG.rotation.set(0, 0, reduced ? 0 : Math.sin(t * 2) * 0.08)
+            wantSway = reduced ? 0 : Math.sin(t * 2) * 0.2
+            break
+          case 'scratch':
+            // 左手で頭をかく
+            other.tilt.rotation.z = other.side * 2.6; other.pivot.rotation.x = -0.3 + (reduced ? 0 : Math.sin(t * 14) * 0.08)
+            headG.rotation.set(0, 0, -0.14)
             break
           default:
             break

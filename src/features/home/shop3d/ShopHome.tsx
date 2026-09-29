@@ -4,14 +4,15 @@ import { SettingsChip } from '@/features/settings/SettingsChip'
 import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ShopScene, type Hotspot, type LifePart, type ResidentActivity } from './shopScene'
+import { ShopScene, type Hotspot } from './shopScene'
+import { eventLine, greetLine, monologue, tapLine, type Say, type VoiceCtx } from './laraVoice'
 import { paths } from '@/app/routes'
 import { dayPart, formatMD, greeting, today } from '@/lib/dates'
 import { LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
 import { IconFire } from '@/components/ui/icons'
 import { useSettings } from '@/features/settings/useSettings'
-import { outfitFor, outfitInfo } from './outfit'
+import { outfitFor } from './outfit'
 import { TalkBar, TalkBubbleBody, TalkButton } from '@/features/home/chat/LaraTalk'
 import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
@@ -24,56 +25,15 @@ const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub:
   add: { em: '📝', name: 'すぐメモ', sub: 'ひらめき・URL・写真をサッと保存', to: paths.add },
 }
 
-/** お店番（カウンター）のときのセリフ。1 日の区分ごと */
-const RESIDENT_LINES: Record<LifePart, string[]> = {
-  morning: ['おはよう！今日のコーヒー、いい香り。', '仕込み、がんばろ〜', '今日は何を出す？'],
-  day: ['いらっしゃい！', '新しいレシピ、見たよ。', 'ネタ帳、たまってきたね。', '今日のおすすめ、何にしよう…'],
-  evening: ['おつかれさま！', '今日のメニュー、記録した？', 'ワイン開けちゃう？'],
-  late: ['閉店おつかれさま！', '今日もよくがんばったね', 'ホットミルク飲む？'],
-  sleep: ['Zzz…', 'むにゃ…', 'おやすみ…'],
-}
-/** 気ままな行動の最中のセリフ（タップしたときと、ひとりごと） */
-const ACTIVITY_LINES: Partial<Record<ResidentActivity, string[]>> = {
-  window: ['海、きれいだね', '今日の波はどうかな？', 'サーフィン日和かも', 'カモメさん、こんにちは'],
-  water: ['お水あげてるの', 'モンステラ、元気に育ってる！', '大きくなあれ'],
-  waterBanana: ['バナナの葉っぱにもお水', '南国っぽくていいでしょ'],
-  read: ['このレシピ、作ってみたい', '図鑑、読みごたえあるなあ'],
-  rest: ['ひと休み中☕', 'このコーヒー、おいしい'],
-  sweep: ['お掃除中！', '砂がすぐ入ってくるの'],
-  mailbox: ['何か届いてるよ！', '受信トレイ、見てみて'],
-  machine: ['豆、いい感じに挽けた', 'エスプレッソ、ちょっと濃いめに'],
-  wipe: ['今日もピカピカに', 'コンクリート、拭くと色が深くなるの'],
-  chalkboard: ['明日のおすすめ、何にしよう…', 'チョークの字、上手に書けたかな'],
-  shelf: ['あのレシピ、どこだっけ…', 'あった！この本'],
-  dance: ['ふんふふーん♪', 'ラララ〜♪'],
-  nap: ['すぴー…', 'むにゃ…'],
-  sleep: ['むにゃ…もう食べられない…', 'Zzz…', 'むにゃむにゃ…'],
-}
-/** 夜の窓辺・夜ふかしのひと休み（ホットミルク）のセリフ */
-const NIGHT_WINDOW_LINES = ['月がきれい…', '星がいっぱい', '波の音、落ち着くね']
-const NIGHT_REST_LINES = ['ホットミルクで温まる…', 'ふぅ、今日もおしまい']
-/** 寝ているところを起こしたとき */
-const WAKE_LINES = ['ん…まだ起きてたの？', 'ふぁ…もう朝？', 'むにゃ…おやすみ…']
-const WORRIED_LINES = ['今日の記録、まだ？', 'メニュー、何出したっけ…', '記録したら安心して寝られる…']
-
 type ResidentStatus = ReturnType<ShopScene['residentStatus']>
 /** 吹き出しの最大の幅（px）。短いセリフは 1 行に収まる */
 const BUBBLE_MAX = 240
-const pickOne = (a: string[]) => a[Math.floor(Math.random() * a.length)]
-/** 今の様子に合うセリフを 1 つ。tap はタップしたとき（お店番中はときどき今日の服の話）、それ以外はひとりごと */
-function lineFor(st: ResidentStatus, o: { tap: boolean; worried: boolean; inbox: number; outfitLine: string; answers?: number }): string {
-  if (st.waking) return pickOne(WAKE_LINES)
-  if (st.sleeping) return pickOne(ACTIVITY_LINES[st.activity] ?? RESIDENT_LINES.sleep)
-  if (o.worried && Math.random() < (o.tap ? 1 : 0.4)) return pickOne(WORRIED_LINES)
-  if (!o.tap && o.answers && Math.random() < 0.35) return '相談の答え、届いてるよ。「話しかける」から見てね'
-  if (!o.tap && o.inbox > 0 && st.activity !== 'mailbox' && Math.random() < 0.25) return '何か届いてたよ。受信トレイ見てね'
-  if (st.life === 'late' && st.hour >= 22 && Math.random() < 0.3) return 'そろそろ眠くなってきた…'
-  const nightish = st.life === 'late'
-  if (st.activity === 'window' && nightish) return pickOne(NIGHT_WINDOW_LINES)
-  if (st.activity === 'rest' && nightish) return pickOne(NIGHT_REST_LINES)
-  const doing = st.activity === 'counter' ? undefined : ACTIVITY_LINES[st.activity]
-  return pickOne(doing ?? [...RESIDENT_LINES[st.life], ...(o.tap ? [o.outfitLine] : [])])
-}
+/** 吹き出し 1 つを出しておく時間（短いセリフほど早く次へ） */
+const bubbleMs = (text: string) => 1600 + text.length * 90
+/** 前にアプリを開いていた時刻（「ひさしぶり」「またすぐ来た」のあいさつに使う） */
+const SEEN_KEY = 'lara.lastSeen'
+const readSeen = () => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0 } catch { return 0 } }
+const writeSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())) } catch { /* private mode */ } }
 
 export function ShopHome({ counts, streak, worried = false }: { counts: HomeCounts; streak: number; worried?: boolean }) {
   const nav = useNavigate()
@@ -98,9 +58,13 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const worriedRef = useRef(worried)
   const pickedRef = useRef(picked)
   const bubbleRef = useRef(bubble)
-  const inboxRef = useRef(counts.inbox)
   const hideRef = useRef(0)
-  pickedRef.current = picked; bubbleRef.current = bubble; inboxRef.current = counts.inbox
+  const seqRef = useRef<number[]>([])
+  // セリフに使う今の数（レシピ・ネタ・確認待ち・連続記録）
+  const dataRef = useRef({ counts, streak })
+  // 続けてタップされた回数（数秒あくと 1 に戻る）
+  const tapsRef = useRef({ n: 0, at: 0 })
+  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak }
   // 服: 設定（おまかせ / 固定）と今日の日付で決まる。開いたまま日付が変わっても着替えるよう、日付はときどき見直す
   const { outfit: outfitPref } = useSettings()
   const [day, setDay] = useState(today)
@@ -117,12 +81,20 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       onTap: (h) => {
         if (h === 'resident') {
           if (talkingRef.current) return
-          const line = lineFor(scene.residentStatus(), { tap: true, worried: worriedRef.current, inbox: inboxRef.current, outfitLine: outfitInfo(outfitRef.current).line })
-          say(scene, line, 2200)
+          const now = Date.now(), taps = tapsRef.current
+          taps.n = now - taps.at < 5000 ? taps.n + 1 : 1; taps.at = now
+          const st = scene.residentStatus()
+          say(scene, tapLine(voiceCtx(st), taps.n, !st.arrived))
           return
         }
         if (talkingRef.current) stopTalkRef.current()
         setPicked(h)
+      },
+      // くしゃみ・つまずく・寝落ちから起きる・本を見つけた・カモメ・流れ星 などの直後に、ときどきひとこと
+      onSay: (e) => {
+        if (talkingRef.current || pickedRef.current || bubbleRef.current || Math.random() > 0.8) return
+        const l = eventLine(e)
+        if (l) say(scene, l)
       },
     })
     scene.setMode(partRef.current)
@@ -133,18 +105,41 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     return () => { scene.dispose(); sceneRef.current = null }
   }, [reduced])
 
-  /** LaRa の頭の上に吹き出しを出す（ms ミリ秒で消える）。位置はこの画面の中の座標に直し、画面の端で切れないよう左右を寄せる */
-  function say(scene: ShopScene, text: string, ms: number) {
-    const pos = scene.residentScreenPos(), box = ref.current?.getBoundingClientRect()
-    if (!pos || !box) return
+  /** セリフを選ぶための今の様子（シーンの様子 + 心配・服・日付・数） */
+  function voiceCtx(st: ResidentStatus): VoiceCtx {
+    const d = new Date(), { counts: c, streak: s } = dataRef.current
+    return {
+      activity: st.activity, life: st.life, hour: st.hour, sleeping: st.sleeping, waking: st.waking, worried: worriedRef.current,
+      outfit: outfitRef.current, month: d.getMonth() + 1, weekday: d.getDay(),
+      inbox: c.inbox, answers: answersRef.current, recipes: c.recipes, clips: c.clips, streak: s,
+    }
+  }
+  /** LaRa の頭の上に吹き出しを出す。並びは 1 つずつ続けて出し、最後のが消えるまで歩き出さない。位置はこの画面の中の座標に直し、画面の端で切れないよう左右を寄せる */
+  function say(scene: ShopScene, lines: Say) {
+    const texts = lines.filter(Boolean)
+    if (!texts.length) return
+    for (const id of seqRef.current) window.clearTimeout(id)
+    seqRef.current = []
     window.clearTimeout(hideRef.current)
-    const half = Math.min(BUBBLE_MAX / 2 + 16, box.width / 2)
-    setBubble({ text, x: Math.min(Math.max(pos.x - box.left, half), box.width - half), y: pos.y - box.top })
-    hideRef.current = window.setTimeout(() => setBubble(null), ms)
+    const show = (text: string) => {
+      const pos = scene.residentScreenPos(), box = ref.current?.getBoundingClientRect()
+      if (!pos || !box) return
+      const half = Math.min(BUBBLE_MAX / 2 + 16, box.width / 2)
+      setBubble({ text, x: Math.min(Math.max(pos.x - box.left, half), box.width - half), y: pos.y - box.top })
+    }
+    let at = 0
+    texts.forEach((text, i) => {
+      if (i === 0) show(text)
+      else seqRef.current.push(window.setTimeout(() => show(text), at))
+      at += bubbleMs(text)
+    })
+    hideRef.current = window.setTimeout(() => setBubble(null), at)
+    scene.holdResident(at / 1000 + 0.5)
   }
 
   function startTalk() {
     window.clearTimeout(hideRef.current)
+    for (const id of seqRef.current) window.clearTimeout(id)
     setBubble(null); setPicked(null); setTalking(true)
     sceneRef.current?.setListening(true)
     talk.start()
@@ -174,23 +169,33 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     return () => window.clearInterval(id)
   }, [talking])
 
-  // ひとりごと: 開いて 8〜15 秒後、その後は 25〜50 秒おき（寝ているときは寝言をもっとまれに）。
-  // LaRa が止まっているときだけ。家具のカードや吹き出しが出ているとき、画面が隠れているとき、動きを減らす設定のときは出さない
+  // ひとりごと: 開いて 2.5〜4 秒後に最初のあいさつ（久しぶり・さっきも来た・時間帯で変わる）、その後は 20〜40 秒おき（寝ているときは寝言をもっとまれに）。
+  // LaRa が止まっているときだけ。家具のカードや吹き出しが出ているとき、話しかけているとき、画面が隠れているとき、動きを減らす設定のときは出さない
   useEffect(() => {
     if (reduced) return
-    let id = 0
+    const last = readSeen(), gap = Date.now() - last
+    const away = !last ? 'normal' : gap > 2 * 86400_000 ? 'long' : gap < 10 * 60_000 ? 'soon' : 'normal'
+    let greeted = false, id = 0
     const speak = () => {
       const scene = sceneRef.current
       const st = scene?.residentStatus()
       if (!scene || !st || document.hidden || pickedRef.current || talkingRef.current || bubbleRef.current || !(st.arrived || st.sleeping)) { id = window.setTimeout(speak, 4000); return }
-      say(scene, lineFor(st, { tap: false, worried: worriedRef.current, inbox: inboxRef.current, outfitLine: outfitInfo(outfitRef.current).line, answers: answersRef.current }), 3000)
-      scene.holdResident(3.5)
-      id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 25000 + Math.random() * 25000)
+      const ctx = voiceCtx(st)
+      say(scene, greeted ? monologue(ctx) : greetLine(ctx, away))
+      greeted = true
+      id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 20000 + Math.random() * 20000)
     }
-    id = window.setTimeout(speak, 8000 + Math.random() * 7000)
+    id = window.setTimeout(speak, 2500 + Math.random() * 1500)
     return () => window.clearTimeout(id)
   }, [reduced])
-  useEffect(() => () => window.clearTimeout(hideRef.current), [])
+  // 開いている間は「最後に見た時刻」を更新（次に開いたときのあいさつ用）
+  useEffect(() => {
+    writeSeen()
+    const id = window.setInterval(writeSeen, 60_000)
+    document.addEventListener('visibilitychange', writeSeen)
+    return () => { writeSeen(); window.clearInterval(id); document.removeEventListener('visibilitychange', writeSeen) }
+  }, [])
+  useEffect(() => () => { window.clearTimeout(hideRef.current); for (const id of seqRef.current) window.clearTimeout(id) }, [])
 
   useEffect(() => {
     sceneRef.current?.setCounts({ books: Math.min(24, counts.recipes), cards: Math.min(12, counts.clips), leaves: Math.min(14, streak), chalk: Math.min(30, counts.menuLogs), inbox: counts.inbox })

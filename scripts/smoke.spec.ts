@@ -177,6 +177,32 @@ test('3D home: LaRa keeps her daily schedule and never gets stuck', async ({ pag
   expect(again).toMatchObject({ forced: 'mailbox', state: 'mailbox' })
 })
 
+test('LaRa voice: every scene has lines, and every bubble is short', async () => {
+  const { VOICE_LINES } = await import('../src/features/home/shop3d/voiceLines')
+  const awake = ['machine', 'mailbox', 'window', 'water', 'waterBanana', 'read', 'rest', 'sweep', 'wipe', 'chalkboard', 'shelf', 'dance', 'nap',
+    'daze', 'snack', 'roll', 'ukulele', 'plantTalk', 'chase', 'peek', 'perch', 'wander']
+  const lives = ['morning', 'day', 'evening', 'late']
+  const need = [
+    ...awake.map((a) => `activity.${a}`), ...lives.map((l) => `counter.${l}`), ...lives.map((l) => `greet.${l}`), 'greet.longAway', 'greet.soon',
+    'musing.any', ...lives.map((l) => `musing.${l}`), 'sleep.talk', 'sleep.wake', 'tap.first', 'tap.again', 'tap.many', 'tap.walking', 'worried',
+    'data.inbox', 'data.answers', 'data.recipes', 'data.clips', 'data.streak', 'data.streakZero', 'data.menuDone',
+    ...Array.from({ length: 12 }, (_, i) => `month.${i + 1}`), ...Array.from({ length: 7 }, (_, i) => `weekday.${i}`),
+    'outfit.moon', 'outfit.hoodie', 'outfit.pumpkin', 'outfit.baymax',
+    'events.sneeze', 'events.trip', 'events.doze', 'events.foundBook', 'events.gull', 'events.star', 'events.yawn',
+  ]
+  expect(need.filter((k) => !VOICE_LINES[k]?.length), 'scenes without lines').toEqual([])
+  const withN = new Set(['data.inbox', 'data.recipes', 'data.clips', 'data.streak'])
+  for (const [key, list] of Object.entries(VOICE_LINES)) for (const seq of list) {
+    expect(seq.length, `${key}: 1〜3 bubbles`).toBeGreaterThan(0)
+    expect(seq.length, `${key}: 1〜3 bubbles`).toBeLessThanOrEqual(3)
+    for (const b of seq) {
+      expect([...b.replaceAll('{n}', 'NN')].length, `${key}: 「${b}」 is too long`).toBeLessThanOrEqual(22)
+      if (!withN.has(key)) expect(b.includes('{n}'), `${key}: {n} only where a number goes`).toBe(false)
+    }
+    if (withN.has(key)) expect(seq.some((b) => b.includes('{n}')), `${key}: needs {n}`).toBe(true)
+  }
+})
+
 test('home: settings button opens settings', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/')
