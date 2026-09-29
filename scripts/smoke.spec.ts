@@ -143,6 +143,15 @@ test('3D home: tapping each piece of furniture opens its card', async ({ page },
   await page.screenshot({ path: `screenshots/${info.project.name}-home-tap.png` })
 })
 
+test('home: settings button opens settings', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  // スマホはホーム右上の歯車、パソコンは左のメニューの「設定」（どちらか見えている 1 つ）
+  await page.getByRole('link', { name: '設定', exact: true }).click()
+  await expect(page).toHaveURL(/#\/settings$/)
+  await expect(page.getByText('LaRa の服', { exact: true })).toBeVisible()
+})
+
 test('clip editor opens from list', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/clips')

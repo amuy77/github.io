@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AskChip } from '@/features/ask/AskChip'
+import { SettingsChip } from '@/features/settings/SettingsChip'
+import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ShopScene, type Hotspot, type ResidentActivity } from './shopScene'
@@ -105,9 +107,10 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
 
       {/* 上部: ブランド + 日付 + 連続記録 */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-[calc(10px+var(--safe-top))]">
+        {/* 夜はお店の背景が暗いので、店名と日付を明るい色に */}
         <div>
-          <div className="font-display text-[26px] font-extrabold leading-none tracking-wide">LaRa</div>
-          <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
+          <div className={cx('font-display text-[26px] font-extrabold leading-none tracking-wide', part === 'night' && 'text-oat-50')}>LaRa</div>
+          <div className={cx('mt-1 text-[11px] font-bold tracking-widest', part === 'night' ? 'text-oat-200/80' : 'text-muted')}>{formatMD(today())}</div>
         </div>
         <div className="flex items-center gap-2">
           <AskChip />
@@ -115,6 +118,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
             <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
             {streak > 0 ? `${streak}日連続` : '今日から記録'}
           </div>
+          <SettingsChip />
         </div>
       </div>
 
