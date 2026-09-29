@@ -69,7 +69,7 @@ export function AskPage() {
   async function queueConsult() {
     if (!noKey) return
     await enqueue.mutateAsync({ kind: 'consult', payload: { question: noKey, recipe_id: recipeId ?? null, compare_with_id: vsId ?? null } })
-    toast(`預かりました。${nextWorkerTime()} ごろ受信トレイに返事が届くよ`, 'success')
+    toast(`預かったよ。${nextWorkerTime()} ごろ、受信トレイに返事が届くね`, 'success')
     setNoKey(null)
   }
 
@@ -90,7 +90,7 @@ export function AskPage() {
 
         {msgs.length === 0 && (
           <>
-            <MascotSays mood="happy">料理名で探したり、「こんな気分」から選んだり、味の相談も OK。図鑑とネタ帳を全部見て答えるよ。</MascotSays>
+            <MascotSays mood="happy">料理の名前で探したり、「こんな気分」から選んだり。味の相談もいいよ。図鑑とネタ帳、ぜんぶ見て答えるね</MascotSays>
             <div className="flex flex-wrap gap-2">
               {SUGGEST.map((s) => <button key={s.label} type="button" onClick={() => void send(s.q)} className="rounded-chip border border-line bg-paper px-3 py-2 text-[13px] font-bold shadow-card active:scale-95">{s.label}</button>)}
             </div>
