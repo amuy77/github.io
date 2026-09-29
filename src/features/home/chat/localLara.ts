@@ -85,7 +85,7 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
   const q = input.trim().replace(/(の)?(レシピ|ネタ)?(って|は)?(ある|あった|ない|探して|さがして|どこ|教えて|見せて)[?？!！。]*$/, '').replace(/[?？!！。]/g, '').trim()
   if (q && q.length <= 20) {
     const hits = searchLocal(q, ctx.recipes, ctx.clips).slice(0, 3)
-    if (hits.length) return { text: `「${q}」で見つけたよ！`, links: hits.map((h) => h.type === 'recipe' ? { label: `📖 ${h.item.title}`, to: paths.recipe(h.item.id) } : { label: `📌 ${clipTitle(h.item)}`, to: paths.clip(h.item.id) }) }
+    if (hits.length) return { text: `「${q}」で見つけたよ！`, links: hits.map((h) => h.type === 'recipe' ? { label: `📖 ${h.item.title}${h.item.variant_label ? `（${h.item.variant_label}）` : ''}`, to: paths.recipe(h.item.id) } : { label: `📌 ${clipTitle(h.item)}`, to: paths.clip(h.item.id) }) }
     if (has(t, 'ある', '探', 'さが', 'どこ', 'レシピ', 'ネタ')) return { text: `「${q}」は図鑑にもネタ帳にも見つからなかった…。別の言い方でも探してみる？` }
   }
 
