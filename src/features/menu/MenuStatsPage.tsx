@@ -93,7 +93,7 @@ export function MenuStatsPage() {
           ) : (
             <MascotSays mood="thinking">毎週月曜の朝に、先週のメニューを見てコメントするよ。記録が溜まるのを待ってるね。</MascotSays>
           )}
-          <Button variant="secondary" size="sm" icon={<IconSparkles size={16} />} loading={enqueue.isPending} className="self-start" onClick={async () => { await enqueue.mutateAsync({ kind: 'weekly_insights', payload: { week_start: weekStart(addDays(t, -7)) } }); toast(`分析をトレイに入れました。次の処理は ${nextWorkerTime()} ごろ`, 'success') }}>
+          <Button variant="secondary" size="sm" icon={<IconSparkles size={16} />} loading={enqueue.isPending} className="self-start" onClick={async () => { await enqueue.mutateAsync({ kind: 'weekly_insights', payload: { week_start: weekStart(addDays(t, -7)) } }); toast(`預かったよ。${nextWorkerTime()} ごろ、ふりかえってくるね`, 'success') }}>
             今すぐ分析してもらう
           </Button>
         </section>

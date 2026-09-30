@@ -69,10 +69,10 @@ const fixtures: Record<string, object[]> = {
   ],
   ai_insights: [
     { id: 'g1000000-0000-4000-8000-000000000001', user_id: USER_ID, week_start: iso(daysAgo(7)), model: 'claude-code', created_at: ts(0), insights: [
-      { kind: 'praise', emoji: '👏', title: '6日記録できた', body: '先週は6日分のメニューを記録。続いてます。' },
-      { kind: 'bias', emoji: '⚖️', title: 'アメリカンサンドが7割', body: '先週の出品はアメリカンサンドが14/20。クロワッサン系が2品だけでした。' },
-      { kind: 'popular', emoji: '🥇', title: 'BLTが一番', body: 'BLTサンドは6日連続で登場。定番として強いです。' },
-      { kind: 'suggestion', emoji: '💡', title: '1品だけ入れ替え', body: '木曜だけクロワッサンサンドを1品足すと、構成の偏りがやわらぎます。' },
+      { kind: 'praise', emoji: '👏', title: '6日記録できた', body: '先週は 6 日ぶんのメニューを記録してたよ。ちゃんと続いてるね。' },
+      { kind: 'bias', emoji: '⚖️', title: 'アメリカンサンドが7割', body: '先週はアメリカンサンドが 14/20 だったよ。クロワッサン系は 2 品だけ。' },
+      { kind: 'popular', emoji: '🥇', title: 'BLTが一番', body: 'BLTサンドは 6 日連続で出てたよ。定番として、つよいね。' },
+      { kind: 'suggestion', emoji: '💡', title: '1品だけ入れ替え', body: '木曜だけクロワッサンサンドを 1 品足すと、かたよりがやわらぐかも。' },
     ] },
   ],
 }
