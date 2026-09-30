@@ -11,7 +11,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  # main の公開は同じ列（新しいほうを優先）。作業ブランチの確認ビルドは別の列にして、
+  # マージ直後にブランチへ push しても main の公開が取り消されないようにする
+  group: ${{ github.ref == 'refs/heads/main' && 'pages' || format('build-{0}', github.ref) }}
   cancel-in-progress: true
 
 jobs:

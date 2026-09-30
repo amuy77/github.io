@@ -298,7 +298,7 @@ returning id;
 
 ## kind = weekly_insights
 
-`payload.week_start`（無ければ直近の月曜）を対象に、週次レポート Routine と同じ手順（直近 4 週の `menu_logs` を集計 → 3〜5 個の気づき → `ai_insights` に upsert）で処理し、ジョブを `done` にする（`result` に `{"week_start":"…"}`）。気づきの書き方: 1 つ目は必ず褒める、数字は集計の事実だけ、`body` は 80 字以内のです・ます調、`emoji` は 1 つ、`kind` は `praise | bias | popular | suggestion | reminder`。
+`payload.week_start`（無ければ直近の月曜）を対象に、週次レポート Routine と同じ手順（直近 4 週の `menu_logs` を集計 → 3〜5 個の気づき → `ai_insights` に upsert）で処理し、ジョブを `done` にする（`result` に `{"week_start":"…"}`）。気づきの書き方: 1 つ目は必ず褒める、数字は集計の事実だけ、`body` は 80 字以内、`emoji` は 1 つ、`kind` は `praise | bias | popular | suggestion | reminder`。`body` は LaRa の口調で書く（上の consult の 2. と同じ。のんき・ひらがな多め・敬語なし・「！」控えめ。数字と単位、レシピ名、ジャンル名はそのまま正確に。例:「先週は 6 日ぶんのメニューを記録してたよ。ちゃんと続いてるね。」）。
 
 ## 安全のルール
 
