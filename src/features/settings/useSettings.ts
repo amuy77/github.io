@@ -3,7 +3,7 @@ import type { OutfitPref } from '@/features/home/shop3d/outfit'
 
 export interface Settings {
   home3d: boolean
-  /** LaRa の服: おまかせ（日替わり）/ 三日月 / 黒猫パーカー */
+  /** LaRa の服: おまかせ（日替わり）か、outfit.ts の一覧のどれかに固定 */
   outfit: OutfitPref
 }
 const KEY = 'lara.settings'

@@ -76,6 +76,12 @@ const COL = {
   uke: 0xd39a5c,
   // ベイマックス: 少し青みの白、ひじ・ひざの薄いグレー、額と胸の「●—●」の黒
   snow: 0xfdfdff, snowGray: 0xd8dde6, dot: 0x26272b,
+  // プリンセスのドレス（バラ・マーメイド・お花と三つ編み・りんごとリボン・ガラスのくつ）
+  roseHood: 0xf6cf5a, roseRim: 0xf9dc7c, roseDress: 0xf7d465, roseSwag: 0xeebc3f, rose: 0xe0505a, leaf: 0x6f9a4a, brownHair: 0x6b4128,
+  merHood: 0x8fdccf, merRim: 0xa6e6dc, merSkirt: 0x6fcfbf, lilac: 0xbfa3e3, pearl: 0xfffaf0, starfish: 0xf29a7a,
+  bloHood: 0xb79be3, bloRim: 0xc8b2ec, bloDress: 0xb08ee0, bloBodice: 0x9a78d4, bloLace: 0xf5b3c8, blonde: 0xf3d27a, petalPink: 0xf4a6c6, petalWhite: 0xfffaf2, petalLilac: 0xc9adf2, petalCore: 0xf6c94e,
+  appHood: 0x2f4fa3, appBodice: 0x3157b5, appSkirt: 0xf6d769, appRed: 0xdc4a40, collar: 0xfdfaf4,
+  glaHood: 0xa8d4f2, glaRim: 0xbfe1f7, glaDress: 0xa6d2f3, glaBodice: 0x8cc0ea, glove: 0xf8f9ff, glassShoe: 0xd6efff,
 }
 /** 猫耳の先（フードの座標）。吹き出しの位置に使う */
 const EAR_TIP_Y = 0.63
@@ -162,8 +168,8 @@ export function buildLaraFigure(): LaraFigure {
   const hullMat = (color = COL.ink) => { const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide }); mats.push(m); return m }
 
   /** 輪郭線: 頂点を法線方向に d だけ押し出したコピーを裏面描画。apex=true は円錐の先端（法線がばらけて毛羽立つ）を 1 点にまとめる */
-  const hull = (mesh: THREE.Mesh, d = LINE, apex = false, color = COL.ink) => {
-    const g = G(mesh.geometry.clone())
+  const inflated = (src: THREE.BufferGeometry, d: number, apex = false) => {
+    const g = src.clone()
     const pos = g.attributes.position as THREE.BufferAttribute
     const nor = g.attributes.normal as THREE.BufferAttribute
     g.computeBoundingBox()
@@ -172,6 +178,10 @@ export function buildLaraFigure(): LaraFigure {
       if (apex && pos.getY(i) > top - 1e-4) pos.setXYZ(i, 0, top + d, 0)
       else pos.setXYZ(i, pos.getX(i) + nor.getX(i) * d, pos.getY(i) + nor.getY(i) * d, pos.getZ(i) + nor.getZ(i) * d)
     }
+    return g
+  }
+  const hull = (mesh: THREE.Mesh, d = LINE, apex = false, color = COL.ink) => {
+    const g = G(inflated(mesh.geometry, d, apex))
     const h = new THREE.Mesh(g, hullMat(color))
     h.raycast = () => {}
     mesh.add(h)
@@ -193,7 +203,7 @@ export function buildLaraFigure(): LaraFigure {
   const clothOf = (part: keyof typeof clothMats, m: THREE.Mesh) => { clothMats[part].push(m.material as THREE.MeshToonMaterial); return m }
   const bodyProfile = [[0, 0.14], [0.12, 0.14], [0.17, 0.17], [0.19, 0.22], [0.18, 0.29], [0.155, 0.36], [0.125, 0.42], [0, 0.44]].map(([r, y]) => new THREE.Vector2(r, y))
   const bodyGeo = new THREE.LatheGeometry(bodyProfile, 28); bodyGeo.computeVertexNormals()
-  clothOf('body', solid(bodyGeo, COL.cream, root))
+  const bodyMesh = clothOf('body', solid(bodyGeo, COL.cream, root))
   /** 体の表面の半径（高さ y で）。パーカーのひもを体に沿わせるのに使う */
   const bodyR = (y: number) => {
     for (let i = 1; i < bodyProfile.length; i++) {
@@ -582,6 +592,264 @@ export function buildLaraFigure(): LaraFigure {
     for (const a of arms) pad(a.tilt, 0.045, [0, -0.2, 0.056], [0.9, 1.1, 0.4])
   }
 
+  // ---------- プリンセスのドレス（5 着） ----------
+  // どの着も「猫耳フード + ふんわりしたドレス」。スカート・袖のふくらみ・前髪・おだんご・花などの部品を、色と飾りを変えて使う
+  const ZF = new THREE.Vector3(0, 0, 1), YU = new THREE.Vector3(0, 1, 0)
+  /** フード: 殻 + 輪郭 + 窓のふちの折り返し + 猫耳（パーカーと同じ形・大きさ） */
+  const princessHood = (hoodCol: number, rimCol: number, innerEar = COL.pink) => {
+    const h = makeHood(); h.visible = false
+    solid(hoodShell(R.x, R.y, R.z, W), hoodCol, h, { double: true, line: 0 })
+    shellOutline(h)
+    rimRoll(h, R, W, 0.036, rimCol)
+    catEars(h, 0.27, 0.29, hoodCol, innerEar, COL.ink)
+    return h
+  }
+  /** フードの表面（正面側）の (x, y) に物を置き、表面の向きにそろえる。窓（顔）の上には置けないので、窓の外側の点を渡す */
+  const onHood = (hood: THREE.Group, obj: THREE.Object3D, x: number, y: number, lift = 0.01) => {
+    const { p, n } = shellPoint(R, x, y, lift)
+    obj.position.copy(p); obj.quaternion.setFromUnitVectors(ZF, n); hood.add(obj); return obj
+  }
+  /** フードの窓のふちから少し外側（角度 w）・まわりの角度 v の点 */
+  const rimPoint = (w: number, v: number) => [R.x * Math.sin(w) * Math.cos(v), R.y * Math.sin(w) * Math.sin(v)] as const
+  /**
+   * 前髪: 顔の窓のふちの内側に沿う髪の帯（上と横だけ。あごの下は通さない）。端は丸く。
+   * ふちより少し内側・奥に置いて、顔のふちに沿わせる（前に浮かせると、斜めから見たとき顔の上を横切ってしまう）
+   */
+  const hairFringe = (hood: THREE.Group, color: number) => {
+    const pts: THREE.Vector3[] = []
+    for (let j = 0; j <= 40; j++) { const v = -0.14 * Math.PI + (j / 40) * 1.28 * Math.PI; pts.push(new THREE.Vector3(R.x * Math.sin(W) * Math.cos(v) * 0.94, R.y * Math.sin(W) * Math.sin(v) * 0.94, R.z * Math.cos(W) - 0.035)) }
+    const mat = toonMat(color)
+    const band = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 64, 0.05, 10, false)), mat); band.raycast = () => {}; hood.add(band)
+    for (const p of [pts[0], pts[pts.length - 1]]) { const cap = new THREE.Mesh(G(new THREE.SphereGeometry(0.05, 10, 8)), mat); cap.position.copy(p); cap.raycast = () => {}; hood.add(cap) }
+  }
+  /** 頭のてっぺんのおだんご（猫耳のあいだ）と、ねじった髪の線 */
+  const hairBun = (hood: THREE.Group, color: number, dark: number) => {
+    const b = solid(new THREE.SphereGeometry(0.13, 20, 14), color, hood, { line: L * 0.8 }); b.position.set(0, 0.47, -0.08); b.scale.set(1, 0.85, 1)
+    const tw = new THREE.Mesh(G(new THREE.TorusGeometry(0.075, 0.014, 6, 24, Math.PI * 1.5)), toonMat(dark)); tw.position.set(0, 0.5, 0.02); tw.rotation.set(-0.5, 0, 0.4); tw.raycast = () => {}; hood.add(tw)
+  }
+  // 花びら・真珠など小さな部品は形を使い回す
+  const ball = G(new THREE.SphereGeometry(1, 12, 9))
+  const matOf = new Map<number, THREE.MeshToonMaterial>()
+  const sharedMat = (c: number) => { let m = matOf.get(c); if (!m) { m = toonMat(c); matOf.set(c, m) } return m }
+  const dot = (parent: THREE.Object3D, c: number, r: number, pos: [number, number, number], scale: [number, number, number] = [1, 1, 1]) => {
+    const m = new THREE.Mesh(ball, sharedMat(c)); m.position.set(...pos); m.scale.set(r * scale[0], r * scale[1], r * scale[2]); m.raycast = () => {}; parent.add(m); return m
+  }
+  /** 5 枚の花びらの小さな花（+z 向き） */
+  const flower = (petal: number, s = 1) => {
+    const f = new THREE.Group()
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; const p = dot(f, petal, 0.03 * s, [Math.cos(a) * 0.03 * s, Math.sin(a) * 0.03 * s, 0], [1, 0.62, 0.35]); p.rotation.z = a }
+    dot(f, COL.petalCore, 0.016 * s, [0, 0, 0.008 * s])
+    return f
+  }
+  /** バラ: 赤い丸に渦の線、葉っぱ 2 枚（+z 向き） */
+  const roseFlower = (s = 1) => {
+    const g = new THREE.Group()
+    const head = solid(new THREE.SphereGeometry(0.06 * s, 14, 10), COL.rose, g, { line: 0.008 }); head.scale.set(1, 0.88, 0.78)
+    const swirl = new THREE.Mesh(G(new THREE.TorusGeometry(0.03 * s, 0.008 * s, 6, 20, Math.PI * 1.6)), sharedMat(0xb83a45)); swirl.position.z = 0.04 * s; swirl.raycast = () => {}; g.add(swirl)
+    for (const sd of [-1, 1]) { const lf = dot(g, COL.leaf, 0.036 * s, [sd * 0.062 * s, -0.04 * s, -0.012 * s], [1.3, 0.55, 0.4]); lf.rotation.z = sd * -0.5 }
+    return g
+  }
+  /** 貝がら: 扇形の板に筋（+z 向き、ちょうつがいが下） */
+  const scallop = (color: number, rib: number, s = 1) => {
+    const g = new THREE.Group()
+    const disc = new THREE.CylinderGeometry(0.08 * s, 0.08 * s, 0.024 * s, 18, 1, false, -Math.PI / 2, Math.PI); disc.rotateX(-Math.PI / 2)
+    solid(disc, color, g, { line: 0.006 })
+    const ribMat = sharedMat(rib)
+    for (let k = -2; k <= 2; k++) {
+      const a = k * 0.33
+      const r = new THREE.Mesh(G(new THREE.BoxGeometry(0.007 * s, 0.07 * s, 0.006 * s)), ribMat); r.position.set(Math.sin(a) * 0.036 * s, Math.cos(a) * 0.036 * s, 0.013 * s); r.rotation.z = -a; r.raycast = () => {}; g.add(r)
+    }
+    dot(g, rib, 0.02 * s, [0, 0, 0.006 * s], [1.3, 0.7, 0.6])
+    return g
+  }
+  /** ヒトデ（+z 向き） */
+  const starfish = (s = 1) => {
+    const shape = new THREE.Shape()
+    for (let i = 0; i < 10; i++) { const a = Math.PI / 2 + (i / 10) * Math.PI * 2, r = (i % 2 ? 0.032 : 0.078) * s; if (i) shape.lineTo(Math.cos(a) * r, Math.sin(a) * r); else shape.moveTo(Math.cos(a) * r, Math.sin(a) * r) }
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.014 * s, bevelEnabled: true, bevelThickness: 0.009 * s, bevelSize: 0.009 * s, bevelSegments: 2 }); geo.center()
+    const g = new THREE.Group(); solid(geo, COL.starfish, g, { line: 0 })
+    for (let i = 0; i < 5; i++) { const a = Math.PI / 2 + (i / 5) * Math.PI * 2; dot(g, 0xfbd2bd, 0.008 * s, [Math.cos(a) * 0.035 * s, Math.sin(a) * 0.035 * s, 0.016 * s]) }
+    return g
+  }
+  /**
+   * ふんわりスカート: 腰（体の表面）から広がって、すそは床より少し上（座ってもいすに沈まない）。内側も同じ色。
+   * 寝ころぶときは、脚に沿う細い筒（lieProfile）に変形する（釣り鐘のまま横になると電灯のかさに見えるため）
+   */
+  const skirtProfile = (hemR: number) => [[0.17, 0.315], [0.195, 0.28], [0.226, 0.22], [0.262, 0.16], [hemR - 0.012, 0.118], [hemR, 0.095]]
+  const lieProfile = [[0.17, 0.315], [0.19, 0.28], [0.202, 0.22], [0.208, 0.16], [0.212, 0.11], [0.214, 0.075]]
+  const lathe = (p: number[][]) => { const g = new THREE.LatheGeometry(p.map(([r, y]) => new THREE.Vector2(r, y)), 40); g.computeVertexNormals(); return g }
+  /** 寝ころぶと変形する部品（スカートと、その輪郭線） */
+  const morphing: THREE.Mesh[] = []
+  const skirt = (parent: THREE.Group, color: number, hemR = 0.3) => {
+    const lie = lathe(lieProfile)
+    const m = solid(lathe(skirtProfile(hemR)), color, parent, { double: true, line: 0.014 })
+    m.geometry.morphAttributes.position = [lie.attributes.position]
+    m.geometry.morphAttributes.normal = [lie.attributes.normal]
+    const h = m.children[0] as THREE.Mesh
+    h.geometry.morphAttributes.position = [inflated(lie, 0.014).attributes.position]
+    for (const x of [m, h]) { x.updateMorphTargets(); morphing.push(x) }
+  }
+  /** 輪郭（[半径, 高さ] の並び）の高さ y での半径 */
+  const radiusAt = (p: number[][], y: number) => {
+    for (let i = 1; i < p.length; i++) if (y >= p[i][1]) return THREE.MathUtils.lerp(p[i - 1][0], p[i][0], (p[i - 1][1] - y) / (p[i - 1][1] - p[i][1] || 1))
+    return p[p.length - 1][0]
+  }
+  /** スカートの表面の半径（高さ y で） */
+  const skirtR = (y: number, hemR = 0.3) => radiusAt(skirtProfile(hemR), y)
+  /** スカートの表面に付けた飾り。寝ころぶときは細くなったスカートに合わせて内へ寄せる */
+  const onSkirt: { obj: THREE.Object3D; x: number; z: number; k: number }[] = []
+  const skirtDeco = (obj: THREE.Object3D, hemR: number) => {
+    const y = obj.position.y
+    onSkirt.push({ obj, x: obj.position.x, z: obj.position.z, k: radiusAt(lieProfile, y) / skirtR(y, hemR) })
+  }
+  /** スカートのすそ・腰まわりのフリル（外向きの半球をぐるっと） */
+  const frillRing = (parent: THREE.Object3D, color: number, r: number, y: number, n: number, size: number, hemR: number) => {
+    const geo = G(new THREE.SphereGeometry(size, 8, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2)), mat = sharedMat(color)
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, f = new THREE.Mesh(geo, mat)
+      f.position.set(Math.sin(a) * r, y, Math.cos(a) * r); f.scale.set(1, 0.9, 0.6); f.lookAt(Math.sin(a) * 2, y, Math.cos(a) * 2); f.raycast = () => {}; parent.add(f)
+      skirtDeco(f, hemR)
+    }
+  }
+  /** 肩のふくらんだ袖（腕と一緒に動くよう腕の中へ）。stripe があれば縦じま */
+  const puffSleeves = (color: number, stripe?: number) => {
+    const out: THREE.Object3D[] = []
+    for (const a of arms) {
+      const geo = G(new THREE.SphereGeometry(0.088, 20, 12))
+      let mat: THREE.MeshToonMaterial
+      if (stripe !== undefined) {
+        const pos = geo.attributes.position, c1 = new THREE.Color(color), c2 = new THREE.Color(stripe), cols: number[] = []
+        for (let i = 0; i < pos.count; i++) { const c = Math.cos(Math.atan2(pos.getX(i), pos.getZ(i)) * 5) > 0.5 ? c2 : c1; cols.push(c.r, c.g, c.b) }
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3))
+        mat = toonMat(0xffffff); mat.vertexColors = true
+      } else mat = toonMat(color)
+      const m = new THREE.Mesh(geo, mat); m.position.set(0, -0.035, 0); m.scale.set(1, 0.92, 1); m.castShadow = true; m.visible = false; a.tilt.add(m)
+      hull(m, 0.01)
+      out.push(m)
+    }
+    return out
+  }
+  /** ドレスの体まわり（スカートと胸の飾り）。寝ころぶときは体ごと奥行きをつぶす（スカートが立ったままの釣り鐘に見えないよう） */
+  const dresses: THREE.Group[] = []
+  const dressGroup = () => { const g = new THREE.Group(); g.visible = false; root.add(g); dresses.push(g); return g }
+
+  // バラのドレス: 山吹色のフードに茶色のおだんごと前髪、横に赤いバラ。肩に沿うドレープ、重ねスカートの波、胸にもバラ。腕は黄色い長い手ぶくろ
+  const roseHood = princessHood(COL.roseHood, COL.roseRim)
+  const roseBody = dressGroup()
+  {
+    hairFringe(roseHood, COL.brownHair)
+    hairBun(roseHood, COL.brownHair, 0x52301c)
+    onHood(roseHood, roseFlower(1.15), 0.3, 0.27, 0.035)
+    skirt(roseBody, COL.roseDress, 0.31)
+    frillRing(roseBody, COL.roseSwag, 0.258, 0.168, 12, 0.062, 0.31)
+    const drape = solid(new THREE.TorusGeometry(0.163, 0.032, 10, 36), COL.roseDress, roseBody, { line: 0.01 }); drape.rotation.x = Math.PI / 2; drape.position.y = 0.392
+    const chest = roseFlower(0.62); chest.position.set(0, 0.35, bodyR(0.35) + 0.03); roseBody.add(chest)
+  }
+
+  // マーメイド: ミント色のフードのふちに真珠、貝がらとヒトデ。胸に紫の貝がら、うろこ模様のスカートに紫のフリル、横に尾びれ。足もミント（しっぽみたいに）
+  const merHood = princessHood(COL.merHood, COL.merRim)
+  const merBody = dressGroup()
+  {
+    for (let j = 0; j <= 16; j++) { const [x, y] = rimPoint(W + 0.14, 0.06 * Math.PI + (j / 16) * 0.88 * Math.PI); onHood(merHood, dot(new THREE.Group(), COL.pearl, 0.026, [0, 0, 0]), x, y, 0.018) }
+    onHood(merHood, scallop(COL.lilac, 0x9a7cc8, 1.15), 0.12, 0.385, 0.02)
+    onHood(merHood, scallop(COL.petalWhite, 0xd9c7b3, 0.85), 0.33, 0.25, 0.02).rotateZ(-0.5)
+    onHood(merHood, starfish(1), -0.27, 0.33, 0.03).rotateZ(0.3)
+    // 胸の貝がら
+    for (const sd of [-1, 1]) { const sh = scallop(COL.lilac, 0x9a7cc8, 0.62); sh.position.set(sd * 0.06, 0.355, bodyR(0.355) + 0.012); sh.rotation.set(-0.25, sd * 0.3, sd * 0.25); merBody.add(sh) }
+    skirt(merBody, COL.merSkirt, 0.28)
+    // うろこ: スカートの表面に、上向きに開いた小さな弧を段ちがいに
+    const arcGeo = G(new THREE.TorusGeometry(0.02, 0.0045, 4, 10, Math.PI)), arcMat = sharedMat(0xa4e6da)
+    for (const [row, y] of [0.25, 0.2, 0.15].entries()) {
+      const n = 14 + row * 3
+      for (let i = 0; i < n; i++) {
+        const a = ((i + (row % 2) * 0.5) / n) * Math.PI * 2, r = skirtR(y, 0.28) + 0.004
+        const arc = new THREE.Mesh(arcGeo, arcMat); arc.position.set(Math.sin(a) * r, y, Math.cos(a) * r); arc.lookAt(Math.sin(a) * 2, y, Math.cos(a) * 2); arc.rotateZ(Math.PI); arc.raycast = () => {}; merBody.add(arc); skirtDeco(arc, 0.28)
+      }
+    }
+    frillRing(merBody, COL.lilac, 0.2, 0.3, 16, 0.034, 0.28)
+    frillRing(merBody, COL.lilac, 0.282, 0.1, 22, 0.04, 0.28)
+    // 尾びれ: 右うしろに紫の扇
+    const fin = scallop(COL.lilac, 0x9a7cc8, 1.9); fin.position.set(0.21, 0.15, -0.17); fin.rotation.set(0.2, 2.3, -1.15); merBody.add(fin); skirtDeco(fin, 0.28)
+  }
+
+  // お花と三つ編み: ラベンダーのフードに花かんむりと金色の前髪、右うしろから花のついた三つ編み。編み上げの胸元、しまの袖、すそに白いフリル
+  const bloHood = princessHood(COL.bloHood, COL.bloRim)
+  const bloBody = dressGroup()
+  const braid = new THREE.Group(); braid.visible = false; headG.add(braid)
+  {
+    hairFringe(bloHood, COL.blonde)
+    const petals = [COL.petalPink, COL.petalWhite, COL.petalLilac]
+    for (let j = 0; j < 9; j++) {
+      const [x, y] = rimPoint(W + 0.11, 0.12 * Math.PI + (j / 8) * 0.76 * Math.PI)
+      onHood(bloHood, flower(petals[j % 3], j % 2 ? 1.25 : 1.05), x, y, 0.03)
+      if (j < 8) { const [lx, ly] = rimPoint(W + 0.2, 0.12 * Math.PI + ((j + 0.5) / 8) * 0.76 * Math.PI); onHood(bloHood, dot(new THREE.Group(), COL.leaf, 0.03, [0, 0, 0], [1.4, 0.6, 0.4]), lx, ly, 0.02) }
+    }
+    // 三つ編み: 頭（headG）の座標で、フードの横（しっぽと反対の -x 側）から出て、肩のうしろを通って腰の上まで。
+    // 前から見てもフードの横に見えるよう外へ張り出し、歩くときに後ろへ振れる腕には当たらない奥行きにする
+    const toHead = (x: number, y: number, z: number) => new THREE.Vector3(x / HEAD_SCALE, (y - HEAD.cy) / HEAD_SCALE, z / HEAD_SCALE)
+    const path = new THREE.CatmullRomCurve3([toHead(-0.27, 0.6, -0.13), toHead(-0.33, 0.5, -0.15), toHead(-0.32, 0.41, -0.19), toHead(-0.28, 0.32, -0.21), toHead(-0.24, 0.26, -0.21)])
+    const N = 9
+    for (let i = 0; i < N; i++) {
+      const t = (i + 0.5) / N, p = path.getPoint(t), tan = path.getTangent(t)
+      const seg = solid(new THREE.SphereGeometry(0.06 - i * 0.002, 14, 10), COL.blonde, braid, { line: 0.012 })
+      seg.position.copy(p); seg.quaternion.setFromUnitVectors(YU, tan); seg.rotateZ(i % 2 ? 0.55 : -0.55); seg.scale.set(0.95, 1.5, 0.85)
+    }
+    const end = path.getPoint(1)
+    const tie = solid(new THREE.TorusGeometry(0.03, 0.012, 6, 14), COL.bloLace, braid, { line: 0 }); tie.position.copy(end); tie.quaternion.setFromUnitVectors(ZF, path.getTangent(1))
+    const tuft = solid(new THREE.ConeGeometry(0.045, 0.1, 10), COL.blonde, braid, { line: 0.01 }); tuft.position.copy(end).addScaledVector(path.getTangent(1), 0.05); tuft.quaternion.setFromUnitVectors(YU, path.getTangent(1).clone().negate())
+    for (const [k, t] of [0.2, 0.45, 0.7].entries()) {
+      const f = flower(petals[k], 1.1); f.position.copy(path.getPoint(t)).add(new THREE.Vector3(-0.05, 0, 0.03)); f.quaternion.setFromUnitVectors(ZF, new THREE.Vector3(-1, 0, 0.6).normalize()); braid.add(f)
+    }
+    skirt(bloBody, COL.bloDress, 0.3)
+    frillRing(bloBody, COL.petalWhite, 0.302, 0.098, 24, 0.036, 0.3)
+    // 胸の編み上げ: ピンクの × を 3 つ
+    for (const y of [0.37, 0.335, 0.3]) for (const r of [0.7, -0.7]) {
+      const x = new THREE.Mesh(G(new THREE.BoxGeometry(0.06, 0.009, 0.006)), sharedMat(COL.bloLace)); x.position.set(0, y, bodyR(y) + 0.006); x.rotation.set(-0.3, 0, r); x.raycast = () => {}; bloBody.add(x)
+    }
+  }
+  const bloSleeves = puffSleeves(COL.bloDress, COL.bloRim)
+
+  // りんごとリボン: 紺のフードのてっぺんに大きな赤いリボン。青い上着（袖に赤い切れ目）、白い立ちえり、黄色いスカート、背中に赤いマント
+  const appHood = princessHood(COL.appHood, COL.appHood)
+  const appBody = dressGroup()
+  {
+    const bow = new THREE.Group(); bow.position.set(0, 0.43, 0.07); bow.rotation.x = -0.4; appHood.add(bow)
+    for (const sd of [-1, 1]) { const lobe = solid(new THREE.SphereGeometry(0.1, 16, 12), COL.appRed, bow, { line: L * 0.8 }); lobe.position.set(sd * 0.11, 0.015, 0); lobe.scale.set(1.15, 0.72, 0.45); lobe.rotation.z = sd * 0.28 }
+    solid(new THREE.SphereGeometry(0.045, 12, 10), COL.appRed, bow, { line: L * 0.8 }).scale.set(1, 1, 0.7)
+    skirt(appBody, COL.appSkirt, 0.3)
+    // 立ちえり（首のうしろ半分）
+    const col = new THREE.LatheGeometry([[0.12, 0.41], [0.16, 0.465], [0.205, 0.51]].map(([r, y]) => new THREE.Vector2(r, y)), 20, Math.PI / 2, Math.PI)
+    solid(col, COL.collar, appBody, { double: true, line: 0.008 })
+    // 背中のマント
+    const cape = new THREE.LatheGeometry([[0.165, 0.41], [0.2, 0.36], [0.24, 0.28], [0.27, 0.2], [0.285, 0.15]].map(([r, y]) => new THREE.Vector2(r, y)), 24, Math.PI * 0.62, Math.PI * 0.76)
+    solid(cape, COL.appRed, appBody, { double: true, line: 0.012 })
+    // 胸元のブローチ
+    dot(appBody, 0xf2c14e, 0.022, [0, 0.4, bodyR(0.4) + 0.012], [1, 1, 0.6])
+  }
+  const appSleeves = puffSleeves(COL.appBodice, COL.appRed)
+
+  // ガラスのくつ: 水色のフードに金色のおだんごと前髪、水色のカチューシャ。キラキラの点のスカート、白い長い手ぶくろ、透けた水色のくつ
+  const glaHood = princessHood(COL.glaHood, COL.glaRim)
+  const glaBody = dressGroup()
+  {
+    hairFringe(glaHood, COL.blonde)
+    hairBun(glaHood, COL.blonde, 0xe2b955)
+    // カチューシャ: 頭の前寄りをまたぐ帯（殻を z = c で切った楕円に沿う）
+    const c = 0.17, k = Math.sqrt(1 - (c / R.z) ** 2), band: THREE.Vector3[] = []
+    for (let i = 0; i <= 24; i++) { const a = 0.1 * Math.PI + (i / 24) * 0.8 * Math.PI; band.push(new THREE.Vector3(R.x * k * 1.03 * Math.cos(a), R.y * k * 1.03 * Math.sin(a), c)) }
+    const hb = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(band), 40, 0.024, 8, false)), toonMat(COL.glaBodice)); hb.raycast = () => {}; glaHood.add(hb)
+    skirt(glaBody, COL.glaDress, 0.31)
+    // キラキラ: スカートの表面に白い点（いつも同じ並び）
+    for (let i = 0; i < 26; i++) {
+      const a = i * 2.39996, y = 0.12 + ((i * 7) % 26) / 26 * 0.17, r = skirtR(y, 0.31) + 0.003
+      skirtDeco(dot(glaBody, i % 3 ? COL.petalWhite : 0xfff3c4, 0.007, [Math.sin(a) * r, y, Math.cos(a) * r]), 0.31)
+    }
+    // 胸元の濃い水色の切り替え
+    const panel = new THREE.LatheGeometry([[0.175, 0.31], [0.16, 0.36], [0.13, 0.41]].map(([r, y]) => new THREE.Vector2(r + 0.004, y)), 12, -0.32, 0.64)
+    solid(panel, COL.glaBodice, glaBody, { double: true, line: 0 })
+  }
+  const glaSleeves = puffSleeves(COL.glaDress, COL.glaRim)
+
   // ---------- 服 ----------
   // 服ごとの見た目: 頭の被り物（head）、服にだけ付く小物（extras）、体・腕・足の色（cloth）、袖から手を出すか（hands）
   // 被り物の頂点（吹き出しの位置）は tipY（フードの座標）
@@ -592,6 +860,16 @@ export function buildLaraFigure(): LaraFigure {
     pumpkin: { head: pumpkinHood, extras: [pumpkinBody, ...bootLaces], cloth: { body: COL.pumpkin, arms: COL.cloth, legs: COL.cloth }, hands: true, tipY: 0.68 },
     // ベイマックス: 真っ白なふわふわスーツ。袖の先は白いミトンのまま
     baymax: { head: baymaxHood, extras: [baymaxBody, ...baymaxPads], cloth: { body: COL.snow, arms: COL.snow, legs: COL.snow }, hands: false, tipY: 0.68 },
+    // バラのドレス: 黄色いドレスに黄色い長い手ぶくろ
+    rose: { head: roseHood, extras: [roseBody], cloth: { body: COL.roseDress, arms: COL.roseDress, legs: COL.roseDress }, hands: false, tipY: EAR_TIP_Y },
+    // マーメイド: 上はクリーム、脚はミント（尾びれっぽく）
+    mermaid: { head: merHood, extras: [merBody], cloth: { body: COL.cream, arms: COL.cream, legs: COL.merSkirt }, hands: false, tipY: EAR_TIP_Y },
+    // お花と三つ編み: 紫の上着、ふくらんだ袖、横に長い三つ編み。足はスカートと同じ色（座るとひざがスカートの下にあるように見える）
+    blossom: { head: bloHood, extras: [bloBody, braid, ...bloSleeves], cloth: { body: COL.bloBodice, arms: COL.cream, legs: COL.bloDress }, hands: false, tipY: EAR_TIP_Y },
+    // りんごとリボン: 青い上着に赤い切れ目の袖、黄色いスカート（足も）、赤いマント
+    apple: { head: appHood, extras: [appBody, ...appSleeves], cloth: { body: COL.appBodice, arms: COL.cream, legs: COL.appSkirt }, hands: false, tipY: EAR_TIP_Y },
+    // ガラスのくつ: 水色のドレス、白い長い手ぶくろ、透けた水色のくつ
+    glass: { head: glaHood, extras: [glaBody, ...glaSleeves], cloth: { body: COL.glaDress, arms: COL.glove, legs: COL.glassShoe }, hands: false, tipY: EAR_TIP_Y },
   }
   // 小物を体に対してまっすぐ（+ 仕草ごとの傾き）に向ける
   const qParent = new THREE.Quaternion(), qWant = new THREE.Quaternion(), qTilt = new THREE.Quaternion(), eTilt = new THREE.Euler()
@@ -603,6 +881,7 @@ export function buildLaraFigure(): LaraFigure {
   }
 
   let outfit: LaraOutfit = 'moon'
+  let dressOn = false, skirtLying = false
   const applyOutfit = () => {
     for (const [id, look] of Object.entries(looks) as [LaraOutfit, (typeof looks)[LaraOutfit]][]) {
       const on = id === outfit
@@ -612,6 +891,7 @@ export function buildLaraFigure(): LaraFigure {
     const look = looks[outfit]
     for (const h of hands) h.visible = look.hands
     for (const part of ['body', 'arms', 'legs'] as const) for (const m of clothMats[part]) m.color.setHex(look.cloth[part])
+    dressOn = dresses.some((d) => d.visible)
   }
   applyOutfit()
 
@@ -653,6 +933,7 @@ export function buildLaraFigure(): LaraFigure {
       const legRest = () => { for (const l of legs) l.hip.rotation.x = seated ? -1.45 : 0 }   // 座るときは足を前へ
       let wantSway = 0
       let propTilt: [number, number, number] = [0, 0, 0]
+      let flat = 1
       root.rotation.set(0, 0, 0); root.scale.set(1, 1, 1)
       if (sleeping) {
         // ベンチに座ってうとうと: 頭を前と横に傾け、ゆっくり呼吸。寝返りで傾ける向きが入れ替わる
@@ -816,6 +1097,7 @@ export function buildLaraFigure(): LaraFigure {
             root.rotation.set(-1.45, roll, 0)
             root.position.y = 0.3
             for (const a of arms) { a.tilt.rotation.z = a.side * 2.2; a.pivot.rotation.x = 0 }
+            flat = 0.62
             // しっぽは転がる向きと逆に回して、渦巻きがいつも床の上に出るように
             wantSway = -0.9 - roll
             break
@@ -889,6 +1171,15 @@ export function buildLaraFigure(): LaraFigure {
         if (spinT < 0) group.rotation.y = faceY
       }
       if (prop !== 'none') orientProp(propTilt)
+      // ドレスの日に寝ころぶときは、体とスカートを床の向きに平たく、スカートは脚に沿う筒に
+      const lying = dressOn && flat < 1
+      bodyMesh.scale.z = lying ? flat : 1
+      for (const d of dresses) d.scale.z = lying ? flat : 1
+      if (lying !== skirtLying) {
+        skirtLying = lying
+        for (const x of morphing) x.morphTargetInfluences![0] = lying ? 1 : 0
+        for (const d of onSkirt) { const k = lying ? d.k : 1; d.obj.position.x = d.x * k; d.obj.position.z = d.z * k }
+      }
       // 尻尾: 少し遅れて揺れ、渦はゆっくり回る（「付いてくる」感じ）
       sway += (wantSway - sway) * Math.min(1, dt * 4)
       tail.rotation.y = sway

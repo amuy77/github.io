@@ -62,8 +62,10 @@
     window.__fig = fig
 
     const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 50)
-    const target = new THREE.Vector3(0, 0.8, 0)
-    const look = (yaw, elev, r = 4.6) => { cam.position.set(target.x + r * Math.cos(elev) * Math.sin(yaw), target.y + r * Math.sin(elev), target.z + r * Math.cos(elev) * Math.cos(yaw)); cam.lookAt(target) }
+    // &r=2.4&ty=0.6 で寄って見る（細かいところの確認用）
+    const target = new THREE.Vector3(0, Number(q.get('ty') || 0.8), 0)
+    const R = Number(q.get('r') || 4.6)
+    const look = (yaw, elev, r = R) => { cam.position.set(target.x + r * Math.cos(elev) * Math.sin(yaw), target.y + r * Math.sin(elev), target.z + r * Math.cos(elev) * Math.cos(yaw)); cam.lookAt(target) }
     const views = [
       { name: '正面', yaw: 0, elev: 0.05 },
       { name: '正面（お店のカメラの高さ）', yaw: 0, elev: 0.56 },

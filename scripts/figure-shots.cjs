@@ -1,5 +1,5 @@
 // LaRa フィギュアの見た目確認: `npm run dev` を起動した状態で `node scripts/figure-shots.cjs`
-// screenshots/figure-*.png に 4 面（正面・俯瞰・斜め・横）を書き出す
+// screenshots/figure-*.png に 4 面（正面・俯瞰・斜め・横）を書き出す。一部だけ撮るなら FIGURE_ONLY=rose,glass-lie（名前の頭で絞る）、FIGURE_ZOOM=1 で寄って撮る
 const { chromium } = require('@playwright/test')
 const { mkdirSync } = require('node:fs')
 
@@ -22,6 +22,14 @@ const VARIANTS = [
   ['baymax-idle', 'outfit=baymax&still=1'],
   ['baymax-sleep', 'outfit=baymax&ex=sleep&still=1'],
   ['baymax-walk', 'outfit=baymax&motion=walk'],
+  // プリンセスのドレス 5 着（立つ・歩く・座る・寝ころぶ・ウクレレ）
+  ...['rose', 'mermaid', 'blossom', 'apple', 'glass'].flatMap((o) => [
+    [`${o}-idle`, `outfit=${o}&still=1`],
+    [`${o}-walk`, `outfit=${o}&motion=walk`],
+    [`${o}-rest`, `outfit=${o}&pose=rest&prop=cup`],
+    [`${o}-lie`, `outfit=${o}&pose=lie`],
+    [`${o}-strum`, `outfit=${o}&pose=strum&prop=ukulele`],
+  ]),
   // 暮らしの仕草
   ['pose-read', 'pose=read&prop=book'],
   ['pose-rest', 'pose=rest&prop=cup'],
@@ -43,8 +51,9 @@ const VARIANTS = [
   const page = await browser.newPage({ viewport: { width: 1420, height: 470 }, deviceScaleFactor: 1 })
   page.on('pageerror', (e) => console.log('PAGEERROR', e.message))
   page.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE', m.text()) })
-  for (const [name, qs] of VARIANTS) {
-    await page.goto(`${BASE}?mode=shots&${qs}`)
+  const only = (process.env.FIGURE_ONLY || '').split(',').filter(Boolean)
+  for (const [name, qs] of VARIANTS.filter(([n]) => !only.length || only.some((o) => n.startsWith(o)))) {
+    await page.goto(`${BASE}?mode=shots&${qs}${process.env.FIGURE_ZOOM ? '&r=2.3&ty=0.62' : ''}`)
     await page.waitForFunction(() => (window.__frames || 0) > 20, null, { timeout: 30_000 })
     await page.waitForTimeout(400)
     await page.screenshot({ path: `screenshots/figure-${name}.png` })
