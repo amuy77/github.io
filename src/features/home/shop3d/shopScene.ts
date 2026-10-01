@@ -378,7 +378,7 @@ export class ShopScene {
     return d.getHours() + d.getMinutes() / 60
   }
 
-  /** 住人の服（三日月 / 黒猫パーカー）。日替わりの判定は呼ぶ側（outfit.ts） */
+  /** 住人の服（一覧は outfit.ts）。日替わりの判定は呼ぶ側 */
   setResidentOutfit(o: LaraOutfit) { this.residentOutfit = o; this.figure?.setOutfit(o); this.needsRender = true }
 
   private residentExpression(t: number) {

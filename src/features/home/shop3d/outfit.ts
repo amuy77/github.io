@@ -5,7 +5,8 @@ import { isoDate, parseIso, today } from '@/lib/dates'
  *   1. ここに { id, label, emoji, line } を 1 行足す（季節限定なら months: [10] のように着る月も。無ければ一年中）
  *   2. laraFigure.ts で頭の被り物を作り、`looks` に { head, extras, cloth, hands } を足す（足りないと型エラーで教えてくれる）
  *   3. scripts/figure-shots.cjs に `outfit=<id>` の行を足して見た目を確認
- * 設定画面のボタン、おまかせの日替わり、タップのセリフはこの一覧から自動で決まる。
+ *   4. voiceLines.ts に `outfit.<id>` のセリフを足し、scripts/smoke.spec.ts の「セリフがある場面」の一覧にも足す
+ * 設定画面のボタンとおまかせの日替わりは、この一覧から自動で決まる。
  */
 export const OUTFITS = [
   { id: 'moon', label: '三日月', emoji: '🌙', line: '今日は三日月の日🌙' },
@@ -13,6 +14,12 @@ export const OUTFITS = [
   // ハロウィンの季節（10 月）だけ、おまかせの日替わりに入る
   { id: 'pumpkin', label: 'かぼちゃ', emoji: '🎃', line: 'ハロウィンのかぼちゃ、似合う？🎃', months: [10] },
   { id: 'baymax', label: 'ベイマックス', emoji: '🤍', line: 'ベイマックスの日🤍 今日も無理しないでね' },
+  // プリンセスのドレス 5 着（名前は見た目で。キャラクターの名前は使わない）
+  { id: 'rose', label: 'バラのドレス', emoji: '🌹', line: '今日はバラのドレスの日🌹' },
+  { id: 'mermaid', label: 'マーメイド', emoji: '🐚', line: '今日はマーメイドの日🐚' },
+  { id: 'blossom', label: 'お花と三つ編み', emoji: '🌸', line: '今日はお花と三つ編みの日🌸' },
+  { id: 'apple', label: 'りんごとリボン', emoji: '🍎', line: '今日はりんごとリボンの日🍎' },
+  { id: 'glass', label: 'ガラスのくつ', emoji: '👠', line: '今日はガラスのくつの日👠' },
 ] as const
 
 export type LaraOutfit = (typeof OUTFITS)[number]['id']

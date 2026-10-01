@@ -210,7 +210,7 @@ test('LaRa voice: every scene has lines, and every bubble is short', async () =>
     'musing.any', ...lives.map((l) => `musing.${l}`), 'sleep.talk', 'sleep.wake', 'tap.first', 'tap.again', 'tap.many', 'tap.walking', 'worried',
     'data.inbox', 'data.answers', 'data.recipes', 'data.clips', 'data.streak', 'data.streakZero', 'data.menuDone', 'nap.wake',
     ...Array.from({ length: 12 }, (_, i) => `month.${i + 1}`), ...Array.from({ length: 7 }, (_, i) => `weekday.${i}`),
-    'outfit.moon', 'outfit.hoodie', 'outfit.pumpkin', 'outfit.baymax',
+    'outfit.moon', 'outfit.hoodie', 'outfit.pumpkin', 'outfit.baymax', 'outfit.rose', 'outfit.mermaid', 'outfit.blossom', 'outfit.apple', 'outfit.glass',
     'events.sneeze', 'events.trip', 'events.doze', 'events.foundBook', 'events.gull', 'events.star', 'events.yawn',
   ]
   expect(need.filter((k) => !VOICE_LINES[k]?.length), 'scenes without lines').toEqual([])
@@ -224,6 +224,23 @@ test('LaRa voice: every scene has lines, and every bubble is short', async () =>
     }
     if (withN.has(key)) expect(seq.some((b) => b.includes('{n}')), `${key}: needs {n}`).toBe(true)
   }
+})
+
+test('3D home: LaRa wears each princess dress when it is fixed in settings', async ({ page }, info) => {
+  test.setTimeout(120_000)
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  await stubSupabase(page)
+  await page.goto('#/')
+  type W = { __lara?: { debugState(): { figure: boolean; outfit: string } } }
+  for (const id of ['rose', 'mermaid', 'blossom', 'apple', 'glass']) {
+    await page.evaluate((id) => localStorage.setItem('lara.settings', JSON.stringify({ home3d: true, outfit: id })), id)
+    await page.reload()
+    await page.waitForFunction((id) => { const s = (window as unknown as W).__lara?.debugState(); return !!s?.figure && s.outfit === id }, id, { timeout: 20_000 })
+    await page.waitForTimeout(600)
+    await page.screenshot({ path: `screenshots/${info.project.name}-outfit-${id}.png` })
+  }
+  expect(errors, errors.join('\n')).toEqual([])
 })
 
 test('home: settings button opens settings', async ({ page }) => {
