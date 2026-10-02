@@ -57,6 +57,8 @@
     const m = { walking: motion === 'walk', waving: motion === 'wave', brewing: motion === 'brew', sleeping: ex === 'sleep', worried: ex === 'worried', facing: 0, reduced: q.has('still') }
     if (q.get('pose')) m.pose = q.get('pose')
     if (q.get('prop')) fig.setProp(q.get('prop'))
+    // バランスボールに座る仕草は、お店と同じくボールの上の高さ（2R − 0.14）に置く
+    if (/^ball(Bounce|Belly|Balance)$/.test(q.get('pose') || '')) fig.group.position.y = 0.42
     // still=1 でも仕草の形は見せたいので、ポーズ指定があるときは時刻を固定して動かす
     if (q.get('pose')) m.reduced = false
     window.__fig = fig
@@ -94,7 +96,8 @@
     let blinkAt = 3, blinkUntil = 0
     function frame() {
       requestAnimationFrame(frame)
-      const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime
+      // &at=秒 で、仕草が始まってからの時間を固定して撮る（最初のフレームで仕草を始め、あとはずっとその時刻）
+      const dt = Math.min(clock.getDelta(), 0.05), t = q.has('at') ? (window.__frames ? Number(q.get('at')) : 0) : clock.elapsedTime
       if (mode === 'turn' && !m.reduced) {
         if (t > blinkAt) { blinkUntil = t + 0.14; blinkAt = t + 3 + Math.random() * 4 }
         fig.setExpression({ blink: t < blinkUntil })
