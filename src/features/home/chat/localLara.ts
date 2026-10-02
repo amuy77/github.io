@@ -5,6 +5,8 @@ import { clipTitle } from '@/features/clips/ClipCard'
 import { paths } from '@/app/routes'
 import { today } from '@/lib/dates'
 import { chatLine } from './chatVoice'
+import { agendaReply, type Agenda } from '@/features/planner/agendaLine'
+import { PLANNER_URL } from '@/features/planner/api'
 
 /** LaRa の返事 1 つ。links はタップで開ける画面、consult は「預ける」ボタンを出す */
 export interface LaraReply { text: string; links?: { label: string; to: string }[]; consult?: boolean }
@@ -18,6 +20,8 @@ export interface LaraContext {
   clips: ClipRow[]
   /** しばらく出していないお店のメニュー（古い順） */
   notServed: RecipeRow[]
+  /** Planner の今日・明日の予定と ToDo（届かなければ null / undefined） */
+  planner?: { today?: Agenda | null; tomorrow?: Agenda | null }
   /** 乱数（テストで固定できるように） */
   random?: () => number
 }
@@ -45,6 +49,17 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
   if (has(t, 'おつかれ', 'お疲れ', 'つかれた', '疲れた')) return { text: say('tired') + (ctx.todayLogged ? '' : '\n' + say('tiredLog')), links: ctx.todayLogged ? undefined : [{ label: '今日のメニューを記録', to: paths.menuDay(today()) }] }
   if (has(t, 'ありがと', 'サンキュー', 'thanks')) return { text: say('thanks') }
   if (has(t, 'おやすみ')) return { text: say('oyasumi') }
+
+  // --- 予定・ToDo（Planner）
+  if (has(t, '予定', 'スケジュール', 'todo', 'ｔｏｄｏ', 'タスク', 'やることリスト')) {
+    const which = has(t, '明日', 'あした', 'あす') ? 'tomorrow' : 'today'
+    const a = ctx.planner?.[which]
+    const link = [{ label: 'Planner を開く', to: PLANNER_URL }]
+    if (!a) return { text: 'Planner の予定が読めなかったみたい。LaRa と同じアカウントで Planner にログインしてるか見てみてね', links: link }
+    const part = has(t, 'todo', 'ｔｏｄｏ', 'タスク', 'やることリスト') && !has(t, '予定', 'スケジュール') ? 'tasks' : has(t, '予定', 'スケジュール') && !has(t, 'todo', 'ｔｏｄｏ', 'タスク') ? 'events' : 'all'
+    // 「今日の予定は？」には ToDo も一緒に
+    return { text: agendaReply(a, which, part === 'events' && which === 'today' ? 'all' : part), links: link }
+  }
 
   // --- 今の状況
   if (has(t, '確認待ち', '受信トレイ', 'トレイ', '届いて')) {
