@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { IconX } from '@/components/ui/icons'
 import { SUGGEST, type LaraTalk } from './useLaraTalk'
+import { openExternal } from '@/features/planner/api'
+
+const isExternal = (to: string) => /^https?:\/\//.test(to)
 
 /** 吹き出しの中身: 店主の言葉、LaRa の返事、開ける画面・預ける・次の答えのボタン */
 export function TalkBubbleBody({ talk, onLink }: { talk: LaraTalk; onLink: (to: string) => void }) {
@@ -12,7 +15,7 @@ export function TalkBubbleBody({ talk, onLink }: { talk: LaraTalk; onLink: (to: 
       <p className="whitespace-pre-wrap">{l.text}</p>
       {(!!l.links?.length || l.consultOf || !!l.more) && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {l.links?.map((x) => <button key={x.to + x.label} type="button" onClick={() => onLink(x.to)} className="rounded-chip border border-green-600/40 bg-paper px-2.5 py-1 text-[12px] font-bold text-green-700">{x.label} →</button>)}
+          {l.links?.map((x) => <button key={x.to + x.label} type="button" onClick={() => (isExternal(x.to) ? openExternal(x.to) : onLink(x.to))} className="rounded-chip border border-green-600/40 bg-paper px-2.5 py-1 text-[12px] font-bold text-green-700">{x.label} →</button>)}
           {l.consultOf && !l.consulted && <button type="button" onClick={() => void talk.consult()} disabled={talk.busy} className="rounded-chip bg-mustard-400 px-3 py-1 text-[12px] font-bold text-espresso-900">預ける</button>}
           {!!l.more && <button type="button" onClick={() => talk.next()} className="rounded-chip border border-line bg-paper px-2.5 py-1 text-[12px] font-bold">次の答え（あと {l.more}）→</button>}
         </div>

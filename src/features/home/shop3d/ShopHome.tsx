@@ -17,6 +17,7 @@ import { TalkBar, TalkBubbleBody, TalkButton } from '@/features/home/chat/LaraTa
 import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 import { useMenuLogs } from '@/features/menu/hooks'
+import { PLANNER_URL, openExternal, useAgendaLine } from '@/features/planner/api'
 
 const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
@@ -51,6 +52,10 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const talkingRef = useRef(talking)
   talkingRef.current = talking
   const answers = useUnseenAnswers().length
+  // 今日の予定と ToDo（Planner）。あれば最初のあいさつの後に言い、下の案内にも出す
+  const agenda = useAgendaLine()
+  const agendaRef = useRef(agenda)
+  agendaRef.current = agenda
   const answersRef = useRef(answers)
   answersRef.current = answers
   // 照明の時間帯。開いたままでも 1 分ごとに見直す
@@ -193,7 +198,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
       // あいさつは開いてすぐのときだけ（遅れて出ると、来たばかりのように聞こえる）
       const greet = !greetedRef.current && Date.now() - opened < 12_000
       greetedRef.current = true
-      say(scene, greet ? greetLine(ctx, away) : monologue(ctx))
+      say(scene, greet ? [...greetLine(ctx, away), ...(agendaRef.current && !ctx.sleeping ? [agendaRef.current] : [])] : monologue(ctx))
       id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 20000 + Math.random() * 20000)
     }
     id = window.setTimeout(speak, 2500 + Math.random() * 1500)
@@ -280,7 +285,16 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
 
       {/* 下部: 案内シート */}
       <div className="absolute inset-x-0 bottom-0 px-4 pb-3">
-        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : (
+        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : (<>
+        {/* 今日の予定と ToDo（Planner）。タップで Planner へ */}
+        {!info && agenda && (
+          <button type="button" onClick={() => openExternal(PLANNER_URL)} aria-label="Planner で今日の予定を開く"
+            className="mb-2 flex w-full items-center gap-2 rounded-card border border-line bg-paper/95 px-3.5 py-2.5 text-left shadow-card backdrop-blur">
+            <span className="text-[20px]" aria-hidden>📅</span>
+            <span className="line-clamp-2 min-w-0 flex-1 text-[13px] font-bold leading-snug">{agenda}</span>
+            <span className="shrink-0 text-[12px] font-bold text-green-700">Planner ›</span>
+          </button>
+        )}
         <motion.div layout className="flex items-center gap-2 rounded-card sm:gap-3 border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
           <span className={cx('text-[26px]', !info && 'hidden sm:inline')} aria-hidden>{info ? info.em : '👋'}</span>
           <div className="min-w-0 flex-1">
@@ -296,7 +310,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
             </>
           )}
         </motion.div>
-        )}
+        </>)}
       </div>
     </div>
   )

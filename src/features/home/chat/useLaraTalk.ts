@@ -11,6 +11,7 @@ import { nextWorkerTime } from '@/features/ai/api'
 import { askLara } from '@/features/ask/api'
 import { FunctionError } from '@/features/clips/api'
 import { localReply, type LaraReply } from './localLara'
+import { usePlannerAgenda } from '@/features/planner/api'
 import { chatLine } from './chatVoice'
 import { markAnswersSeen, useUnseenAnswers, type UnseenAnswer } from './unseenAnswers'
 
@@ -28,7 +29,7 @@ export interface TalkLine {
   mood: 'nod' | 'wave' | 'think' | 'happy'
 }
 
-export const SUGGEST = ['おはよう', '今日なにしよう？', '確認待ちある？', 'おすすめ教えて', 'ネタちょうだい', '相談したい']
+export const SUGGEST = ['おはよう', '今日の予定は？', '今日なにしよう？', '確認待ちある？', 'おすすめ教えて', 'ネタちょうだい', '相談したい']
 const answerLine = (a: UnseenAnswer, more: number): TalkLine => ({
   text: `${chatLine('answerHead', { q: a.question.slice(0, 30) + (a.question.length > 30 ? '…' : '') })}\n\n${a.answer}`, more, mood: 'happy',
 })
@@ -41,6 +42,8 @@ export function useLaraTalk({ counts, streak }: { counts: HomeCounts; streak: nu
   const logs = useMenuLogs(addDays(today(), -60), today())
   const enqueue = useEnqueueJob()
   const unseen = useUnseenAnswers()
+  const planToday = usePlannerAgenda('today')
+  const planTomorrow = usePlannerAgenda('tomorrow')
   const [line, setLine] = useState<TalkLine | null>(null)
   const [thinking, setThinking] = useState(false)
   const queue = useRef<UnseenAnswer[]>([])
@@ -66,7 +69,7 @@ export function useLaraTalk({ counts, streak }: { counts: HomeCounts; streak: nu
     const q = raw.trim()
     if (!q || thinking) return
     const rs = recipes.data ?? [], ls = logs.data ?? []
-    const reply = localReply(q, { hour: new Date().getHours(), counts, streak, todayLogged: ls.some((l) => l.log_date === today()), recipes: rs, clips: clips.data ?? [], notServed: notServedRecently(ls, rs).map((x) => x.recipe) })
+    const reply = localReply(q, { hour: new Date().getHours(), counts, streak, todayLogged: ls.some((l) => l.log_date === today()), recipes: rs, clips: clips.data ?? [], notServed: notServedRecently(ls, rs).map((x) => x.recipe), planner: { today: planToday.data, tomorrow: planTomorrow.data } })
     // じっくり相談: API キーがあれば即答、無ければ預かる
     if (reply.consult && !noKey.current) {
       setThinking(true)

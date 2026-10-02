@@ -26,6 +26,7 @@ npm run gen:icons  # public/brand/lara.png から PWA アイコンを生成
 - `src/` — Vite + React 19 + TypeScript + Tailwind v4。`features/` に機能ごと、`components/ui/` に共通部品
 - `src/features/home/shop3d/` — three.js のお店ジオラマ
 - `supabase/migrations/` — DB スキーマ（RLS 込み）。`supabase/functions/link-preview` — URL プレビュー取得
+- `src/features/planner/` — 兄弟アプリ Planner（予定・ToDo、https://planner-mu-lovat.vercel.app）との連携。ログイン中のアクセストークンで Planner の `GET /api/v1/agenda?date=` を読み、ホームのひとこと・案内カードと「今日の予定は？」の返事に使う（同じ Supabase・同じアカウントなので本人の分だけ読める。Planner 側は CORS で `https://amuy77.github.io` だけ許可）。届かないときは何も出さない
 - `routines/` — Claude Code Routine（AI 裏方）のプロンプト
 - `.github/workflows/deploy.yml` — GitHub Pages への自動デプロイ
 
