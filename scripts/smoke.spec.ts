@@ -184,6 +184,33 @@ test('3D home: LaRa keeps her daily schedule and never gets stuck', async ({ pag
   expect(again).toMatchObject({ forced: 'mailbox', state: 'mailbox' })
 })
 
+test('3D home: LaRa plays with the balance ball (bounce, belly, balance, roll)', async ({ page }, info) => {
+  type S = { figure: boolean; state: string; arrived: boolean; resident: [number, number, number] | null; ballDecor: boolean | null }
+  type W = { __lara: { debugState(): S; debugSetHour(h: number | null): void; debugGoto(a: string | null): void } }
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  const state = () => page.evaluate(() => (window as unknown as W).__lara.debugState())
+  await stubSupabase(page)
+  await page.goto('#/')
+  await page.waitForFunction(() => (window as unknown as Partial<W>).__lara?.debugState().figure, null, { timeout: 20_000 })
+  // 昼にして、届いている郵便を先に見せておく（見ていないと郵便受けへ呼び戻される）
+  await page.evaluate(() => { const l = (window as unknown as W).__lara; l.debugSetHour(14); l.debugGoto('mailbox') })
+  expect((await state()).ballDecor, 'the ball sits on the floor').toBe(true)
+  for (const act of ['ballBounce', 'ballBelly', 'ballBalance', 'ballRoll']) {
+    await page.evaluate((a) => (window as unknown as W).__lara.debugGoto(a), act)
+    await page.waitForTimeout(1200)
+    const s = await state()
+    expect(s, act).toMatchObject({ state: act, arrived: true, ballDecor: false })
+    // ボールの上に座る遊びは、ボールのてっぺん（2R − 0.14）の高さにいる。転がす遊びは床の上
+    expect(s.resident![1], `${act}: height`).toBeCloseTo(act === 'ballRoll' ? 0 : 0.42, 2)
+    await page.screenshot({ path: `screenshots/${info.project.name}-ball-${act}.png` })
+  }
+  // 遊び終わったら、ボールは床に戻る
+  await page.evaluate(() => (window as unknown as W).__lara.debugGoto('counter'))
+  expect((await state()).ballDecor).toBe(true)
+  expect(errors, errors.join('\n')).toEqual([])
+})
+
 test('chat voice: every reply keeps its facts ({vars}) and the words the app looks for', async () => {
   const { CHAT_LINES, chatLine } = await import('../src/features/home/chat/chatVoice')
   // 数や名前が入る場面は、どのセリフにも必ずその {変数} がある（口調を変えても中身が落ちない）
@@ -210,7 +237,7 @@ test('chat voice: every reply keeps its facts ({vars}) and the words the app loo
 test('LaRa voice: every scene has lines, and every bubble is short', async () => {
   const { VOICE_LINES } = await import('../src/features/home/shop3d/voiceLines')
   const awake = ['machine', 'mailbox', 'window', 'water', 'waterBanana', 'read', 'rest', 'sweep', 'wipe', 'chalkboard', 'shelf', 'dance', 'nap',
-    'daze', 'snack', 'roll', 'ukulele', 'plantTalk', 'chase', 'peek', 'perch', 'wander']
+    'daze', 'snack', 'roll', 'ukulele', 'plantTalk', 'chase', 'peek', 'perch', 'wander', 'ballBounce', 'ballBelly', 'ballBalance', 'ballRoll']
   const lives = ['morning', 'day', 'evening', 'late']
   const need = [
     ...awake.map((a) => `activity.${a}`), ...lives.map((l) => `counter.${l}`), ...lives.map((l) => `greet.${l}`), 'greet.longAway', 'greet.soon',

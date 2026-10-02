@@ -13,7 +13,7 @@ import type { LaraOutfit } from './outfit'
 
 export type { LaraOutfit }
 /** 手に持つ小物 */
-export type LaraProp = 'none' | 'cup' | 'watering' | 'book' | 'broom' | 'cloth' | 'chalk' | 'snack' | 'ukulele'
+export type LaraProp = 'none' | 'cup' | 'watering' | 'book' | 'broom' | 'cloth' | 'chalk' | 'snack' | 'ukulele' | 'ball'
 /**
  * 止まっているときの仕草。stand: ふつう / sit: 座る / read: 座って本を読む / rest: 座ってコーヒー /
  * water: じょうろで水やり / sweep: ほうきで掃く / gaze: 窓の外を眺める / stretch: 伸び / lookaround: きょろきょろ / hop: 小さく跳ねる /
@@ -21,11 +21,14 @@ export type LaraProp = 'none' | 'cup' | 'watering' | 'book' | 'broom' | 'cloth' 
  * dance: 鼻歌で踊る / wake: 座ったまま目をこする（起こされたとき） / yawn: あくび /
  * daze: ぼーっとする / eat: つまみ食い / lie: 床に寝ころんでごろごろ / strum: 座ってウクレレ / crouch: しゃがんで植物に話しかける /
  * chase: しっぽを追いかけてくるくる / doze: 立ったまま寝落ちしかける / sneeze: くしゃみ / trip: つまずく / peek: のぞきこむ /
- * swing: 座って足をぶらぶら / scratch: 頭をかく
+ * swing: 座って足をぶらぶら / scratch: 頭をかく /
+ * バランスボール（小物 'ball' と一緒に）: ballBounce: 座ってぽよんぽよん / ballBelly: おなかを乗せてゆらゆら / ballBalance: 上でバランス（ときどき落ちそう） /
+ * ballRoll: 転がして追いかけ、引っぱって元の場所へ戻す（BALL_ROLL_CYCLE 秒で 1 周）
  */
 export type LaraPose = 'stand' | 'sit' | 'read' | 'rest' | 'water' | 'sweep' | 'gaze' | 'stretch' | 'lookaround' | 'hop'
   | 'wipe' | 'write' | 'browse' | 'peruse' | 'dance' | 'wake' | 'yawn'
   | 'daze' | 'eat' | 'lie' | 'strum' | 'crouch' | 'chase' | 'doze' | 'sneeze' | 'trip' | 'peek' | 'swing' | 'scratch'
+  | 'ballBounce' | 'ballBelly' | 'ballBalance' | 'ballRoll'
 export interface LaraExpression { blink?: boolean; worried?: boolean; sleeping?: boolean }
 export interface LaraMotion {
   /** 歩行中（体の揺れ・腕振り・足踏み） */
@@ -82,6 +85,8 @@ const COL = {
   bloHood: 0xb79be3, bloRim: 0xc8b2ec, bloDress: 0xb08ee0, bloBodice: 0x9a78d4, bloLace: 0xf5b3c8, blonde: 0xf3d27a, petalPink: 0xf4a6c6, petalWhite: 0xfffaf2, petalLilac: 0xc9adf2, petalCore: 0xf6c94e,
   appHood: 0x2f4fa3, appBodice: 0x3157b5, appSkirt: 0xf6d769, appRed: 0xdc4a40, collar: 0xfdfaf4,
   glaHood: 0xa8d4f2, glaRim: 0xbfe1f7, glaDress: 0xa6d2f3, glaBodice: 0x8cc0ea, glove: 0xf8f9ff, glassShoe: 0xd6efff,
+  // バランスボール（ミント）と、継ぎ目の線・空気穴
+  ball: 0x8fd6c4, ballSeam: 0xe6f6f0, ballValve: 0x67b8a4,
 }
 /** 猫耳の先（フードの座標）。吹き出しの位置に使う */
 const EAR_TIP_Y = 0.63
@@ -99,6 +104,27 @@ function tone() {
     toneTex.minFilter = THREE.NearestFilter; toneTex.magFilter = THREE.NearestFilter; toneTex.needsUpdate = true
   }
   return toneTex
+}
+
+/** バランスボールの半径。お店の置き場所や、座ったときの高さ（2R − 0.14）もこれで決まる */
+export const BALL_R = 0.28
+/** ballRoll（転がして追いかけて、元の場所へ戻す）の 1 周の秒数。お店ではこの 2 周ぶんだけ遊ぶ */
+export const BALL_ROLL_CYCLE = 7
+/**
+ * バランスボール（ミント）。原点がボールの中心。お店に置く方と、LaRa が遊ぶときの小物の両方をこれで作る（入れ替わっても見た目が変わらない）。
+ * 転がっているのが分かるよう、交わる 2 本の継ぎ目と空気穴を付ける
+ */
+export function buildBalanceBall(): THREE.Group {
+  const g = new THREE.Group()
+  const toon = (c: number) => new THREE.MeshToonMaterial({ color: c, gradientMap: tone() })
+  const body = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 32, 22), toon(COL.ball)); body.castShadow = true; g.add(body)
+  const line = new THREE.Mesh(new THREE.SphereGeometry(BALL_R + 0.014, 32, 22), new THREE.MeshBasicMaterial({ color: COL.ink, side: THREE.BackSide })); line.raycast = () => {}; g.add(line)
+  const seamMat = toon(COL.ballSeam)
+  for (const ry of [0, Math.PI / 2]) {
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(BALL_R, 0.011, 6, 64), seamMat); seam.rotation.y = ry; seam.raycast = () => {}; g.add(seam)
+  }
+  const valve = new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), toon(COL.ballValve)); valve.position.set(0.15, 0.1, BALL_R * 0.78); valve.scale.z = 0.5; valve.lookAt(0.3, 0.2, BALL_R * 1.56); g.add(valve)
+  return g
 }
 
 /**
@@ -239,10 +265,19 @@ export function buildLaraFigure(): LaraFigure {
   // 小物は腕の角度に関係なく体に対してまっすぐ立て、持ち方の傾きだけ仕草ごとに付ける（update の orientProp）
   const handArm = arms.find((a) => a.side > 0)!
   const propG = new THREE.Group(); propG.position.set(0, -0.3, 0.02); handArm.tilt.add(propG)
-  const props: Record<Exclude<LaraProp, 'none'>, THREE.Group> = { cup: new THREE.Group(), watering: new THREE.Group(), book: new THREE.Group(), broom: new THREE.Group(), cloth: new THREE.Group(), chalk: new THREE.Group(), snack: new THREE.Group(), ukulele: new THREE.Group() }
+  const props: Record<Exclude<LaraProp, 'none'>, THREE.Group> = { cup: new THREE.Group(), watering: new THREE.Group(), book: new THREE.Group(), broom: new THREE.Group(), cloth: new THREE.Group(), chalk: new THREE.Group(), snack: new THREE.Group(), ukulele: new THREE.Group(), ball: new THREE.Group() }
   for (const g of Object.values(props)) { g.visible = false; propG.add(g) }
   // ウクレレだけは手ではなく胸の前に抱える（弾く手が動いても楽器は動かない）
   const lap = new THREE.Group(); lap.position.set(0.01, 0.31, 0.2); lap.rotation.set(-0.15, 0, 0.95); root.add(lap); lap.add(props.ukulele)
+  // バランスボールは体（root）ではなく group に置く: 弾んだり傾いたりしても床の上にいて、位置・つぶれ・回転はボールの仕草で決める。
+  // ballG（位置とつぶれ）> ballSpin（転がる回転）> ボール。中心はふだん「体の底がてっぺんに乗る」位置
+  const ballG = props.ball; group.add(ballG)
+  const ballSpin = new THREE.Group(); ballG.add(ballSpin)
+  {
+    const b = buildBalanceBall(); ballSpin.add(b)
+    b.traverse((o) => { if (o instanceof THREE.Mesh) { geos.push(o.geometry); mats.push(o.material as THREE.Material) } })
+  }
+  const BALL_SEAT_Y = 0.14 - BALL_R
   {
     // マグカップ（コーラルの帯）
     const c = props.cup
@@ -880,6 +915,7 @@ export function buildLaraFigure(): LaraFigure {
     propG.quaternion.copy(qParent.invert().multiply(qWant))
   }
 
+  const tmpBase = new THREE.Vector3(), tmpC = new THREE.Vector3()
   let outfit: LaraOutfit = 'moon'
   let dressOn = false, skirtLying = false
   const applyOutfit = () => {
@@ -928,13 +964,23 @@ export function buildLaraFigure(): LaraFigure {
       if (pose !== lastPose) { lastPose = pose; poseT0 = t }
       const u = t - poseT0
       const seated = sleeping || pose === 'sit' || pose === 'read' || pose === 'rest' || pose === 'wake' || pose === 'strum' || pose === 'swing'
+        || pose === 'ballBounce' || pose === 'ballBalance'
       // 腕: tilt.rotation.z = side × 角度 で外側へ（正 = 右腕が右下、負 = 左腕が左下）
       const armRest = (a: (typeof arms)[number]) => { a.tilt.rotation.z = a.side * 1.05; a.pivot.rotation.x = 0 }
       const legRest = () => { for (const l of legs) l.hip.rotation.x = seated ? -1.45 : 0 }   // 座るときは足を前へ
       let wantSway = 0
       let propTilt: [number, number, number] = [0, 0, 0]
       let flat = 1
-      root.rotation.set(0, 0, 0); root.scale.set(1, 1, 1)
+      root.rotation.set(0, 0, 0); root.scale.set(1, 1, 1); root.position.x = 0; root.position.z = 0
+      // ボールはふだんの位置（体の底がてっぺんに乗る所）に戻しておき、ボールの仕草で動かす
+      ballG.position.set(0, BALL_SEAT_Y, 0); ballG.scale.set(1, 1, 1); ballSpin.rotation.set(0, 0, 0)
+      /** 体（root）を、ボールの中心 c のまわりに x 軸（前後）/ z 軸（左右）で a だけ回す。体の底がボールの上を転がるように見える */
+      const aroundBall = (axis: 'x' | 'z', a: number, base: THREE.Vector3, c: THREE.Vector3) => {
+        const dy = base.y - c.y, d2 = axis === 'x' ? base.z - c.z : base.x - c.x
+        const cos = Math.cos(a), sin = Math.sin(a)
+        if (axis === 'x') { root.rotation.x += a; root.position.set(base.x, c.y + dy * cos - d2 * sin, c.z + dy * sin + d2 * cos) }
+        else { root.rotation.z += a; root.position.set(c.x + d2 * cos - dy * sin, c.y + d2 * sin + dy * cos, base.z) }
+      }
       if (sleeping) {
         // ベンチに座ってうとうと: 頭を前と横に傾け、ゆっくり呼吸。寝返りで傾ける向きが入れ替わる
         const b = reduced ? 0 : Math.sin(t * 1.1)
@@ -1160,6 +1206,83 @@ export function buildLaraFigure(): LaraFigure {
             other.tilt.rotation.z = other.side * 2.6; other.pivot.rotation.x = -0.3 + (reduced ? 0 : Math.sin(t * 14) * 0.08)
             headG.rotation.set(0, 0, -0.14)
             break
+          case 'ballBounce': {
+            // ボールに座ってぽよんぽよん: 下がった瞬間にボールがつぶれ、足はぶらぶら、腕は少し開いてリズムをとる
+            const ph = reduced ? 0 : t * 4.4, up = Math.abs(Math.sin(ph))
+            const squash = reduced ? 0 : Math.max(0, 1 - up * 4)
+            ballG.scale.set(1 + 0.07 * squash, 1 - 0.1 * squash, 1 + 0.07 * squash)
+            ballG.position.y = BALL_SEAT_Y - BALL_R * 0.1 * squash
+            root.position.y = up * 0.075 - BALL_R * 0.2 * squash
+            legs.forEach((l, i) => { l.hip.rotation.x = -1.15 + (reduced ? 0 : Math.sin(ph + i * Math.PI) * 0.25) })
+            for (const a of arms) { a.tilt.rotation.z = a.side * (1.25 + up * 0.2); a.pivot.rotation.x = -0.15 }
+            headG.rotation.set(-0.06 + squash * 0.06, 0, reduced ? 0 : Math.sin(ph * 0.5) * 0.06)
+            wantSway = reduced ? 0 : Math.sin(ph * 0.5) * 0.25
+            break
+          }
+          case 'ballBelly': {
+            // おなかをボールに乗せてうつぶせ: 体をボールの中心のまわりで前後にゆらゆら。ボールも少し転がる。手足はだらん、顔は前を見る
+            const rock = reduced ? 0 : Math.sin(t * 1.6) * 0.14
+            const shift = rock * BALL_R * 0.5
+            ballG.position.z = shift; ballSpin.rotation.x = shift / BALL_R
+            root.rotation.x = 1.45
+            aroundBall('x', rock, tmpBase.set(0, 0.292, -0.32 + shift), tmpC.set(0, BALL_SEAT_Y, shift))
+            legs.forEach((l, i) => { l.hip.rotation.x = -1.0 + (reduced ? 0 : Math.sin(t * 3.2 + i * Math.PI) * 0.18) })
+            for (const a of arms) { a.pivot.rotation.x = -1.75; a.tilt.rotation.z = a.side * 0.55 }
+            headG.rotation.set(-1.05 - rock * 0.5, 0, 0)
+            flat = 0.62
+            wantSway = 0.6
+            break
+          }
+          case 'ballBalance': {
+            // ボールに座って両手を広げてバランス。5.5 秒ごとに大きくぐらっ（左右交互）として、あわてて腕をばたばた → 戻る
+            const cyc = 5.5, k = reduced ? 0 : u % cyc, dir = Math.floor(u / cyc) % 2 ? 1 : -1
+            const big = k > 3.6 && k < 5 ? Math.sin(((k - 3.6) / 1.4) * Math.PI) * 0.32 * dir : 0
+            const a = reduced ? 0 : Math.sin(t * 2.3) * 0.07 + Math.sin(t * 3.7) * 0.03 + big
+            aroundBall('z', a, tmpBase.set(0, 0, 0), tmpC.set(0, BALL_SEAT_Y, 0))
+            ballSpin.rotation.z = -a * 0.6
+            legs.forEach((l, i) => { l.hip.rotation.x = -1.15 + (i ? 1 : -1) * a * 0.6 })
+            const flap = big !== 0 ? Math.sin(t * 14) * 0.35 : 0
+            for (const x of arms) { x.tilt.rotation.z = x.side * (1.7 + flap * x.side); x.pivot.rotation.x = -0.1 }
+            headG.rotation.set(0.04, 0, -a * 0.6)
+            wantSway = -a * 1.5
+            break
+          }
+          case 'ballRoll': {
+            // ボールを押して転がし、追いかけてつかまえ、後ろ歩きで引っぱって元の場所へ（BALL_ROLL_CYCLE 秒で 1 周。周の終わりは始めと同じ形）
+            const D = 0.55, Z0 = 0.45, k = reduced ? 0 : u % BALL_ROLL_CYCLE
+            const ease = (x: number) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c) }
+            const out = (x: number) => { const c = Math.min(1, Math.max(0, x)); return 1 - (1 - c) ** 3 }
+            // ボール: 押す（0〜0.7 秒）→ 転がっていく（0.7〜2.2）→ 止まる → 引っぱられて戻る（3.4〜6.4）
+            const back = ease((k - 3.4) / 3)
+            const zb = Z0 + 0.04 * ease(k / 0.7) + (D - 0.04) * out((k - 0.7) / 1.5) - D * back
+            // LaRa: 追いかける（1.0〜2.6）→ つかまえる → 後ろ歩きで戻る（3.4〜6.4）
+            const zl = D * ease((k - 1.0) / 1.6) - D * back
+            ballG.position.set(0, BALL_R, zb); ballSpin.rotation.x = (zb - Z0) / BALL_R
+            root.position.z = zl
+            const moving = (k > 1.0 && k < 2.6) || (k > 3.4 && k < 6.4)
+            const w = t * 9
+            if (moving) {
+              legs.forEach((l, i) => { l.hip.rotation.x = Math.sin(w + i * Math.PI + Math.PI) * 0.5 })
+              root.position.y = Math.abs(Math.sin(w)) * 0.03
+            }
+            if (k < 0.9) {
+              // 押す: 前かがみで両手を前へ
+              const pk = Math.sin(Math.min(1, k / 0.7) * Math.PI)
+              root.rotation.x = 0.12 + pk * 0.12
+              for (const a of arms) { a.pivot.rotation.x = -1.25 - pk * 0.2; a.tilt.rotation.z = a.side * 0.3 }
+            } else if (k < 2.8) {
+              // 追いかける: 腕を振って小走り
+              arms.forEach((a, i) => { a.tilt.rotation.z = a.side * 0.9; a.pivot.rotation.x = moving ? Math.sin(w + i * Math.PI) * 0.6 : 0 })
+              headG.rotation.x = 0.1
+            } else {
+              // つかまえて、両手をボールに乗せたまま後ろ歩き。戻ったら小さくひと跳ね
+              root.rotation.x = 0.1
+              for (const a of arms) { a.pivot.rotation.x = -1.2; a.tilt.rotation.z = a.side * 0.35 }
+              if (k > 6.4) root.position.y = Math.sin(Math.min(1, (k - 6.4) / 0.4) * Math.PI) * 0.05
+            }
+            wantSway = moving ? Math.sin(w * 0.5) * 0.2 : 0.1
+            break
+          }
           default:
             break
         }

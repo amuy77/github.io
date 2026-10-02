@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { DayPart } from '@/lib/dates'
-import { buildLaraFigure, type LaraFigure, type LaraOutfit, type LaraPose, type LaraProp } from './laraFigure'
+import { BALL_R, BALL_ROLL_CYCLE, buildBalanceBall, buildLaraFigure, type LaraFigure, type LaraOutfit, type LaraPose, type LaraProp } from './laraFigure'
 
 export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident'
 export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number }
@@ -46,10 +46,11 @@ function makeRand(seed: number) {
 }
 
 // ---------- 住人（LaRa）の暮らし ----------
-/** 住人の行動。sleep（夜 11 時〜朝 6 時）と mailbox（新しい未読が届いたとき）は優先。それ以外は時間帯ごとに気ままに選ぶ */
+/** 住人の行動。sleep（夜 11 時〜朝 6 時）と mailbox（新しい未読が届いたとき）は優先。それ以外は時間帯ごとに気ままに選ぶ（ball* はバランスボールで遊ぶ） */
 export type ResidentActivity = 'counter' | 'machine' | 'mailbox' | 'sleep' | 'window' | 'water' | 'waterBanana' | 'read' | 'rest' | 'sweep'
   | 'wipe' | 'chalkboard' | 'shelf' | 'dance' | 'nap'
   | 'daze' | 'snack' | 'roll' | 'ukulele' | 'plantTalk' | 'chase' | 'peek' | 'perch' | 'wander'
+  | 'ballBounce' | 'ballBelly' | 'ballBalance' | 'ballRoll'
 /** 吹き出しでひとこと言うきっかけになる出来事 */
 export type ResidentEvent = 'sneeze' | 'trip' | 'doze' | 'foundBook' | 'gull' | 'star' | 'yawn'
 /**
@@ -72,14 +73,21 @@ interface Spot {
 /**
  * 通り道の点（y は足元の高さ。カウンター裏の踏み板 0.6、ベンチ・スツールに座るときは座面 − 0.14、黒板の前の踏み台 0.4）。
  * PR / PL は踏み板の右端・左端、A はカウンター右の床、C は本棚の前の床、FL / FM はカウンターの手前、B は右前、W は窓辺のベンチの前、
- * K はカウンター裏の奥の床（黒板へ向かう曲がり角）
+ * K はカウンター裏の奥の床（黒板へ向かう曲がり角）。
+ * ballSeat はバランスボールの上（座る高さ 2R − 0.14）、BP はボールの後ろの床（転がす向きの反対へ 0.45。窓辺 W からまっすぐ来る）
  */
+/**
+ * バランスボールの置き場所（床の上の中心 x, z）。スマホで郵便受けの陰にならないよう、窓辺のベンチ寄り。
+ * 転がす向き（rotation.y）は窓辺の点 W(2.05, −1.65) からボールへ向かう向き（カメラの方へ斜め）。W からまっすぐ歩いてきて、そのまま押せる
+ */
+const BALL_X = 2.45, BALL_Z = -1.15, BALL_FACE = Math.atan2(BALL_X - 2.05, BALL_Z + 1.65)
 const NODES: Record<string, [number, number, number]> = {
   counter: [-0.2, 0.6, -0.35], machine: [-1.3, 0.6, -0.35], PR: [0.72, 0.6, -0.35], PL: [-2.12, 0.6, -0.35],
   A: [1.15, 0, -0.35], C: [-2.7, 0, -0.2], FL: [-2.0, 0, 1.1], FM: [-0.6, 0, 1.1], B: [1.4, 0, 1.15], W: [2.05, 0, -1.65],
   sleep: [2.05, 0.36, -2.2], window: [2.35, 0, -1.72], mailbox: [1.9, 0, 1.55],
   water: [-1.85, 0, 1.35], waterBanana: [1.3, 0, -1.8], read: [-0.07, 0.37, 1.72], rest: [0.85, 0.37, 2.22], sweep: [1.05, 0, 0.98],
   K: [1.25, 0, -1.35], chalkboard: [0.2, 0.4, -2.12], shelf: [-2.66, 0, -0.35], dance: [-1.05, 0, 1.3], roll: [-0.72, 0, 1.62],
+  ballSeat: [BALL_X, 2 * BALL_R - 0.14, BALL_Z], BP: [BALL_X - Math.sin(BALL_FACE) * 0.45, 0, BALL_Z - Math.cos(BALL_FACE) * 0.45],
 }
 /** 通り道のつながり（家具を突き抜けないように置いた線） */
 const EDGES: [string, string][] = [
@@ -87,6 +95,7 @@ const EDGES: [string, string][] = [
   ['A', 'B'], ['A', 'W'], ['A', 'waterBanana'], ['W', 'waterBanana'], ['W', 'window'], ['W', 'sleep'], ['A', 'sweep'], ['FM', 'sweep'],
   ['B', 'mailbox'], ['B', 'sweep'], ['B', 'rest'], ['B', 'FM'], ['FM', 'FL'], ['FM', 'read'], ['C', 'FL'], ['FL', 'water'],
   ['A', 'K'], ['K', 'chalkboard'], ['C', 'shelf'], ['FM', 'dance'], ['FL', 'dance'], ['FM', 'roll'], ['dance', 'roll'],
+  ['W', 'BP'], ['BP', 'ballSeat'],
 ]
 /** 行動ごとの場所・向き・仕草・小物・気持ちマーク・いる時間・合間の仕草 */
 const SPOTS: Record<ResidentActivity, Spot> = {
@@ -118,19 +127,29 @@ const SPOTS: Record<ResidentActivity, Spot> = {
   perch: { node: 'read', face: 1.76, pose: 'swing', stay: [12, 20] },
   // ふらふら散歩: 行き先はその都度、通り道の点から気まぐれに選ぶ（WANDER）
   wander: { node: 'FM', face: 'camera', pose: 'lookaround', stay: [3, 6] },
+  // バランスボールで遊ぶ: 座ってぽよんぽよん / おなかを乗せてゆらゆら（お店のカメラから横顔が見える向き） / 上でバランス /
+  // 転がして追いかける（ちょうど 2 周で終わるので、ボールも LaRa も元の場所で終わる）
+  ballBounce: { node: 'ballSeat', face: 'camera', pose: 'ballBounce', prop: 'ball', emote: '♪', stay: [12, 18] },
+  ballBelly: { node: 'ballSeat', face: -1.07, pose: 'ballBelly', prop: 'ball', emote: '♪', stay: [10, 14] },
+  ballBalance: { node: 'ballSeat', face: 'camera', pose: 'ballBalance', prop: 'ball', emote: '!', stay: [10, 15] },
+  ballRoll: { node: 'BP', face: BALL_FACE, pose: 'ballRoll', prop: 'ball', emote: '!', stay: [BALL_ROLL_CYCLE * 2, BALL_ROLL_CYCLE * 2] },
 }
-/** 座っている・寝ころんでいる姿勢（この上に立ち姿の仕草は重ねない） */
-const SEATED_POSES: readonly LaraPose[] = ['read', 'rest', 'strum', 'swing', 'lie', 'crouch']
+/**
+ * 座っている・寝ころんでいる姿勢（この上に立ち姿の仕草は重ねない）。
+ * ボールの遊びも入れる（途中で仕草が割り込むと、ボールが元の場所へ飛んでしまうため）
+ */
+const SEATED_POSES: readonly LaraPose[] = ['read', 'rest', 'strum', 'swing', 'lie', 'crouch', 'ballBounce', 'ballBelly', 'ballBalance', 'ballRoll']
 /** ふらふら散歩で立ち寄る点 */
 const WANDER = ['FM', 'B', 'A', 'FL', 'W', 'dance', 'K', 'sweep', 'C']
 /** 1 日の区分ごとの行動の選ばれやすさ（寝る時間は寝るだけ） */
 const PLAN: Record<LifePart, [ResidentActivity, number][]> = {
   morning: [['machine', 4], ['counter', 2], ['wipe', 2], ['water', 2], ['waterBanana', 1], ['sweep', 2], ['window', 1], ['chalkboard', 2], ['dance', 1],
-    ['daze', 1], ['snack', 1], ['plantTalk', 1], ['perch', 1], ['wander', 1]],
+    ['daze', 1], ['snack', 1], ['plantTalk', 1], ['perch', 1], ['wander', 1], ['ballBounce', 1]],
   day: [['counter', 3], ['wipe', 1], ['machine', 1], ['window', 2], ['water', 1], ['waterBanana', 1], ['read', 2], ['rest', 2], ['sweep', 1], ['shelf', 2], ['dance', 2], ['nap', 1], ['chalkboard', 1],
-    ['daze', 2], ['snack', 2], ['roll', 1], ['ukulele', 2], ['plantTalk', 1], ['chase', 1], ['peek', 1], ['perch', 2], ['wander', 2]],
+    ['daze', 2], ['snack', 2], ['roll', 1], ['ukulele', 2], ['plantTalk', 1], ['chase', 1], ['peek', 1], ['perch', 2], ['wander', 2],
+    ['ballBounce', 1], ['ballBelly', 1], ['ballBalance', 1], ['ballRoll', 1]],
   evening: [['counter', 2], ['wipe', 2], ['window', 3], ['read', 2], ['rest', 2], ['machine', 1], ['shelf', 1], ['dance', 1], ['chalkboard', 1],
-    ['daze', 1], ['snack', 2], ['ukulele', 2], ['perch', 1], ['wander', 1], ['chase', 1]],
+    ['daze', 1], ['snack', 2], ['ukulele', 2], ['perch', 1], ['wander', 1], ['chase', 1], ['ballBounce', 1], ['ballBelly', 1], ['ballBalance', 1]],
   // 夜ふかし: 閉店の片付け、明日のメニュー、月を眺める、読書、ホットミルク、ウクレレ、ぼーっと
   late: [['wipe', 3], ['sweep', 2], ['chalkboard', 2], ['window', 3], ['read', 2], ['rest', 2], ['shelf', 1], ['daze', 2], ['ukulele', 2], ['snack', 1], ['perch', 1]],
   sleep: [['sleep', 1]],
@@ -230,6 +249,7 @@ export class ShopScene {
   private targetNode = 'counter'
   /** ベンチに立てかけてあるウクレレ（弾いている間は隠す） */
   private ukeDecor: THREE.Object3D | null = null
+  private ballDecor: THREE.Object3D | null = null
   /** 郵便受けで知らせ終わった未読の数（これより増えたら郵便受けへ行く） */
   private mailSeen = 0
   /** 確認用に時刻を固定する（null なら今の時刻） */
@@ -317,6 +337,7 @@ export class ShopScene {
   setResident(enabled: boolean) {
     if (this.resident) { this.scene.remove(this.resident); this.hotspots = this.hotspots.filter((h) => h !== this.resident); this.figure?.dispose(); this.resident = null; this.figure = null }
     if (this.ukeDecor) this.ukeDecor.visible = true
+    if (this.ballDecor) this.ballDecor.visible = true
     if (!enabled) return
     const fig = buildLaraFigure()
     fig.setOutfit(this.residentOutfit)
@@ -366,10 +387,11 @@ export class ShopScene {
     // 歩いている途中なら、その場で立ち止まる（吹き出しが置いていかれないように）
     if (this.arrivedAt < 0) this.pauseUntil = Math.max(this.pauseUntil, this.lastT + sec)
   }
-  /** 手に持つ小物を替える。ウクレレを手に取っている間は、ベンチに立てかけてある方を隠す */
+  /** 手に持つ小物を替える。ウクレレ・バランスボールで遊んでいる間は、置いてある方を隠す（LaRa が自分のを動かす） */
   private setResidentProp(p: LaraProp) {
     this.figure?.setProp(p)
     if (this.ukeDecor) this.ukeDecor.visible = p !== 'ukulele'
+    if (this.ballDecor) this.ballDecor.visible = p !== 'ball'
   }
   /** 今の時刻（時。分は小数）。確認用に固定できる */
   private hourNow() {
@@ -395,7 +417,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, ballDecor: this.ballDecor?.visible ?? null } }
   /** デバッグ用: 時刻を固定する（null で今の時刻に戻す） */
   debugSetHour(h: number | null) { this.hourOverride = h; this.updateResidentState(); this.drawSea(this.mode, this.lastT) }
   /** デバッグ用: 今の場所での時間を飛ばして、次の行動を選ばせる（優先の行動があるときは何もしない） */
@@ -555,6 +577,10 @@ export class ShopScene {
     const uke = new THREE.Group(); room.add(uke); uke.position.set(3.02, 0.02, -2.02); uke.rotation.set(-0.25, -0.4, 0.12); this.ukeDecor = uke
     sph(uke, 0.13, C.ukulele, 0, 0.14, 0, { seg: 10, sz: 0.35 }); sph(uke, 0.1, C.ukulele, 0, 0.32, 0, { seg: 10, sz: 0.35 })
     cyl(uke, 0.03, 0.03, 0.02, C.ink, 0, 0.19, 0.045, { rx: Math.PI / 2, seg: 10 }); box(uke, 0.05, 0.36, 0.03, C.oakD, 0, 0.58, 0)
+
+    // バランスボール（ミント）: カウンターの右、窓辺のベンチの手前の床。LaRa が遊ぶときは自分のボールを動かすので、隠せるよう room に直接置く。
+    // LaRa と同じトゥーンの見た目（入れ替わっても変わらない）。下は LaRa の足元（床の点 y=0）と同じ高さ
+    const ball = buildBalanceBall(); ball.position.set(BALL_X, BALL_R, BALL_Z); ball.rotation.y = BALL_FACE; room.add(ball); this.ballDecor = ball
 
     // ---------- 看板 ----------
     this.buildSign(room)

@@ -30,6 +30,18 @@ const VARIANTS = [
     [`${o}-lie`, `outfit=${o}&pose=lie`],
     [`${o}-strum`, `outfit=${o}&pose=strum&prop=ukulele`],
   ]),
+  // バランスボール（座ってぽよんぽよん・おなかでゆらゆら・バランス・転がす）。at= で仕草の途中の時刻を固定
+  ['ball-bounce', 'pose=ballBounce&prop=ball&at=0.3&r=3&ty=0.72'],
+  ['ball-bounce-low', 'pose=ballBounce&prop=ball&at=0.72&r=3&ty=0.72'],
+  ['ball-belly', 'pose=ballBelly&prop=ball&at=1&r=3&ty=0.72'],
+  ['ball-balance', 'pose=ballBalance&prop=ball&at=1&r=3&ty=0.72'],
+  ['ball-balance-wobble', 'pose=ballBalance&prop=ball&at=4.3&r=3&ty=0.72'],
+  ['ball-roll-push', 'pose=ballRoll&prop=ball&at=0.4&r=4&ty=0.5'],
+  ['ball-roll-chase', 'pose=ballRoll&prop=ball&at=1.8&r=4&ty=0.5'],
+  ['ball-roll-pull', 'pose=ballRoll&prop=ball&at=4.8&r=4&ty=0.5'],
+  ['ball-rose-belly', 'outfit=rose&pose=ballBelly&prop=ball&at=1&r=3&ty=0.72'],
+  ['ball-glass-balance', 'outfit=glass&pose=ballBalance&prop=ball&at=4.3&r=3&ty=0.72'],
+  ['ball-hoodie-bounce', 'outfit=hoodie&pose=ballBounce&prop=ball&at=0.3&r=3&ty=0.72'],
   // 暮らしの仕草
   ['pose-read', 'pose=read&prop=book'],
   ['pose-rest', 'pose=rest&prop=cup'],
