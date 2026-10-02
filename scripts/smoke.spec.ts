@@ -603,7 +603,7 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
   await expect(bubble.getByText(/今日の予定は 1 件/)).toBeVisible()
   await expect(bubble.getByText(/23:58 N89 ルーター回収/)).toBeVisible()
-  await expect(bubble.getByText(/★見積もり送る/)).toBeVisible()
+  await expect(bubble.getByText(/見積もり送る（進行中）/)).toBeVisible()
   await expect(bubble.getByRole('button', { name: 'Planner を開く →' })).toBeVisible()
   const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
   await box.fill('明日の予定は？')

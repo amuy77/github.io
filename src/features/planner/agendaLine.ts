@@ -61,7 +61,7 @@ export function agendaReply(a: Agenda, which: 'today' | 'tomorrow', part: 'all' 
     if (ts.length) {
       if (lines.length) lines.push('')
       lines.push(`${which === 'today' ? '' : '明日までの'}ToDo は ${ts.length} 件。`)
-      for (const x of ts.slice(0, 8)) lines.push(`・${x.starred ? '★' : ''}${x.title}${x.due_time ? `（${t(x.due_time)}）` : ''}${x.overdue ? '（期限すぎ）' : ''}`)
+      for (const x of ts.slice(0, 8)) lines.push(`・${x.title}${x.starred ? '（進行中）' : ''}${x.due_time ? `（${t(x.due_time)}）` : ''}${x.overdue ? '（期限すぎ）' : ''}`)
       if (ts.length > 8) lines.push(`…ほか ${ts.length - 8} 件`)
     } else lines.push(`ToDo は${which === 'today' ? '' : '明日まで'}ぜんぶ片付いてる！`)
   }
