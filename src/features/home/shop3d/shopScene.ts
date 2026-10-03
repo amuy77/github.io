@@ -95,22 +95,24 @@ interface Spot {
  */
 /**
  * バランスボールの置き場所（床の上の中心 x, z）。スマホで郵便受けの陰にならないよう、窓辺のベンチ寄り。
- * 転がす向き（rotation.y）は窓辺の点 W(2.05, −1.65) からボールへ向かう向き（カメラの方へ斜め）。W からまっすぐ歩いてきて、そのまま押せる
+ * 転がす向き（rotation.y）は窓辺の点 W(3.0, −1.65) からボールへ向かう向き（カメラの方へ斜め）。W からまっすぐ歩いてきて、そのまま押せる
  */
-const BALL_X = 2.45, BALL_Z = -1.15, BALL_FACE = Math.atan2(BALL_X - 2.05, BALL_Z + 1.65)
+const BALL_X = 3.4, BALL_Z = -1.15, BALL_FACE = Math.atan2(BALL_X - 3.0, BALL_Z + 1.65)
 const NODES: Record<string, [number, number, number]> = {
   counter: [-0.2, 0.6, -0.35], machine: [-1.3, 0.6, -0.35], PR: [0.72, 0.6, -0.35], PL: [-2.12, 0.6, -0.35],
-  A: [1.15, 0, -0.35], C: [-2.7, 0, -0.2], FL: [-2.0, 0, 1.1], FM: [-0.6, 0, 1.1], B: [1.4, 0, 1.15], W: [2.05, 0, -1.65],
-  sleep: [2.05, 0.36, -2.2], window: [2.35, 0, -1.72], mailbox: [1.9, 0, 1.55],
-  water: [-1.85, 0, 1.35], waterBanana: [1.3, 0, -1.8], read: [-0.07, 0.37, 1.72], rest: [0.85, 0.37, 2.22], sweep: [1.05, 0, 0.98],
-  K: [1.25, 0, -1.35], chalkboard: [0.2, 0.4, -2.12], shelf: [-2.66, 0, -0.35], dance: [-1.05, 0, 1.3], roll: [-0.72, 0, 1.62],
+  A: [1.15, 0, -0.35], C: [-2.7, 0, -0.2], FL: [-2.0, 0, 1.1], FM: [-0.6, 0, 1.4], B: [2.0, 0, 2.6], W: [3.0, 0, -1.65],
+  sleep: [3.0, 0.36, -2.2], window: [3.3, 0, -1.72], mailbox: [3.25, 0, 4.5],
+  // E は玄関（郵便受けと客席 2 の間の床）。B から郵便受けへは客席 2 を避けて E を通る
+  E: [1.9, 0, 4.2],
+  water: [-1.85, 0, 2.6], waterBanana: [1.3, 0, -1.8], read: [-0.32, 0.37, 2.42], rest: [0.6, 0.37, 2.92], sweep: [1.3, 0, 1.4],
+  K: [1.25, 0, -1.35], chalkboard: [0.2, 0.4, -2.12], shelf: [-2.66, 0, -0.35], dance: [-1.0, 0, 2.1], roll: [-0.9, 0, 3.4],
   ballSeat: [BALL_X, 2 * BALL_R - 0.14, BALL_Z], BP: [BALL_X - Math.sin(BALL_FACE) * 0.45, 0, BALL_Z - Math.cos(BALL_FACE) * 0.45],
 }
 /** 通り道のつながり（家具を突き抜けないように置いた線） */
 const EDGES: [string, string][] = [
   ['counter', 'machine'], ['counter', 'PR'], ['machine', 'PL'], ['PR', 'A'], ['PL', 'C'],
   ['A', 'B'], ['A', 'W'], ['A', 'waterBanana'], ['W', 'waterBanana'], ['W', 'window'], ['W', 'sleep'], ['A', 'sweep'], ['FM', 'sweep'],
-  ['B', 'mailbox'], ['B', 'sweep'], ['B', 'rest'], ['B', 'FM'], ['FM', 'FL'], ['FM', 'read'], ['C', 'FL'], ['FL', 'water'],
+  ['B', 'E'], ['E', 'mailbox'], ['B', 'sweep'], ['B', 'rest'], ['B', 'FM'], ['FM', 'FL'], ['FM', 'read'], ['C', 'FL'], ['FL', 'water'],
   ['A', 'K'], ['K', 'chalkboard'], ['C', 'shelf'], ['FM', 'dance'], ['FL', 'dance'], ['FM', 'roll'], ['dance', 'roll'],
   ['W', 'BP'], ['BP', 'ballSeat'],
 ]
@@ -157,7 +159,7 @@ const SPOTS: Record<ResidentActivity, Spot> = {
  */
 const SEATED_POSES: readonly LaraPose[] = ['read', 'rest', 'strum', 'swing', 'lie', 'crouch', 'ballBounce', 'ballBelly', 'ballBalance', 'ballRoll']
 /** ふらふら散歩で立ち寄る点 */
-const WANDER = ['FM', 'B', 'A', 'FL', 'W', 'dance', 'K', 'sweep', 'C']
+const WANDER = ['FM', 'B', 'A', 'FL', 'W', 'dance', 'K', 'sweep', 'C', 'E']
 /** 1 日の区分ごとの行動の選ばれやすさ（寝る時間は寝るだけ） */
 const PLAN: Record<LifePart, [ResidentActivity, number][]> = {
   morning: [['machine', 4], ['counter', 2], ['wipe', 2], ['water', 2], ['waterBanana', 1], ['sweep', 2], ['window', 1], ['chalkboard', 2], ['dance', 1],
@@ -209,7 +211,7 @@ export class ShopScene {
   private yawBase = 0.62
   private pitch = 1.02
   /** 画面に合わせるときの部屋の箱（土台 6.8 × 5.6、壁の高さ 3.1。窓の外や飾りは数えない） */
-  private readonly roomBox = new THREE.Box3(new THREE.Vector3(-3.4, -0.36, -2.8), new THREE.Vector3(3.4, 3.2, 3.7))
+  private readonly roomBox = new THREE.Box3(new THREE.Vector3(-3.4, -0.36, -2.8), new THREE.Vector3(4.6, 3.2, 5.5))
   private radius = 12
   private mats = new Map<string, THREE.Material>()
   private hotspots: THREE.Group[] = []
@@ -704,26 +706,29 @@ export class ShopScene {
     const lo = { seg: 8 }
 
     // ---------- 床・壁 ----------
-    // 奥行きは手前（玄関側）へ 0.9 広い（z の中心 +0.45）。奥の壁は z = −2.67 のまま
-    box(S, 6.8, 0.35, 6.5, C.sand, 0, -0.18, 0.45)                           // 土台は砂浜の色
-    for (let i = 0; i < 9; i++) sph(S, 0.05 + rand() * 0.03, [C.shell, C.coral, C.white][i % 3], -3.25 + rand() * 6.5, 0.0, 3.62 + rand() * 0.04, { seg: 6, sy: 0.45 })
-    const floor = box(S, 6.4, 0.06, 6.1, C.oak, 0, 0.03, 0.45); floor.castShadow = false
-    for (let i = 0; i < 15; i++) box(S, 0.015, 0.004, 6.1, C.oakLine, -2.8 + i * 0.4, 0.062, 0.45).castShadow = false
-    box(S, 6.4, 3.1, 0.14, C.wall, 0, 1.55, -2.67)
-    box(S, 0.14, 3.1, 6.1, C.wall, -3.27, 1.55, 0.45)
+    // 部屋は x −3.4〜4.6、z −2.8〜5.5（手前＝玄関側と右に広い）。奥の壁 z = −2.67、左の壁 x = −3.27
+    box(S, 8.0, 0.35, 8.3, C.sand, 0.6, -0.18, 1.35)                          // 土台は砂浜の色
+    for (let i = 0; i < 12; i++) sph(S, 0.05 + rand() * 0.03, [C.shell, C.coral, C.white][i % 3], -3.25 + rand() * 7.7, 0.0, 5.42 + rand() * 0.04, { seg: 6, sy: 0.45 })
+    const floor = box(S, 7.6, 0.06, 7.9, C.oak, 0.6, 0.03, 1.35); floor.castShadow = false
+    for (let i = 0; i < 19; i++) box(S, 0.015, 0.004, 7.9, C.oakLine, -2.8 + i * 0.4, 0.062, 1.35).castShadow = false
+    box(S, 7.6, 3.1, 0.14, C.wall, 0.6, 1.55, -2.67)
+    box(S, 0.14, 3.1, 7.9, C.wall, -3.27, 1.55, 1.35)
     // 羽目板の横線
     for (let i = 0; i < 13; i++) {
       const y = 0.32 + i * 0.22
-      box(S, 6.4, 0.012, 0.012, C.plank, 0, y, -2.598).castShadow = false
-      box(S, 0.012, 0.012, 6.1, C.plank, -3.198, y, 0.45).castShadow = false
+      box(S, 7.6, 0.012, 0.012, C.plank, 0.6, y, -2.598).castShadow = false
+      box(S, 0.012, 0.012, 7.9, C.plank, -3.198, y, 1.35).castShadow = false
     }
-    box(S, 6.4, 0.14, 0.05, C.oakD, 0, 0.1, -2.58); box(S, 0.05, 0.14, 6.1, C.oakD, -3.18, 0.1, 0.45)   // 幅木
+    box(S, 7.6, 0.14, 0.05, C.oakD, 0.6, 0.1, -2.58); box(S, 0.05, 0.14, 7.9, C.oakD, -3.18, 0.1, 1.35)   // 幅木
     // ジュートの丸いラグ
-    const rug = cyl(S, 0.95, 0.95, 0.02, C.jute, 0.55, 0.07, 1.45, { seg: 40, rough: 1 }); rug.castShadow = false
-    for (const r of [0.55, 0.8]) { const t = this.place(S, new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 4, 40), this.M(C.juteD)), 0.55, 0.082, 1.45, { rx: Math.PI / 2 }); t.castShadow = false }
+    const rug = cyl(S, 1.1, 1.1, 0.02, C.jute, 0.3, 0.07, 2.3, { seg: 40, rough: 1 }); rug.castShadow = false
+    for (const r of [0.65, 0.95]) { const t = this.place(S, new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 4, 40), this.M(C.juteD)), 0.3, 0.082, 2.3, { rx: Math.PI / 2 }); t.castShadow = false }
+    // 玄関マット（手前の縁の右、郵便受けの横）
+    box(S, 1.1, 0.03, 0.7, C.jute, 3.0, 0.075, 4.95, { rough: 1 }).castShadow = false
+    for (const dz of [-0.26, 0.26]) box(S, 1.0, 0.004, 0.02, C.juteD, 3.0, 0.092, 4.95 + dz).castShadow = false
 
     // ---------- 海の見える大きな窓 + 窓辺のベンチ（夜の寝床） ----------
-    const win = new THREE.Group(); room.add(win); win.position.set(2.05, 1.55, -2.585)
+    const win = new THREE.Group(); room.add(win); win.position.set(3.0, 1.55, -2.585)
     this.seaCanvas.width = 512; this.seaCanvas.height = 384
     this.seaTex.colorSpace = THREE.SRGBColorSpace
     const view = new THREE.Mesh(new THREE.PlaneGeometry(1.74, 1.24), new THREE.MeshBasicMaterial({ map: this.seaTex, toneMapped: false }))
@@ -741,7 +746,7 @@ export class ShopScene {
     }
     cyl(winS, 0.02, 0.025, 0.4, C.driftwood, -0.15, -0.68, 0.14, { rz: Math.PI / 2 - 0.08, seg: 6 })
     // 窓辺のベンチ（座面 y≈0.45、クッションの上 y≈0.52）
-    const bench = new THREE.Group(); S.add(bench); bench.position.set(2.05, 0, -2.3)
+    const bench = new THREE.Group(); S.add(bench); bench.position.set(3.0, 0, -2.3)
     box(bench, 1.8, 0.36, 0.52, C.whiteWood, 0, 0.18, 0)
     for (const x of [-0.45, 0.45]) box(bench, 0.8, 0.26, 0.01, C.plank, x, 0.18, 0.262)
     box(bench, 1.86, 0.06, 0.58, C.oak, 0, 0.39, 0.01)
@@ -749,7 +754,7 @@ export class ShopScene {
     box(bench, 0.34, 0.3, 0.12, C.coral, -0.72, 0.62, -0.16, { rx: -0.2, rz: 0.12, rough: 1 }); box(bench, 0.32, 0.28, 0.12, C.sea, 0.72, 0.61, -0.16, { rx: -0.2, rz: -0.1, rough: 1 })
     // ウクレレ（ベンチに立てかけ）
     // 弾くときに手に取って隠すので、まとめない（room に直接置く）
-    const uke = new THREE.Group(); room.add(uke); uke.position.set(3.02, 0.02, -2.02); uke.rotation.set(-0.25, -0.4, 0.12); this.ukeDecor = uke
+    const uke = new THREE.Group(); room.add(uke); uke.position.set(3.97, 0.02, -2.02); uke.rotation.set(-0.25, -0.4, 0.12); this.ukeDecor = uke
     sph(uke, 0.13, C.ukulele, 0, 0.14, 0, { seg: 10, sz: 0.35 }); sph(uke, 0.1, C.ukulele, 0, 0.32, 0, { seg: 10, sz: 0.35 })
     cyl(uke, 0.03, 0.03, 0.02, C.ink, 0, 0.19, 0.045, { rx: Math.PI / 2, seg: 10 }); box(uke, 0.05, 0.36, 0.03, C.oakD, 0, 0.58, 0)
 
@@ -811,11 +816,14 @@ export class ShopScene {
     this.finishHot(memo)
 
     // ---------- 客席: 丸テーブルとラタンのスツール ----------
-    const table = new THREE.Group(); S.add(table); table.position.set(0.55, 0, 1.6)
-    cyl(table, 0.34, 0.34, 0.04, C.oak, 0, 0.72, 0, { seg: 28 }); cyl(table, 0.035, 0.035, 0.68, C.ink, 0, 0.36, 0, lo); cyl(table, 0.2, 0.22, 0.03, C.ink, 0, 0.015, 0, { seg: 16 })
-    cyl(table, 0.055, 0.045, 0.08, C.white, 0.1, 0.78, 0.05, { seg: 12 }); cyl(table, 0.048, 0.048, 0.01, C.woodDD, 0.1, 0.815, 0.05, { seg: 12 })
-    box(table, 0.2, 0.03, 0.14, C.coral, -0.12, 0.755, -0.06, { ry: 0.4 })
-    for (const [x, z] of [[-0.62, 0.12], [0.3, 0.62]] as [number, number][]) this.rattanStool(S, 0.55 + x, 1.6 + z)
+    // 客席 1 はラグの上（LaRa が座る read / rest のスツール）、客席 2 は玄関寄りの右
+    for (const [tx, tz, cup] of [[0.3, 2.3, C.white], [3.0, 3.2, C.sea]] as [number, number, number][]) {
+      const table = new THREE.Group(); S.add(table); table.position.set(tx, 0, tz)
+      cyl(table, 0.34, 0.34, 0.04, C.oak, 0, 0.72, 0, { seg: 28 }); cyl(table, 0.035, 0.035, 0.68, C.ink, 0, 0.36, 0, lo); cyl(table, 0.2, 0.22, 0.03, C.ink, 0, 0.015, 0, { seg: 16 })
+      cyl(table, 0.055, 0.045, 0.08, cup, 0.1, 0.78, 0.05, { seg: 12 }); cyl(table, 0.048, 0.048, 0.01, C.woodDD, 0.1, 0.815, 0.05, { seg: 12 })
+      box(table, 0.2, 0.03, 0.14, C.coral, -0.12, 0.755, -0.06, { ry: 0.4 })
+      for (const [x, z] of [[-0.62, 0.12], [0.3, 0.62]] as [number, number][]) this.rattanStool(S, tx + x, tz + z)
+    }
 
     // ---------- 壁の飾り ----------
     // サーフボード（コルクボードの上）
@@ -840,6 +848,9 @@ export class ShopScene {
     cyl(wall, 0.08, 0.07, 0.12, C.terracotta, 0, 2.03, 0.3, { seg: 10 })
     this.vine(wall, new THREE.Vector3(0.02, 2.08, 0.3), [new THREE.Vector3(0.1, 1.8, 0.42), new THREE.Vector3(0.12, 1.4, 0.35), new THREE.Vector3(0.1, 1.05, 0.45)])
     this.vine(wall, new THREE.Vector3(0.02, 2.08, 0.26), [new THREE.Vector3(0.12, 1.85, 0.12), new THREE.Vector3(0.1, 1.55, 0.2)])
+    // 玄関寄りの左の壁に小さな額（海の絵）
+    box(S, 0.04, 0.52, 0.66, C.oakD, -3.18, 1.9, 3.6); box(S, 0.02, 0.44, 0.58, C.cream, -3.15, 1.9, 3.6)
+    box(S, 0.01, 0.16, 0.5, C.sea, -3.14, 1.82, 3.6); sph(S, 0.05, C.mustard, -3.14, 2.02, 3.75, { seg: 8 })
 
     // ---------- 植物 ----------
     // ヤシ（アレカヤシ）: 奥の左の角、ラタンのバスケット
@@ -849,8 +860,8 @@ export class ShopScene {
     cyl(S, 0.2, 0.16, 0.38, C.terracotta, 0.9, 0.19, -2.3, { seg: 16 }); cyl(S, 0.18, 0.18, 0.03, C.woodDD, 0.9, 0.38, -2.3, { seg: 16 })
     for (let i = 0; i < 5; i++) this.bananaLeaf(S, new THREE.Vector3(0.9, 0.38, -2.3), 0.45 + i * 0.55, 0.5 + (i % 3) * 0.16, 0.48 + (i % 2) * 0.12)
     // モンステラ（葉 = 連続記録）: 手前の左、ラタンのバスケット
-    const plant = new THREE.Group(); room.add(plant); plant.position.set(-2.45, 0, 1.75)
-    this.basket(S, -2.45, 1.75, 0.25, 0.38)
+    const plant = new THREE.Group(); room.add(plant); plant.position.set(-2.45, 0, 3.0)
+    this.basket(S, -2.45, 3.0, 0.25, 0.38)
     const leafGeo = this.monsteraLeafGeo()
     const leafMats = [this.M(C.monstera, { double: true }), this.M(C.monsteraD, { double: true })]
     const stemMat = this.M(C.leafD)
@@ -893,9 +904,10 @@ export class ShopScene {
       this.place(S, new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n * 6, 0.006, 4, false), this.M(C.ink)), 0, 0, 0, {}).castShadow = false
       for (let i = 1; i < n; i++) { const t = i / n; const p = a.clone().lerp(b, t).add(new THREE.Vector3(0, -Math.sin(t * Math.PI) * sag - 0.05, 0)); const g = new THREE.SphereGeometry(0.035, 8, 6); g.translate(p.x, p.y, p.z); bulbGeos.push(g) }
     }
-    garland(new THREE.Vector3(-3.1, 3.02, -2.5), new THREE.Vector3(0.1, 3.02, -2.5), 9, 0.22)
-    garland(new THREE.Vector3(0.1, 3.02, -2.5), new THREE.Vector3(3.15, 3.02, -2.5), 9, 0.22)
-    garland(new THREE.Vector3(-3.1, 3.02, -2.5), new THREE.Vector3(-3.1, 3.02, 2.45), 12, 0.25)
+    garland(new THREE.Vector3(-3.1, 3.02, -2.5), new THREE.Vector3(0.6, 3.02, -2.5), 10, 0.22)
+    garland(new THREE.Vector3(0.6, 3.02, -2.5), new THREE.Vector3(4.3, 3.02, -2.5), 10, 0.22)
+    garland(new THREE.Vector3(-3.1, 3.02, -2.5), new THREE.Vector3(-3.1, 3.02, 1.35), 11, 0.25)
+    garland(new THREE.Vector3(-3.1, 3.02, 1.35), new THREE.Vector3(-3.1, 3.02, 5.2), 11, 0.25)
     const bulbs = new THREE.Mesh(mergeGeometries(bulbGeos), this.festoonMat); bulbGeos.forEach((g) => g.dispose()); room.add(bulbs)
 
     // ---------- コルクボード（hotspot: clips） ----------
@@ -955,7 +967,7 @@ export class ShopScene {
     sph(S, 0.07, C.shell, -2.95, 1.99, -0.05, { seg: 8, sx: 1.2, sy: 0.6 }); sph(S, 0.05, C.coral, -2.92, 1.98, 0.15, { seg: 6, sy: 0.7 })
 
     // ---------- 郵便受け（hotspot: inbox）: ミントのビーチハウス風 ----------
-    const mailbox = this.hot('inbox'); room.add(mailbox); mailbox.position.set(2.55, 0, 1.55)
+    const mailbox = this.hot('inbox'); room.add(mailbox); mailbox.position.set(3.9, 0, 4.5)
     cyl(mailbox, 0.04, 0.05, 0.9, C.whiteWood, 0, 0.45, 0, { seg: 10 })
     box(mailbox, 0.5, 0.34, 0.34, C.mint, 0, 1.05, 0); cyl(mailbox, 0.17, 0.17, 0.5, C.mint, 0, 1.22, 0, { rz: Math.PI / 2, seg: 16 })
     box(mailbox, 0.06, 0.2, 0.02, C.coral, 0.26, 1.2, 0.16); box(mailbox, 0.3, 0.02, 0.28, C.cream, 0.1, 1.23, 0)
@@ -1219,7 +1231,7 @@ export class ShopScene {
     const frame = this.M(C.whiteWood)
     const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 })
     const sign = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 0.06), [frame, frame, frame, frame, face, frame])
-    sign.position.set(0.2, 2.72, -2.57); sign.castShadow = true; room.add(sign)
+    sign.position.set(1.3, 2.72, -2.57); sign.castShadow = true; room.add(sign)
     draw()
     if (wordmark) {
       this.texLoader.load(wordmark, (wm) => {
@@ -1440,7 +1452,7 @@ export class ShopScene {
       // 見出し（上）と案内カード（下）が重なる帯（px）を避けた、使える範囲（NDC）。
       // 部屋は横に広いので、縦長の画面では床の手前の角が左右に少しはみ出すところまで寄る（xLim > 1）
       const top = portrait ? 70 : 50, bottom = portrait ? 155 : 90
-      const yMax = 1 - (2 * top) / h - 0.03, yMin = -1 + (2 * bottom) / h + 0.03, xLim = portrait ? 1.15 : 0.98
+      const yMax = 1 - (2 * top) / h - 0.03, yMin = -1 + (2 * bottom) / h + 0.03, xLim = portrait ? 1.3 : 0.98
       const b = this.roomBox, p = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3()
       const tanF = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)
       for (let k = 0; k < 5; k++) {
