@@ -641,3 +641,45 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
   await expect(bubble.getByText(/明日の予定は入ってない/)).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-home-planner-talk.png` })
 })
+
+type FriendW = { __lara?: { debugState(): { figure: boolean; friend: { kind: string; phase: string } | null }; friendScreenPos(): { x: number; y: number } | null; sendFriendHome(): void }; __laraVisit?: (id: string) => void }
+const friendState = (page: Page) => page.evaluate(() => (window as unknown as FriendW).__lara?.debugState().friend ?? null)
+
+test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', async ({ page }, info) => {
+  // 描画の遅いテスト環境では歩くのもゆっくりになる（1 フレームの進みに上限がある）ので、長めに待つ
+  test.setTimeout(150_000)
+  await stubSupabase(page)
+  await page.goto('#/')
+  await page.waitForFunction(() => (window as unknown as FriendW).__lara?.debugState().figure, null, { timeout: 20_000 })
+  await page.evaluate(() => (window as unknown as FriendW).__laraVisit?.('luru'))
+  expect(await friendState(page)).toMatchObject({ kind: 'luru' })
+  const luruSays = page.getByRole('status', { name: 'LuRu のセリフ' })
+  await expect(luruSays).toBeVisible()
+  // LaRa のそばまで忍び寄って「わっ！」→ 遊びはじめる
+  await expect.poll(async () => (await friendState(page))?.phase, { timeout: 50_000 }).toBe('play')
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-luru.png` })
+  // タップすると宮崎弁でひとこと
+  await page.waitForTimeout(6000)
+  const pos = await page.evaluate(() => (window as unknown as FriendW).__lara!.friendScreenPos())
+  await page.mouse.click(pos!.x, pos!.y + 40)
+  await expect(luruSays).toBeVisible()
+  // 帰ってもらうと、郵便受けまで歩いていなくなる
+  await page.evaluate(() => (window as unknown as FriendW).__lara!.sendFriendHome())
+  await expect.poll(() => friendState(page), { timeout: 60_000 }).toBeNull()
+})
+
+test('friends: settings lists LuRu and 今すぐ呼ぶ brings him to the shop', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/settings')
+  await expect(page.getByText('LaRa の友達')).toBeVisible()
+  await expect(page.getByText(/LaRa の幼なじみ/)).toBeVisible()
+  await page.getByRole('group', { name: 'LuRu が遊びに来る頻度' }).getByRole('button', { name: 'よく来る' }).click()
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lara.settings') ?? '{}').friends)).toEqual({ luru: 'often' })
+  await page.getByRole('button', { name: '4コマを見る ›' }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-luru-comic.png` })
+  await page.getByRole('button', { name: '閉じる' }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-settings-friends.png`, fullPage: true })
+  await page.getByRole('button', { name: '今すぐ呼ぶ' }).click()
+  await expect(page).toHaveURL(/#\/$/)
+  await expect.poll(() => friendState(page), { timeout: 20_000 }).toMatchObject({ kind: 'luru' })
+})

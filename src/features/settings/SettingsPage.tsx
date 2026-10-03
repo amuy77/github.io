@@ -7,6 +7,7 @@ import { IconLogout } from '@/components/ui/icons'
 import { GenreManager } from '@/features/genres/GenreManager'
 import { CategoryManager } from '@/features/clips/CategoryManager'
 import { LearnedRules } from './LearnedRules'
+import { FriendsCard } from './FriendsCard'
 import { useBadges } from '@/features/game/useBadges'
 import { BADGES } from '@/features/game/badges'
 import { cx } from '@/lib/cx'
@@ -66,6 +67,9 @@ export function SettingsPage() {
           </div>
           <p className="text-sm">今日は <span className="font-bold">{outfitInfo(outfitFor(outfit)).label}</span> の日</p>
         </Card>
+
+        <SectionTitle>LaRa の友達</SectionTitle>
+        <FriendsCard />
 
         <SectionTitle>アカウント</SectionTitle>
         <Card className="flex items-center gap-3">

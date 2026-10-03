@@ -27,6 +27,7 @@ npm run gen:icons  # public/brand/lara.png から PWA アイコンを生成
 - `src/features/home/shop3d/` — three.js のお店ジオラマ
 - `supabase/migrations/` — DB スキーマ（RLS 込み）。`supabase/functions/link-preview` — URL プレビュー取得
 - `src/features/planner/` — 兄弟アプリ Planner（予定・ToDo、https://planner-mu-lovat.vercel.app）との連携。ログイン中のアクセストークンで Planner の `GET /api/v1/agenda?date=` を読み、ホームのひとこと・案内カードと「今日の予定は？」の返事に使う（同じ Supabase・同じアカウントなので本人の分だけ読める。Planner 側は CORS で `https://amuy77.github.io` だけ許可）。届かないときは何も出さない
+- `src/characters/` — キャラの名簿（LaRa と、幼なじみの LuRu）。友達は `role: 'friend'` で、設定の「LaRa の友達」に並び、昼間（10〜20 時）にホームの 3D のお店へ遊びに来る（LaRa を「わっ！」と驚かせて、しばらく遊んで帰る。セリフは `luru/lines.ts`、宮崎弁）。3D の体は `laraFigure.ts` の `FigureKind`（体・仕草は共通で、頭・顔・しっぽだけ変える）。LuRu の透過画像は `node scripts/luru-cutout.mjs` で `public/brand/luru-source.jpg` から作る。新しい友達の足し方は `src/characters/index.ts` の先頭
 - `routines/` — Claude Code Routine（AI 裏方）のプロンプト
 - `.github/workflows/deploy.yml` — GitHub Pages への自動デプロイ
 

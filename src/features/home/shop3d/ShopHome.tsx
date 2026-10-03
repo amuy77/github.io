@@ -4,7 +4,7 @@ import { SettingsChip } from '@/features/settings/SettingsChip'
 import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ShopScene, type Hotspot } from './shopScene'
+import { ShopScene, type FriendEvent, type Hotspot } from './shopScene'
 import { eventLine, greetLine, monologue, tapLine, type Say, type VoiceCtx } from './laraVoice'
 import { paths } from '@/app/routes'
 import { dayPart, formatMD, greeting, today } from '@/lib/dates'
@@ -18,8 +18,10 @@ import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 import { useMenuLogs } from '@/features/menu/hooks'
 import { PLANNER_URL, openExternal, useAgendaLine } from '@/features/planner/api'
+import { FRIENDS, VISIT_CHANCE, getCharacter, takeFriendCall, type CharacterDef, type CharacterId } from '@/characters'
 
-const HOT: Record<Exclude<Hotspot, 'resident'>, { em: string; name: string; sub: string; to: string }> = {
+type Place = Exclude<Hotspot, 'resident' | 'friend'>
+const HOT: Record<Place, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
   recipes: { em: '📖', name: 'レシピ図鑑', sub: 'ジャンル別のレシピカード', to: paths.recipes },
   menu: { em: '🗓️', name: '今日のメニュー', sub: '日別の記録と、週・月の構成比', to: paths.menu },
@@ -34,6 +36,9 @@ const BUBBLE_MAX = 240
 const bubbleMs = (text: string) => 1600 + text.length * 90
 /** 前にアプリを開いていた時刻（「ひさしぶり」「またすぐ来た」のあいさつに使う） */
 const SEEN_KEY = 'lara.lastSeen'
+const pickLine = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
+/** 友達が遊びに来るのは昼間だけ（LaRa が寝ている夜・朝早くは来ない） */
+const friendHours = (h: number) => h >= 10 && h < 20
 const readSeen = () => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0 } catch { return 0 } }
 const writeSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())) } catch { /* private mode */ } }
 
@@ -43,8 +48,13 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   const ref = useRef<HTMLDivElement>(null)
   const badgeRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<ShopScene | null>(null)
-  const [picked, setPicked] = useState<Exclude<Hotspot, 'resident'> | null>(null)
+  const [picked, setPicked] = useState<Place | null>(null)
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number } | null>(null)
+  // 遊びに来た友達（LuRu など）と、その吹き出し
+  const [friendBubble, setFriendBubble] = useState<{ text: string; x: number; y: number } | null>(null)
+  const friendRef = useRef<CharacterDef | null>(null)
+  const friendTimers = useRef<number[]>([])
+  const { friends: friendPrefs } = useSettings()
   // 話しかけている間: LaRa はこっちを向いて立ち止まり、頭の上の吹き出しで答える
   const [talking, setTalking] = useState(false)
   const [head, setHead] = useState<{ x: number; y: number; w: number; hx: number } | null>(null)
@@ -97,9 +107,15 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
           say(scene, tapLine(voiceCtx(st), taps.n, !st.arrived))
           return
         }
+        if (h === 'friend') {
+          const lines = friendRef.current?.lines
+          if (lines && !talkingRef.current) friendRefs.current.duet(scene, [{ who: 'friend', say: pickLine(lines.tap) }])
+          return
+        }
         if (talkingRef.current) stopTalkRef.current()
         setPicked(h)
       },
+      onFriend: (e) => friendRefs.current.onEvent(scene, e),
       // くしゃみ・つまずく・寝落ちから起きる・本を見つけた・カモメ・流れ星 などの直後に、ときどきひとこと
       onSay: (e) => {
         if (talkingRef.current || pickedRef.current || bubbleRef.current || Math.random() > 0.8) return
@@ -145,6 +161,53 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     })
     hideRef.current = window.setTimeout(() => setBubble(null), at)
     scene.holdResident(at / 1000 + 0.5)
+  }
+
+  /** 画面の中の座標に直し、画面の端で切れないよう左右を寄せる */
+  function bubbleAt(pos: { x: number; y: number } | null, text: string) {
+    const box = ref.current?.getBoundingClientRect()
+    if (!pos || !box) return null
+    const half = Math.min(BUBBLE_MAX / 2 + 16, box.width / 2)
+    return { text, x: Math.min(Math.max(pos.x - box.left, half), box.width - half), y: pos.y - box.top }
+  }
+  /** 友達と LaRa の掛け合い。順番に、それぞれの頭の上に吹き出しを出す（友達のセリフは並びを 1 つずつ） */
+  function duet(scene: ShopScene, parts: { who: 'friend' | 'lara'; say: string[] }[]) {
+    for (const id of friendTimers.current) window.clearTimeout(id)
+    friendTimers.current = []
+    let at = 0, laraUntil = 0
+    for (const part of parts) for (const text of part.say) {
+      const who = part.who
+      friendTimers.current.push(window.setTimeout(() => {
+        if (who === 'friend') setFriendBubble(bubbleAt(scene.friendScreenPos(), text))
+        else if (!talkingRef.current) { window.clearTimeout(hideRef.current); setBubble(bubbleAt(scene.residentScreenPos(), text)) }
+      }, at))
+      at += bubbleMs(text)
+      if (who === 'lara') laraUntil = at
+      friendTimers.current.push(window.setTimeout(() => (who === 'friend' ? setFriendBubble(null) : !talkingRef.current && setBubble(null)), at))
+    }
+    if (laraUntil) scene.holdResident(laraUntil / 1000 + 0.5)
+  }
+  function onFriendEvent(scene: ShopScene, e: FriendEvent) {
+    const f = friendRef.current
+    if (e === 'gone') { friendRef.current = null; setFriendBubble(null); return }
+    const l = f?.lines
+    if (!l) return
+    if (e === 'arrive') duet(scene, [{ who: 'friend', say: pickLine(l.arrive) }])
+    else if (e === 'prank') duet(scene, [{ who: 'friend', say: pickLine(l.prank) }, { who: 'lara', say: pickLine(l.prankReply) }])
+    else if (e === 'oops') duet(scene, [{ who: 'friend', say: pickLine(l.oops) }, { who: 'lara', say: pickLine(l.oopsReply) }])
+    else if (e === 'idle') duet(scene, [{ who: 'friend', say: pickLine(l.idle) }])
+    else if (e === 'leave') duet(scene, [{ who: 'friend', say: pickLine(l.leave) }, { who: 'lara', say: pickLine(l.leaveReply) }])
+  }
+  // シーンのコールバックからは最新の関数を呼ぶ
+  const friendRefs = useRef({ duet, onEvent: onFriendEvent })
+  friendRefs.current = { duet, onEvent: onFriendEvent }
+  /** 友達を呼ぶ（もう誰か来ていれば何もしない） */
+  function visit(id: CharacterId) {
+    const scene = sceneRef.current, c = getCharacter(id)
+    if (!scene || friendRef.current || c.role !== 'friend') return
+    friendRef.current = c
+    scene.visitFriend(c.figure)
+    if (!scene.friendStatus()) friendRef.current = null
   }
 
   function startTalk() {
@@ -204,6 +267,22 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     id = window.setTimeout(speak, 2500 + Math.random() * 1500)
     return () => window.clearTimeout(id)
   }, [reduced])
+  // 友達が遊びに来る: 設定画面の「今すぐ呼ぶ」ならすぐ。そうでなければ昼間に、設定の頻度でときどき（開いてから 15〜45 秒後）
+  useEffect(() => {
+    const called = takeFriendCall()
+    if (called) { const id = window.setTimeout(() => visit(called), 1500); return () => window.clearTimeout(id) }
+    if (reduced || !friendHours(new Date().getHours())) return
+    const c = FRIENDS.find((f) => Math.random() < VISIT_CHANCE[friendPrefs[f.id] ?? 'sometimes'])
+    if (!c) return
+    const id = window.setTimeout(() => visit(c.id), 15_000 + Math.random() * 30_000)
+    return () => window.clearTimeout(id)
+  // 開いたときに 1 回だけ決める
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => () => { for (const id of friendTimers.current) window.clearTimeout(id) }, [])
+  // デバッグ・確認用: window.__laraVisit('luru')
+  useEffect(() => { (window as unknown as { __laraVisit?: (id: CharacterId) => void }).__laraVisit = visit })
+
   // 開いている間は「最後に見た時刻」を更新（次に開いたときのあいさつ用）
   useEffect(() => {
     writeSeen()
@@ -265,6 +344,18 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
             className="pointer-events-none absolute w-max -translate-x-1/2 -translate-y-full rounded-card border border-line bg-paper px-3 py-2 text-[13px] font-bold shadow-card"
             style={{ left: bubble.x, top: bubble.y - 8, maxWidth: BUBBLE_MAX }}>
             {bubble.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 遊びに来た友達の吹き出し（名前つき、緑のふち） */}
+      <AnimatePresence>
+        {friendBubble && (
+          <motion.div key={friendBubble.text + friendBubble.x} role="status" aria-label={`${friendRef.current?.name ?? '友達'} のセリフ`}
+            initial={{ opacity: 0, y: 6, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
+            className="pointer-events-none absolute w-max -translate-x-1/2 -translate-y-full rounded-card border-2 border-green-600/50 bg-paper px-3 py-2 text-[13px] font-bold shadow-card"
+            style={{ left: friendBubble.x, top: friendBubble.y - 8, maxWidth: BUBBLE_MAX }}>
+            <span className="mr-1 text-[11px] text-green-700">{friendRef.current?.name}</span>{friendBubble.text}
           </motion.div>
         )}
       </AnimatePresence>
