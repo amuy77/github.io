@@ -51,3 +51,26 @@ export function ClipCard({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFa
     </Link>
   )
 }
+
+/** ネタ帳のリスト表示の 1 行: 小さなサムネ・名前・お店・カテゴリ・★。名前で探しやすいように縦に並べる */
+export function ClipListRow({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFavorite?: (c: ClipRow) => void }) {
+  const cat = useCategoryOf()(clip.category)
+  const thumb = clip.images?.[0] ? photoUrl(clip.images[0], 'thumb') : clip.preview?.image ?? null
+  const isIdea = clip.type === 'idea'
+  return (
+    <Link to={paths.clip(clip.id)} className={cx('flex items-center gap-3 rounded-[12px] border border-line bg-paper px-3 py-2 shadow-card active:scale-[0.995]', isIdea && 'bg-[#FFF2C2] border-mustard-300')}>
+      {isIdea ? <span className="grid size-12 shrink-0 place-items-center text-xl" aria-hidden>💡</span> : <ImageThumb src={thumb} className="size-12 shrink-0 rounded-[8px]" emoji={cat.emoji} />}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-bold leading-snug">{clipTitle(clip)}{clip.needs_review && <span className="ml-1.5 rounded-chip bg-mustard-400 px-1.5 py-0.5 text-[10px] font-bold">確認待ち</span>}</p>
+        <p className="truncate text-[11px] text-muted">{isIdea ? 'ひらめき' : `${cat.emoji} ${cat.label}`}{clip.shop_name || clip.preview?.site_name ? ` ・ ${clip.shop_name ?? clip.preview?.site_name}` : ''}{clip.tags.length ? ` ・ ${clip.tags.slice(0, 3).join(' ')}` : ''}</p>
+        <div className="mt-0.5 flex items-center gap-1.5"><ClipPurposeBadge value={clip.purpose} />{!isIdea && <RatingStars value={clip.rating} max={5} showHold={false} />}<span className="ml-auto text-[10px] text-muted">{relativeDay(clip.created_at)}</span></div>
+      </div>
+      {onToggleFavorite && (
+        <button type="button" aria-label={clip.favorite ? 'お気に入りを外す' : 'お気に入りにする'} onClick={(e) => { e.preventDefault(); onToggleFavorite(clip) }}
+          className={cx('grid size-9 shrink-0 place-items-center rounded-full', clip.favorite ? 'text-mustard-400' : 'text-line hover:text-mustard-400')}>
+          <IconStar size={18} filled={clip.favorite} />
+        </button>
+      )}
+    </Link>
+  )
+}

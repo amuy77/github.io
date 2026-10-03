@@ -10,7 +10,8 @@ import { paths } from '@/app/routes'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useRecipes, useUpdateRecipe } from './hooks'
-import { RecipeCard } from './RecipeCard'
+import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
+import { RecipeCard, RecipeListRow } from './RecipeCard'
 import { familyKey, representativeOf } from './family'
 import { PURPOSES } from './purpose'
 import { readListView, useListViewState, writeListView } from './listView'
@@ -74,6 +75,7 @@ export function RecipesPage() {
   }, [])
 
   const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
+  const [layout, setLayout] = useListLayout('lara.recipes.layout')
   const total = reps.length
   const grandTotal = allReps.length
 
@@ -96,10 +98,13 @@ export function RecipesPage() {
             ))}
           </div>
         )}
-        <label className="flex h-11 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
-          <IconSearch size={18} className="text-muted" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
+            <IconSearch size={18} className="text-muted" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
+          </label>
+          <LayoutToggle value={layout} onChange={setLayout} />
+        </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <Chip active={genreId === 'all'} onClick={() => setGenreId('all')} count={total}>すべて</Chip>
           {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={reps.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g)} {g.name}</Chip>)}
@@ -125,9 +130,15 @@ export function RecipesPage() {
           sections.map((s) => (
             <section key={s.key} className="flex flex-col gap-2">
               <SectionTitle count={`${s.items.length}品`}>{s.title}</SectionTitle>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-                {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} />)}
-              </div>
+              {layout === 'list' ? (
+                <div className="flex flex-col gap-1.5" data-testid="recipe-list">
+                  {s.items.map((r) => <RecipeListRow key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} />)}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                  {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} />)}
+                </div>
+              )}
             </section>
           ))
         )}
