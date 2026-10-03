@@ -429,11 +429,15 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     // LuRu は絵に合わせて、目から下を縦に LOWER 倍つぶして平たい楕円にする（顎が広く丸く、ふっくらしたまま顎につながる）。
     // 顔の横（目の高さ）には小さなふくらみ。輪郭線はこの形から作るので、そのまま沿う
     const pos = headGeo.attributes.position as THREE.BufferAttribute
-    const v = new THREE.Vector3(), cheeks = [new THREE.Vector3(0.95, -0.28, 0.25).normalize(), new THREE.Vector3(-0.95, -0.28, 0.25).normalize()]
+    // ほっぺのふくらみは「点」ではなく縦に長い帯: 目の高さから始まり、顎の手前まで同じ強さで続き、顎のいちばん下で丸く閉じる
+    const v = new THREE.Vector3(), h = new THREE.Vector3(), side = [new THREE.Vector3(0.95, 0, 0.25).normalize(), new THREE.Vector3(-0.95, 0, 0.25).normalize()]
+    const smooth = (a: number, b: number, t: number) => { const u = THREE.MathUtils.clamp((t - a) / (b - a), 0, 1); return u * u * (3 - 2 * u) }
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i)
+      h.set(v.x, 0, v.z); const hl = h.length(); if (hl > 1e-4) h.divideScalar(hl)
+      const vertical = smooth(0, -0.2, v.y) * (1 - smooth(-0.7, -0.95, v.y))
       let k = 1
-      for (const c of cheeks) k += 0.1 * Math.exp(-(1 - v.dot(c)) / 0.045)
+      if (hl > 1e-4) for (const c of side) k += 0.1 * Math.exp(-(1 - h.dot(c)) / 0.045) * vertical
       pos.setXYZ(i, v.x * k, v.y * k * (v.y < 0 ? LOWER : 1), v.z * k)
     }
   }
