@@ -435,9 +435,9 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i)
       h.set(v.x, 0, v.z); const hl = h.length(); if (hl > 1e-4) h.divideScalar(hl)
-      const vertical = smooth(0, -0.2, v.y) * (1 - smooth(-0.7, -0.95, v.y))
+      const vertical = smooth(0, -0.2, v.y) * (1 - smooth(-0.85, -1.0, v.y))
       let k = 1
-      if (hl > 1e-4) for (const c of side) k += 0.1 * Math.exp(-(1 - h.dot(c)) / 0.045) * vertical
+      if (hl > 1e-4) for (const c of side) k += 0.11 * Math.exp(-(1 - h.dot(c)) / 0.045) * vertical
       pos.setXYZ(i, v.x * k, v.y * k * (v.y < 0 ? LOWER : 1), v.z * k)
     }
   }
@@ -593,9 +593,24 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     solid(new THREE.SphereGeometry(0.03, 12, 8), COL.cap, luruCap, { line: 0.01 }).position.set(0, CAP.y + 0.008, 0)
     // つば（後ろ）: 平たい楕円の板。ふちの後ろ側から外へ、少し下がる
     const rimY = CAP.y * Math.cos(TH), rimR = { x: CAP.x * Math.sin(TH), z: CAP.z * Math.sin(TH) }
+    // つば: 半円の板をふちの後ろ（やや右）へ。先へ行くほど下へ垂れ、幅方向には両端が下がって丸まる（本物のつばの反り）。
+    // 平らな辺はふちの内側に 0.03 もぐらせて隙間を出さない
     const brimPivot = new THREE.Group(); brimPivot.rotation.y = -0.65; luruCap.add(brimPivot)
-    const brim = solid(new THREE.CylinderGeometry(0.17, 0.17, 0.022, 28), COL.cap, brimPivot, { line: 0.012 })
-    brim.scale.set(1.0, 1, 0.9); brim.position.set(0, rimY - 0.01, -rimR.z - 0.08); brim.rotation.x = 0.3
+    {
+      const BR = 0.19, BL = 0.16
+      const shape = new THREE.Shape()
+      shape.moveTo(-BR, 0)
+      for (let i = 0; i <= 24; i++) { const a = Math.PI - (i / 24) * Math.PI; shape.lineTo(Math.cos(a) * BR, Math.sin(a) * BL) }
+      shape.lineTo(-BR, 0)
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false, curveSegments: 24 })
+      const bp = geo.attributes.position as THREE.BufferAttribute
+      for (let i = 0; i < bp.count; i++) {
+        const sx = bp.getX(i), sy = bp.getY(i), sz = bp.getZ(i), r = sy / BL, q = sx / BR
+        bp.setXYZ(i, sx, sz - 0.07 * r * r - 0.05 * q * q * (0.3 + 0.7 * r), -sy - (rimR.z - 0.03))
+      }
+      geo.computeVertexNormals()
+      solid(geo, COL.cap, brimPivot, { line: 0.012 }).position.y = rimY - 0.02
+    }
     // アジャスターの穴: 前のふちの上に、頭（クリーム色）が見えるアーチ
     {
       // 半円: ふちの前の真ん中から、帽子の表面に沿った半円の弧へ扇形に張る。弧には細い線

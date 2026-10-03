@@ -366,7 +366,8 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   expect(body.payload.escalate).toBe('opus')
 
   await page.goto('#/settings')
-  await expect(page.getByText('LaRa が覚えたこと')).toBeVisible()
+  // 長い一覧は畳まれているので、見出しを押して開く
+  await page.getByRole('button', { name: /LaRa が覚えたこと/ }).click()
   await expect(page.getByText('写っているレシピを 1 つずつすべてレシピの下書きにする')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
 })
