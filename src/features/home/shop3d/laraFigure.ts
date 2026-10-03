@@ -548,12 +548,12 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   } else {
     // LuRu: キャップの下から、くせ毛の前髪が 1 本ちょろっと出て、くるんと巻く（顔から少し浮く 3D の毛）
     const pts: THREE.Vector3[] = []
-    const c = { x: 0.06, y: 0.125 }
+    const c = { x: 0.06, y: 0.08 }
     for (let i = 0; i <= 36; i++) {
-      const t = i / 36, a = Math.PI / 2 + t * Math.PI * 3, r = 0.05 * (1 - t * 0.7)
+      const t = i / 36, a = Math.PI / 2 + t * Math.PI * 3, r = 0.042 * (1 - t * 0.7)
       pts.push(onFace(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r * 0.9, 0.012 + t * 0.03))
     }
-    pts.unshift(onFace(0.045, 0.2, 0.006))
+    pts.unshift(onFace(0.045, 0.14, 0.006))
     const strand = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5), 64, 0.0115, 6, false)), inkMat())
     strand.raycast = () => {}; face.add(strand)
   }
@@ -571,14 +571,15 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
 
   // ---------- LuRu: 後ろ向きのキャップとヤシの葉のえり ----------
   // キャップは頭のてっぺんを覆う浅いドーム。後ろへ傾けておでこ（くるん）を見せ、つばは後ろ、前にはアジャスターのひも
-  const luruCap = new THREE.Group(); luruCap.visible = false; luruCap.rotation.set(-0.2, 0, 0.14); luruCap.position.y = 0.035; face.add(luruCap)
+  const luruCap = new THREE.Group(); luruCap.visible = false; luruCap.rotation.set(-0.2, 0, 0.14); luruCap.position.y = 0.0; face.add(luruCap)
   const luruCollar = new THREE.Group(); luruCollar.visible = false; root.add(luruCollar)
   /** キャップのいちばん上（顔の座標）。吹き出しの位置に使う */
-  const CAP_TOP = HEAD.ry * 1.3 + 0.045
+  const CAP_TOP = HEAD.ry * 1.38 + 0.01
   if (luru) {
     // 頭を深く覆う野球帽。後ろ向きにかぶるので、つばは後ろ（少し左へ流れる）、前はアジャスターの穴とひも
     // 横幅は頭の 1.05 倍のまま（これ以上細いと頭にめり込む）、高さを 1.3 倍にしてドーム型に。ふちの高さは TH で合わせる
-    const CAP = { x: HEAD.rx * 1.05, y: HEAD.ry * 1.3, z: HEAD.rz * 1.07 }, TH = 1.47
+    // 深めにかぶる: ふちは目のすこし上まで（TH を大きくするほど深い）
+    const CAP = { x: HEAD.rx * 1.05, y: HEAD.ry * 1.38, z: HEAD.rz * 1.07 }, TH = 1.5
     const dome = new THREE.SphereGeometry(1, 32, 14, 0, Math.PI * 2, 0, TH); dome.scale(CAP.x, CAP.y, CAP.z); dome.computeVertexNormals()
     solid(dome, COL.cap, luruCap, { double: true })
     // 縫い目（てっぺんから前後左右へ）
@@ -597,19 +598,19 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     // 平らな辺はふちの内側に 0.03 もぐらせて隙間を出さない
     const brimPivot = new THREE.Group(); brimPivot.rotation.y = -0.65; luruCap.add(brimPivot)
     {
-      const BR = 0.19, BL = 0.16
+      const BR = 0.3, BL = 0.26   // キャップの幅（ふちの半径 ≈ 0.39）に合わせた大きさ
       const shape = new THREE.Shape()
       shape.moveTo(-BR, 0)
       for (let i = 0; i <= 24; i++) { const a = Math.PI - (i / 24) * Math.PI; shape.lineTo(Math.cos(a) * BR, Math.sin(a) * BL) }
       shape.lineTo(-BR, 0)
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false, curveSegments: 24 })
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.024, bevelEnabled: false, curveSegments: 24 })
       const bp = geo.attributes.position as THREE.BufferAttribute
       for (let i = 0; i < bp.count; i++) {
         const sx = bp.getX(i), sy = bp.getY(i), sz = bp.getZ(i), r = sy / BL, q = sx / BR
-        bp.setXYZ(i, sx, sz - 0.07 * r * r - 0.05 * q * q * (0.3 + 0.7 * r), -sy - (rimR.z - 0.03))
+        bp.setXYZ(i, sx, sz - 0.09 * r * r - 0.06 * q * q * (0.3 + 0.7 * r), -sy - (rimR.z - 0.03))
       }
       geo.computeVertexNormals()
-      solid(geo, COL.cap, brimPivot, { line: 0.012 }).position.y = rimY - 0.02
+      solid(geo, COL.cap, brimPivot, { line: 0.012 }).position.y = rimY - 0.024
     }
     // アジャスターの穴: 前のふちの上に、頭（クリーム色）が見えるアーチ
     {

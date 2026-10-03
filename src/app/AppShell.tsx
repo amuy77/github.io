@@ -6,7 +6,6 @@ import { OfflineBanner } from './OfflineBanner'
 import { UpdateToast } from './UpdateToast'
 import { useCounts } from '@/features/home/useCounts'
 import { CountBadge } from '@/components/ui/Chip'
-import { useBadges } from '@/features/game/useBadges'
 import { Mascot } from '@/components/mascot/Mascot'
 
 const tabs = [
@@ -19,7 +18,6 @@ const tabs = [
 export function AppShell() {
   const loc = useLocation()
   const counts = useCounts()
-  useBadges()
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
   // ホームは上部に「聞く」を置くので、浮かぶボタンは出さない
