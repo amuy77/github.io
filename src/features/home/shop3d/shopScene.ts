@@ -209,7 +209,7 @@ export class ShopScene {
   private yawBase = 0.62
   private pitch = 1.02
   /** 画面に合わせるときの部屋の箱（土台 6.8 × 5.6、壁の高さ 3.1。窓の外や飾りは数えない） */
-  private readonly roomBox = new THREE.Box3(new THREE.Vector3(-3.4, -0.36, -2.8), new THREE.Vector3(3.4, 3.2, 2.8))
+  private readonly roomBox = new THREE.Box3(new THREE.Vector3(-3.4, -0.36, -2.8), new THREE.Vector3(3.4, 3.2, 3.7))
   private radius = 12
   private mats = new Map<string, THREE.Material>()
   private hotspots: THREE.Group[] = []
@@ -704,19 +704,20 @@ export class ShopScene {
     const lo = { seg: 8 }
 
     // ---------- 床・壁 ----------
-    box(S, 6.8, 0.35, 5.6, C.sand, 0, -0.18, 0)                              // 土台は砂浜の色
-    for (let i = 0; i < 9; i++) sph(S, 0.05 + rand() * 0.03, [C.shell, C.coral, C.white][i % 3], -3.25 + rand() * 6.5, 0.0, 2.72 + rand() * 0.04, { seg: 6, sy: 0.45 })
-    const floor = box(S, 6.4, 0.06, 5.2, C.oak, 0, 0.03, 0); floor.castShadow = false
-    for (let i = 0; i < 15; i++) box(S, 0.015, 0.004, 5.2, C.oakLine, -2.8 + i * 0.4, 0.062, 0).castShadow = false
+    // 奥行きは手前（玄関側）へ 0.9 広い（z の中心 +0.45）。奥の壁は z = −2.67 のまま
+    box(S, 6.8, 0.35, 6.5, C.sand, 0, -0.18, 0.45)                           // 土台は砂浜の色
+    for (let i = 0; i < 9; i++) sph(S, 0.05 + rand() * 0.03, [C.shell, C.coral, C.white][i % 3], -3.25 + rand() * 6.5, 0.0, 3.62 + rand() * 0.04, { seg: 6, sy: 0.45 })
+    const floor = box(S, 6.4, 0.06, 6.1, C.oak, 0, 0.03, 0.45); floor.castShadow = false
+    for (let i = 0; i < 15; i++) box(S, 0.015, 0.004, 6.1, C.oakLine, -2.8 + i * 0.4, 0.062, 0.45).castShadow = false
     box(S, 6.4, 3.1, 0.14, C.wall, 0, 1.55, -2.67)
-    box(S, 0.14, 3.1, 5.2, C.wall, -3.27, 1.55, 0)
+    box(S, 0.14, 3.1, 6.1, C.wall, -3.27, 1.55, 0.45)
     // 羽目板の横線
     for (let i = 0; i < 13; i++) {
       const y = 0.32 + i * 0.22
       box(S, 6.4, 0.012, 0.012, C.plank, 0, y, -2.598).castShadow = false
-      box(S, 0.012, 0.012, 5.2, C.plank, -3.198, y, 0).castShadow = false
+      box(S, 0.012, 0.012, 6.1, C.plank, -3.198, y, 0.45).castShadow = false
     }
-    box(S, 6.4, 0.14, 0.05, C.oakD, 0, 0.1, -2.58); box(S, 0.05, 0.14, 5.2, C.oakD, -3.18, 0.1, 0)   // 幅木
+    box(S, 6.4, 0.14, 0.05, C.oakD, 0, 0.1, -2.58); box(S, 0.05, 0.14, 6.1, C.oakD, -3.18, 0.1, 0.45)   // 幅木
     // ジュートの丸いラグ
     const rug = cyl(S, 0.95, 0.95, 0.02, C.jute, 0.55, 0.07, 1.45, { seg: 40, rough: 1 }); rug.castShadow = false
     for (const r of [0.55, 0.8]) { const t = this.place(S, new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 4, 40), this.M(C.juteD)), 0.55, 0.082, 1.45, { rx: Math.PI / 2 }); t.castShadow = false }
@@ -1431,7 +1432,7 @@ export class ShopScene {
     if (base !== this.yawBase) { this.yawBase = base; this.yaw = base }
     const portrait = aspect < 0.8
     // 縦長はもう少し上から見下ろして、床の奥行きを画面の縦に広げる
-    if (portrait) { this.radius = 17.8; this.camera.fov = 38; this.pitch = 0.84; this.target.set(0.22, 0.45, -0.1) }
+    if (portrait) { this.radius = 17.8; this.camera.fov = 38; this.pitch = 1.0; this.target.set(0.22, 0.45, 0.2) }
     else if (aspect < 1.2) { this.radius = 13.5; this.camera.fov = 34; this.pitch = 1.02; this.target.set(0.1, 0.9, -0.3) }
     else { this.radius = 12; this.camera.fov = 32; this.pitch = 1.02; this.target.set(0.1, 1.0, -0.3) }
     this.camera.updateProjectionMatrix()
@@ -1439,7 +1440,7 @@ export class ShopScene {
       // 見出し（上）と案内カード（下）が重なる帯（px）を避けた、使える範囲（NDC）。
       // 部屋は横に広いので、縦長の画面では床の手前の角が左右に少しはみ出すところまで寄る（xLim > 1）
       const top = portrait ? 70 : 50, bottom = portrait ? 155 : 90
-      const yMax = 1 - (2 * top) / h - 0.03, yMin = -1 + (2 * bottom) / h + 0.03, xLim = portrait ? 1.28 : 0.98
+      const yMax = 1 - (2 * top) / h - 0.03, yMin = -1 + (2 * bottom) / h + 0.03, xLim = portrait ? 1.15 : 0.98
       const b = this.roomBox, p = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3()
       const tanF = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)
       for (let k = 0; k < 5; k++) {
@@ -1486,7 +1487,8 @@ export class ShopScene {
     el.addEventListener('pointermove', (e) => {
       if (this.dragging) {
         const dx = e.clientX - this.lastX; this.lastX = e.clientX; this.moved += Math.abs(dx)
-        this.yaw = THREE.MathUtils.clamp(this.yaw - dx * 0.004, this.yawBase - 0.55, this.yawBase + 0.55)
+        // 右へ回すとほぼ正面（-0.15）まで、左へは基本の向きから 0.55 まで
+        this.yaw = THREE.MathUtils.clamp(this.yaw - dx * 0.004, -0.15, this.yawBase + 0.55)
         this.updateCamera(); this.needsRender = true
       } else if (e.pointerType === 'mouse') {
         const h = this.pick(e)

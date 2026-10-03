@@ -9,9 +9,6 @@ import { CategoryManager } from '@/features/clips/CategoryManager'
 import { LearnedRules } from './LearnedRules'
 import { FoldSection } from './FoldSection'
 import { FriendsCard } from './FriendsCard'
-import { useBadges } from '@/features/game/useBadges'
-import { BADGES } from '@/features/game/badges'
-import { cx } from '@/lib/cx'
 import { Chip } from '@/components/ui/Chip'
 import { OUTFITS, outfitFor, outfitInfo, type OutfitPref } from '@/features/home/shop3d/outfit'
 
@@ -23,27 +20,10 @@ const OUTFIT_CHOICES: { value: OutfitPref; label: string }[] = [
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const { home3d, outfit } = useSettings()
-  const badges = useBadges()
-  const unlockedKeys = new Set(badges.unlocked.map((b) => b.key))
   return (
     <>
       <PageHeader title="設定" />
       <div className="flex flex-col gap-4">
-        {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
-        <FoldSection id="rules" title="LaRa が覚えたこと"><LearnedRules /></FoldSection>
-        <FoldSection id="genres" title="レシピのジャンル"><GenreManager /></FoldSection>
-        <FoldSection id="categories" title="ネタ帳のカテゴリ"><CategoryManager /></FoldSection>
-
-        <SectionTitle count={`${badges.unlocked.length} / ${BADGES.length}`}>バッジ</SectionTitle>
-        <Card className="grid grid-cols-4 gap-2 md:grid-cols-6">
-          {BADGES.map((b) => (
-            <div key={b.key} title={b.body} className={cx('flex flex-col items-center gap-1 rounded-[10px] p-2 text-center', unlockedKeys.has(b.key) ? 'bg-mustard-300/30' : 'opacity-35 grayscale')}>
-              <span className="text-2xl" aria-hidden>{b.emoji}</span>
-              <span className="text-[10px] font-bold leading-tight">{b.title}</span>
-            </div>
-          ))}
-        </Card>
-
         <SectionTitle>見た目</SectionTitle>
         <Card className="flex items-center gap-3">
           <div className="flex-1">
@@ -70,6 +50,10 @@ export function SettingsPage() {
         <SectionTitle>LaRa の友達</SectionTitle>
         <FriendsCard />
 
+        {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
+        <FoldSection id="genres" title="レシピのジャンル"><GenreManager /></FoldSection>
+        <FoldSection id="categories" title="ネタ帳のカテゴリ"><CategoryManager /></FoldSection>
+
         <SectionTitle>アカウント</SectionTitle>
         <Card className="flex items-center gap-3">
           <div className="flex-1">
@@ -87,6 +71,8 @@ export function SettingsPage() {
           <p className="font-bold">Mac</p>
           <p className="text-muted">Safari の「ファイル」→「Dock に追加」、または Chrome のアドレスバー右のインストールアイコン。</p>
         </Card>
+
+        <FoldSection id="rules" title="LaRa が覚えたこと"><LearnedRules /></FoldSection>
       </div>
     </>
   )
