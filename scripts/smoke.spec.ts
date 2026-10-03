@@ -613,7 +613,7 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
   const authz: string[] = []
   page.on('request', (r) => { if (r.url().includes('/api/v1/agenda')) authz.push(r.headers()['authorization'] ?? '') })
   await stubSupabase(page, { agenda: (date) => date === todayIso
-    ? { ...emptyAgenda(date), events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
+    ? { ...emptyAgenda(date), events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '廃業届出', due_date: null, due_time: null, overdue: false, starred: false, list: '四谷旅館業', planned_for: date }, { title: 'ゴミシール購入', due_date: null, due_time: null, overdue: false, starred: false, list: 'マイタスク', planned_for: iso(daysAgo(1)) }, { title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
     : emptyAgenda(date) })
   await page.goto('#/')
   // 下の案内に今日の予定（タップで Planner）
@@ -631,6 +631,9 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
   await expect(bubble.getByText(/今日の予定は 1 件/)).toBeVisible()
   await expect(bubble.getByText(/23:58 N89 ルーター回収/)).toBeVisible()
   await expect(bubble.getByText(/見積もり送る（進行中）/)).toBeVisible()
+  // Planner の「明日」ボタンで入れたもの
+  await expect(bubble.getByText(/廃業届出（今日やる）/)).toBeVisible()
+  await expect(bubble.getByText(/ゴミシール購入（持ち越し）/)).toBeVisible()
   await expect(bubble.getByRole('button', { name: 'Planner を開く →' })).toBeVisible()
   const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
   await box.fill('明日の予定は？')

@@ -1,10 +1,17 @@
 /** Planner（予定・ToDo のアプリ）から届くその日のまとめ。Planner の GET /api/v1/agenda の形 */
 export interface AgendaEvent { title: string; all_day: boolean; start: string | null; end: string | null; location: string | null; calendar: string }
-export interface AgendaTask { title: string; due_date: string | null; due_time: string | null; overdue: boolean; starred: boolean; list: string }
+/** planned_for は Planner の「明日」ボタンで入れた、やる日（古い Planner は返さない） */
+export interface AgendaTask { title: string; due_date: string | null; due_time: string | null; overdue: boolean; starred: boolean; list: string; planned_for?: string | null }
 export interface Agenda { date: string; today: string; events: AgendaEvent[]; tasks: AgendaTask[]; url: string }
 
 const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length)]
 const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+/** 「明日」ボタンの印: その日の分は「今日やる／明日やる」、前の日から残っているものは「持ち越し」 */
+function plannedTag(x: AgendaTask, date: string, which: 'today' | 'tomorrow') {
+  if (!x.planned_for) return ''
+  return x.planned_for < date ? '（持ち越し）' : which === 'today' ? '（今日やる）' : '（明日やる）'
+}
+
 /** 「09:30」→「9:30」 */
 const t = (s: string) => s.replace(/^0(\d)/, '$1')
 
@@ -40,7 +47,7 @@ export function agendaLine(today: Agenda | undefined, tomorrow: Agenda | undefin
     return pick([`明日は${eventPhrase(e)}があるよ。`, `明日は${eventPhrase(e)}。忘れないでね`], r) + more + (tasks ? `今日の ToDo はあと ${tasks} 件` : '')
   }
   if (tasks) {
-    const top = today.tasks.find((x) => x.starred) ?? today.tasks[0]
+    const top = today.tasks.find((x) => x.planned_for) ?? today.tasks.find((x) => x.starred) ?? today.tasks[0]
     return pick([`今日の ToDo は ${tasks} 件。まずは『${top.title}』から！`, `ToDo が ${tasks} 件あるよ。『${top.title}』はどう？`], r)
   }
   return null
@@ -61,7 +68,7 @@ export function agendaReply(a: Agenda, which: 'today' | 'tomorrow', part: 'all' 
     if (ts.length) {
       if (lines.length) lines.push('')
       lines.push(`${which === 'today' ? '' : '明日までの'}ToDo は ${ts.length} 件。`)
-      for (const x of ts.slice(0, 8)) lines.push(`・${x.title}${x.starred ? '（進行中）' : ''}${x.due_time ? `（${t(x.due_time)}）` : ''}${x.overdue ? '（期限すぎ）' : ''}`)
+      for (const x of ts.slice(0, 8)) lines.push(`・${x.title}${plannedTag(x, a.date, which)}${x.starred ? '（進行中）' : ''}${x.due_time ? `（${t(x.due_time)}）` : ''}${x.overdue ? '（期限すぎ）' : ''}`)
       if (ts.length > 8) lines.push(`…ほか ${ts.length - 8} 件`)
     } else lines.push(`ToDo は${which === 'today' ? '' : '明日まで'}ぜんぶ片付いてる！`)
   }
