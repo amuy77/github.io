@@ -197,6 +197,9 @@ export const buildLuruFigure = (): LaraFigure => buildLaraFigure('luru')
 
 export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   const luru = kind === 'luru'
+  // 頭の大きさと高さ。LuRu は絵に合わせて頭（帽子ごと）を LaRa より小さくし、そのぶん下げて体に座らせる（あごの位置は同じ）
+  const headScale = luru ? HEAD_SCALE * 0.86 : HEAD_SCALE
+  const headCy = luru ? HEAD.cy - HEAD.ry * 0.85 * (HEAD_SCALE - headScale) : HEAD.cy
   const group = new THREE.Group()
   const root = new THREE.Group(); group.add(root)
   const geos: THREE.BufferGeometry[] = []
@@ -394,7 +397,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
       return merged
     }
     for (let i = 0; i < 5; i++) {
-      const fg = new THREE.Group(); fg.rotation.set(0, -0.75 - (i % 2) * 0.3, -0.15 - i * 0.4); palm.add(fg)
+      const fg = new THREE.Group(); fg.rotation.set(0, -0.75 - (i % 2) * 0.3, -0.95 - i * 0.38); palm.add(fg)
       solid(frondGeo(0.46 - (i % 3) * 0.05, 7), i % 2 ? COL.palmLeaf : COL.palmLeafD, fg, { line: 0.008 })
     }
     // ヤシの実 2 つ: 左の首と肩の間（体の +x 側の前）。しっぽと一緒に揺れないよう体に付ける
@@ -407,7 +410,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   }
 
   // ---------- 頭 ----------
-  const headG = new THREE.Group(); headG.position.set(HEAD.cx, HEAD.cy, 0); headG.scale.setScalar(HEAD_SCALE); root.add(headG)
+  const headG = new THREE.Group(); headG.position.set(HEAD.cx, headCy, 0); headG.scale.setScalar(headScale); root.add(headG)
   // 顔（頭の球と顔のパーツ）はフードより少しだけ小さく。フードは headG 直下なので大きさは変わらない
   const face = new THREE.Group(); face.scale.setScalar(0.85); headG.add(face)
   const headGeo = new THREE.SphereGeometry(1, 36, 26); headGeo.scale(HEAD.rx, HEAD.ry, HEAD.rz); headGeo.computeVertexNormals()
@@ -532,10 +535,10 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   const luruCap = new THREE.Group(); luruCap.visible = false; luruCap.rotation.set(-0.2, 0, 0.14); luruCap.position.y = 0.035; face.add(luruCap)
   const luruCollar = new THREE.Group(); luruCollar.visible = false; root.add(luruCollar)
   /** キャップのいちばん上（顔の座標）。吹き出しの位置に使う */
-  const CAP_TOP = HEAD.ry * 1.18 + 0.05
+  const CAP_TOP = HEAD.ry * 1.08 + 0.045
   if (luru) {
     // 頭を深く覆う野球帽。後ろ向きにかぶるので、つばは後ろ（少し左へ流れる）、前はアジャスターの穴とひも
-    const CAP = { x: HEAD.rx * 1.1, y: HEAD.ry * 1.18, z: HEAD.rz * 1.12 }, TH = 1.42
+    const CAP = { x: HEAD.rx * 1.05, y: HEAD.ry * 1.08, z: HEAD.rz * 1.07 }, TH = 1.45
     const dome = new THREE.SphereGeometry(1, 32, 14, 0, Math.PI * 2, 0, TH); dome.scale(CAP.x, CAP.y, CAP.z); dome.computeVertexNormals()
     solid(dome, COL.cap, luruCap, { double: true })
     // 縫い目（てっぺんから前後左右へ）
@@ -547,20 +550,20 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
       const seam = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.006, 5, false)), seamMat); seam.raycast = () => {}; luruCap.add(seam)
     }
     // てっぺんのボタン
-    solid(new THREE.SphereGeometry(0.035, 12, 8), COL.cap, luruCap, { line: 0.01 }).position.set(0, CAP.y + 0.01, 0)
+    solid(new THREE.SphereGeometry(0.03, 12, 8), COL.cap, luruCap, { line: 0.01 }).position.set(0, CAP.y + 0.008, 0)
     // つば（後ろ）: 平たい楕円の板。ふちの後ろ側から外へ、少し下がる
     const rimY = CAP.y * Math.cos(TH), rimR = { x: CAP.x * Math.sin(TH), z: CAP.z * Math.sin(TH) }
     const brimPivot = new THREE.Group(); brimPivot.rotation.y = -0.65; luruCap.add(brimPivot)
-    const brim = solid(new THREE.CylinderGeometry(0.21, 0.21, 0.024, 28), COL.cap, brimPivot, { line: 0.012 })
-    brim.scale.set(1.0, 1, 0.9); brim.position.set(0, rimY - 0.01, -rimR.z - 0.1); brim.rotation.x = 0.3
+    const brim = solid(new THREE.CylinderGeometry(0.17, 0.17, 0.022, 28), COL.cap, brimPivot, { line: 0.012 })
+    brim.scale.set(1.0, 1, 0.9); brim.position.set(0, rimY - 0.01, -rimR.z - 0.08); brim.rotation.x = 0.3
     // アジャスターの穴: 前のふちの上に、頭（クリーム色）が見えるアーチ
     {
       // 半円: ふちの前の真ん中から、帽子の表面に沿った半円の弧へ扇形に張る。弧には細い線
       const sph = (phi: number, th: number, k = 1.012) => new THREE.Vector3(-Math.cos(phi) * Math.sin(th) * CAP.x * k, Math.cos(th) * CAP.y * k, Math.sin(phi) * Math.sin(th) * CAP.z * k)
       const base = TH - 0.06, arch: THREE.Vector3[] = []
-      for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI; arch.push(sph(Math.PI / 2 + 0.3 * Math.cos(a), base - 0.36 * Math.sin(a))) }
+      for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI; arch.push(sph(Math.PI / 2 + 0.19 * Math.cos(a), base - 0.22 * Math.sin(a))) }
       // 弧とふちの間を細かい格子で張る（大きな三角だと帽子の丸みの内側にもぐって緑が透ける）
-      const grid = (i: number, j: number) => { const a = (i / 16) * Math.PI; return sph(Math.PI / 2 + 0.3 * Math.cos(a), base - 0.36 * Math.sin(a) * (j / 4)) }
+      const grid = (i: number, j: number) => { const a = (i / 16) * Math.PI; return sph(Math.PI / 2 + 0.19 * Math.cos(a), base - 0.22 * Math.sin(a) * (j / 4)) }
       const pos: number[] = []
       for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) {
         const a = grid(i, j), b = grid(i + 1, j), c = grid(i + 1, j + 1), d = grid(i, j + 1)
@@ -571,10 +574,10 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
       const edge = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(arch.map((v) => v.clone().multiplyScalar(1.002))), 32, 0.007, 5, false)), inkMat()); edge.raycast = () => {}; luruCap.add(edge)
     }
     // 前のアジャスター: ふちの前側に沿う濃い緑のひも（穴の点つき）
-    const band = new THREE.TorusGeometry(1.02, 0.026, 6, 24, 1.0); band.rotateZ(Math.PI / 2 - 0.5); band.rotateX(Math.PI / 2); band.scale(rimR.x, 1, rimR.z)
+    const band = new THREE.TorusGeometry(1.02, 0.022, 6, 24, 0.7); band.rotateZ(Math.PI / 2 - 0.35); band.rotateX(Math.PI / 2); band.scale(rimR.x, 1, rimR.z)
     const strap = new THREE.Mesh(G(band), toonMat(COL.capD)); strap.position.y = rimY + 0.022; strap.raycast = () => {}; luruCap.add(strap)
     for (let i = -2; i <= 2; i++) {
-      const a = Math.PI / 2 + i * 0.09
+      const a = Math.PI / 2 + i * 0.065
       const dot = new THREE.Mesh(G(new THREE.SphereGeometry(0.009, 6, 5)), inkMat(0x163220))
       dot.position.set(Math.cos(a) * rimR.x * 1.05, rimY + 0.024, Math.sin(a) * rimR.z * 1.05); dot.raycast = () => {}; luruCap.add(dot)
     }
@@ -1111,7 +1114,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
       headG.getWorldPosition(out)
       // LuRu はキャップのてっぺん（顔の座標なので顔の大きさ 0.85 をかける）
       const tip = luru ? CAP_TOP * 0.85 + 0.02 : 0.04 + looks[outfit].tipY * HOOD_SCALE
-      out.y += tip * HEAD_SCALE * root.scale.y * group.scale.y
+      out.y += tip * headScale * root.scale.y * group.scale.y
       return out
     },
     update(t, dt, m) {
@@ -1159,7 +1162,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
         root.position.y = jump
         root.rotation.z = side * -0.04
         headG.rotation.set(0.28 + b * 0.015, 0, 0.22 * side)
-        headG.position.y = HEAD.cy - 0.03 + b * 0.008
+        headG.position.y = headCy - 0.03 + b * 0.008
         for (const a of arms) armRest(a)
         legRest()
       } else if (m.walking && !reduced) {
@@ -1168,7 +1171,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
         root.position.y = jump + Math.abs(Math.sin(w)) * (m.skip ? 0.1 : 0.04)
         root.rotation.z = Math.sin(w) * 0.05
         headG.rotation.set(0.05, 0, Math.sin(w) * 0.03)
-        headG.position.y = HEAD.cy
+        headG.position.y = headCy
         arms.forEach((a, i) => { a.tilt.rotation.z = a.side * (m.skip ? 1.3 : 0.85); a.pivot.rotation.x = Math.sin(w + i * Math.PI) * 0.55 })
         legs.forEach((l, i) => { l.hip.rotation.x = Math.sin(w + i * Math.PI + Math.PI) * 0.6 })
         wantSway = Math.sin(w * 0.5) * 0.18
@@ -1178,7 +1181,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
         const b = reduced ? 0 : Math.sin(t * 1.5)
         root.position.y = jump + b * 0.015
         headG.rotation.set(0, 0, m.worried ? 0.16 + b * 0.02 : b * 0.035)
-        headG.position.y = HEAD.cy + b * 0.006
+        headG.position.y = headCy + b * 0.006
         legRest()
         for (const a of arms) {
           if (m.waving && a.side > 0 && !reduced) { a.tilt.rotation.z = 2.55 + Math.sin(t * 9) * 0.3; a.pivot.rotation.x = 0 }
