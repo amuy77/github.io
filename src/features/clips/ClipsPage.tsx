@@ -8,7 +8,8 @@ import { CLIP_PURPOSES } from './purpose'
 import { useCategoryList } from './categoryHooks'
 import { CategoryManagerSheet } from './CategoryManager'
 import { useClips, useUpdateClip } from './hooks'
-import { ClipCard, clipTitle } from './ClipCard'
+import { ClipCard, ClipListRow, clipTitle } from './ClipCard'
+import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
 
@@ -49,6 +50,7 @@ export function ClipsPage() {
   const purposeCount = (p: ClipPurpose) => (clips.data ?? []).filter((c) => c.purpose === p).length
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
+  const [layout, setLayout] = useListLayout('lara.clips.layout')
 
   return (
     <>
@@ -69,10 +71,13 @@ export function ClipsPage() {
             ))}
           </div>
         )}
-        <label className="flex h-11 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
-          <IconSearch size={18} className="text-muted" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
+            <IconSearch size={18} className="text-muted" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
+          </label>
+          <LayoutToggle value={layout} onChange={setLayout} />
+        </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <Chip active={cat === 'all'} onClick={() => setCat('all')}>すべて</Chip>
           {categories.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.emoji} {c.label}</Chip>)}
@@ -92,9 +97,15 @@ export function ClipsPage() {
             ? <EmptyState emoji="📌" title="まだネタがありません" body="気になったお店のメニュー写真、SNS の投稿、ワインやビールのメモをここに集めよう。" action={<Button onClick={() => setEditorOpen(true)} icon={<IconPlus size={16} />}>最初のネタを追加</Button>} />
             : <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
         ) : (
-          <div className={cx('grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4')}>
-            {list.map((c) => <ClipCard key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
-          </div>
+          layout === 'list' ? (
+            <div className="flex flex-col gap-1.5" data-testid="clip-list">
+              {list.map((c) => <ClipListRow key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
+            </div>
+          ) : (
+            <div className={cx('grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4')}>
+              {list.map((c) => <ClipCard key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
+            </div>
+          )
         )}
       </div>
       <ClipEditorSheet open={editorOpen} onClose={() => setEditorOpen(false)} />

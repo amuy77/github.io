@@ -684,3 +684,22 @@ test('friends: settings lists LuRu and 今すぐ呼ぶ brings him to the shop', 
   await expect(page).toHaveURL(/#\/$/)
   await expect.poll(() => friendState(page), { timeout: 20_000 }).toMatchObject({ kind: 'luru' })
 })
+
+test('lists: clips and recipes can switch between cards and a list, and remember it', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  await expect(page.getByRole('radio', { name: 'カード表示' })).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('radio', { name: 'リスト表示' }).click()
+  await expect(page.getByTestId('clip-list')).toBeVisible()
+  await expect(page.getByTestId('clip-list').getByRole('link').first()).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-clips-list.png`, fullPage: true })
+  await page.goto('#/recipes')
+  await page.getByRole('radio', { name: 'リスト表示' }).click()
+  await expect(page.getByTestId('recipe-list').first()).toBeVisible()
+  await expect(page.getByTestId('recipe-list').first().getByText('BLT サンド').first()).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-recipes-list.png`, fullPage: true })
+  // 開き直しても覚えている
+  await page.reload()
+  await expect(page.getByRole('radio', { name: 'リスト表示' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByTestId('recipe-list').first()).toBeVisible()
+})
