@@ -197,9 +197,9 @@ export const buildLuruFigure = (): LaraFigure => buildLaraFigure('luru')
 
 export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   const luru = kind === 'luru'
-  // 頭の大きさと高さ。LuRu は絵に合わせて頭（帽子ごと）を LaRa より小さくし、そのぶん下げて体に座らせる（あごの位置は同じ）
-  const headScale = luru ? HEAD_SCALE * 0.86 : HEAD_SCALE
-  const headCy = luru ? HEAD.cy - HEAD.ry * 0.85 * (HEAD_SCALE - headScale) : HEAD.cy
+  // 頭の大きさと高さ（キャラごとに変えられるようにしておく。今は LaRa も LuRu も同じ）
+  const headScale = HEAD_SCALE
+  const headCy = HEAD.cy
   const group = new THREE.Group()
   const root = new THREE.Group(); group.add(root)
   const geos: THREE.BufferGeometry[] = []
@@ -413,7 +413,21 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   const headG = new THREE.Group(); headG.position.set(HEAD.cx, headCy, 0); headG.scale.setScalar(headScale); root.add(headG)
   // 顔（頭の球と顔のパーツ）はフードより少しだけ小さく。フードは headG 直下なので大きさは変わらない
   const face = new THREE.Group(); face.scale.setScalar(0.85); headG.add(face)
-  const headGeo = new THREE.SphereGeometry(1, 36, 26); headGeo.scale(HEAD.rx, HEAD.ry, HEAD.rz); headGeo.computeVertexNormals()
+  const headGeo = new THREE.SphereGeometry(1, 36, 26)
+  if (luru) {
+    // LuRu は絵に合わせて、ほっぺ（左右の下寄り・前寄り）をぷくっとふくらませ、頭の下半分を横に少し広げる（下ぶくれ）。
+    // ふくらみは中心で 14%、離れるほどなだらかに 0 へ。輪郭線はこの形から作るので、ふくらみにそのまま沿う
+    const pos = headGeo.attributes.position as THREE.BufferAttribute
+    const v = new THREE.Vector3(), cheeks = [new THREE.Vector3(0.75, -0.46, 0.47).normalize(), new THREE.Vector3(-0.75, -0.46, 0.47).normalize()]
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i)
+      let k = 1
+      for (const c of cheeks) k += 0.14 * Math.exp(-(1 - v.dot(c)) / 0.09)
+      const wide = v.y < 0 ? 1 + 0.05 * Math.sin(-v.y * Math.PI) : 1
+      pos.setXYZ(i, v.x * k * wide, v.y * k, v.z * k)
+    }
+  }
+  headGeo.scale(HEAD.rx, HEAD.ry, HEAD.rz); headGeo.computeVertexNormals()
   solid(headGeo, COL.cream, face)
 
   /** 顔座標 (x, y は頭の中心基準) → 頭の表面の点（lift だけ外へ） */
@@ -482,7 +496,8 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   // LuRu はまぶたの線がつり眉の代わり（眉は描かない）
   const mischief: THREE.Mesh[] = []
   // 鼻
-  faceLine([[-0.022, -0.075], [0, -0.05], [0.022, -0.075]], 0.009, face)
+  if (luru) faceLine([[-0.016, -0.07], [0, -0.056], [0.016, -0.07]], 0.008, face)
+  else faceLine([[-0.022, -0.075], [0, -0.05], [0.022, -0.075]], 0.009, face)
   // 口（笑い）と、心配顔の口
   const smile: [number, number][] = []
   for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 - 0.95 + (1.9 * i) / 8; smile.push([Math.cos(a) * 0.165, -0.045 + Math.sin(a) * 0.165]) }
@@ -499,7 +514,8 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   // ほっぺ
   for (const s of [-1, 1]) {
     const c = new THREE.Mesh(G(new THREE.SphereGeometry(0.052, 14, 10)), toonMat(COL.pink))
-    c.position.copy(onFace(s * 0.285, -0.14, -0.036)); face.add(c)
+    // LuRu はほっぺがふくらんでいるので、そのぶん外へ出す
+    c.position.copy(onFace(s * 0.285, -0.14, luru ? 0.03 : -0.036)); face.add(c)
   }
   // 前髪のくるん
   const curl: [number, number][] = []
