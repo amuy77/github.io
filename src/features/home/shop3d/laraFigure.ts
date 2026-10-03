@@ -610,7 +610,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
         bp.setXYZ(i, sx, sz - 0.09 * r * r - 0.06 * q * q * (0.3 + 0.7 * r), -sy - (rimR.z - 0.03))
       }
       geo.computeVertexNormals()
-      solid(geo, COL.cap, brimPivot, { line: 0.012 }).position.y = rimY - 0.024
+      solid(geo, COL.cap, brimPivot, { line: 0.012 }).position.y = rimY + 0.011   // ふちの帯のすぐ下から出る
     }
     // アジャスターの穴: 前のふちの上に、頭（クリーム色）が見えるアーチ
     {
