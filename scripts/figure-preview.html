@@ -48,7 +48,7 @@
     const floor = new THREE.Mesh(new THREE.CircleGeometry(1.2, 48), new THREE.MeshStandardMaterial({ color: 0xc9a27a, roughness: 1 }))
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor)
 
-    const fig = buildLaraFigure()
+    const fig = buildLaraFigure(q.get('kind') === 'luru' ? 'luru' : 'lara')
     scene.add(fig.group)
     let outfit = OUTFITS.some((o) => o.id === q.get('outfit')) ? q.get('outfit') : OUTFITS[0].id
     fig.setOutfit(outfit)

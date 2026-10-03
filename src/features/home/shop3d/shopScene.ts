@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { DayPart } from '@/lib/dates'
-import { BALL_R, BALL_ROLL_CYCLE, buildBalanceBall, buildLaraFigure, type LaraFigure, type LaraOutfit, type LaraPose, type LaraProp } from './laraFigure'
+import { BALL_R, BALL_ROLL_CYCLE, buildBalanceBall, buildLaraFigure, type FigureKind, type LaraFigure, type LaraOutfit, type LaraPose, type LaraProp } from './laraFigure'
 
-export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident'
+export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident' | 'friend'
 export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number }
 export interface ShopSceneOptions {
   onTap: (h: Hotspot) => void
@@ -13,10 +13,27 @@ export interface ShopSceneOptions {
   reducedMotion?: boolean
   /** LaRa に何か起きたとき（くしゃみ・つまずく・寝落ちから起きる・本を見つける・カモメ・流れ星・あくび）。吹き出しでひとこと言わせるのに使う */
   onSay?: (event: ResidentEvent) => void
+  /** 遊びに来た友達（LuRu など）に何か起きたとき。吹き出しでセリフを言わせるのに使う */
+  onFriend?: (event: FriendEvent) => void
   /** ブランド素材（無ければ文字看板だけ） */
   assets?: { wordmark?: string; poster?: string }
 }
 export type ResidentMood = 'idle' | 'worried'
+/** 友達の出来事。arrive: 来た / prank: LaRa を驚かせた（LaRa も驚く） / oops: 自分がころんだ / idle: 遊んでいる合間 / leave: 帰りはじめた / gone: いなくなった */
+export type FriendEvent = 'arrive' | 'prank' | 'oops' | 'idle' | 'leave' | 'gone'
+/** 友達が遊んでいる間にすること（場所・向き・仕草・いる秒数） */
+const FRIEND_PLAY: { node: string; face: 'camera' | 'lara' | number; pose: LaraPose; stay: [number, number]; oops?: boolean }[] = [
+  { node: 'dance', face: 'camera', pose: 'dance', stay: [6, 9] },
+  { node: 'FM', face: 'camera', pose: 'chase', stay: [4, 6] },
+  { node: 'window', face: Math.PI, pose: 'gaze', stay: [7, 10] },
+  { node: 'roll', face: Math.PI / 2, pose: 'lie', stay: [7, 10] },
+  { node: 'B', face: 'lara', pose: 'lookaround', stay: [4, 6] },
+  { node: 'sweep', face: 'camera', pose: 'trip', stay: [3, 4], oops: true },
+  { node: 'FL', face: 'camera', pose: 'stretch', stay: [4, 6] },
+  { node: 'mailbox', face: Math.PI / 2, pose: 'peek', stay: [4, 6] },
+]
+/** 友達が出入りする場所（手前右の郵便受けのあたり） */
+const FRIEND_DOOR = 'mailbox'
 
 // 海辺のカフェの色: 白っぽい木・明るいオーク・砂・コンクリート・ミント/海の青・コーラル・ロゴのオレンジ
 const C = {
@@ -237,6 +254,18 @@ export class ShopScene {
   private gesture: { pose: LaraPose; until: number } | null = null
   private react: { pose?: LaraPose; waving?: boolean; until: number } | null = null
   private listening = false
+  /** 遊びに来ている友達（1 人まで）。phase: enter（LaRa のそばへ）→ prank → play → leave */
+  private friend: {
+    kind: FigureKind; group: THREE.Group; fig: LaraFigure
+    phase: 'enter' | 'prank' | 'play' | 'leave'
+    path: THREE.Vector3[]; nodes: string[]; at: string
+    /** 着いてからの仕草と、次へ移る時刻 */
+    pose: LaraPose | null; face: 'camera' | 'lara' | number; until: number
+    /** 帰る時刻・出入りの大きさ（0→1 で現れ、1→0 で消える）・まばたき */
+    leaveAt: number; scale: number; blinkAt: number; blinkUntil: number; react: { pose: LaraPose; until: number } | null
+    /** 遊びで向かっている先（着いたらこの仕草） */
+    play: (typeof FRIEND_PLAY)[number] | null
+  } | null = null
   /** 寝返り（頭を傾ける向き）と次の寝返りの時刻 */
   private sleepSide = 1
   private nextTurn = 0
@@ -417,7 +446,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, ballDecor: this.ballDecor?.visible ?? null } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null } }
   /** デバッグ用: 時刻を固定する（null で今の時刻に戻す） */
   debugSetHour(h: number | null) { this.hourOverride = h; this.updateResidentState(); this.drawSea(this.mode, this.lastT) }
   /** デバッグ用: 今の場所での時間を飛ばして、次の行動を選ばせる（優先の行動があるときは何もしない） */
@@ -451,6 +480,148 @@ export class ShopScene {
   }
 
   /** 吹き出し表示用: 住人の頭上の画面座標 */
+  /** 友達を呼ぶ（kind は laraFigure.ts の体の種類）。もう誰か来ていれば何もしない。stay 秒たったら帰る */
+  visitFriend(kind: FigureKind, stay = 100 + Math.random() * 60) {
+    if (this.friend || !this.resident) return
+    const fig = buildLaraFigure(kind)
+    const g = fig.group
+    g.userData.hot = 'friend'
+    g.traverse((o) => { o.userData.hotRoot = g })
+    g.position.fromArray(NODES[FRIEND_DOOR]); g.scale.setScalar(0.001)
+    this.hotspots.push(g)
+    this.scene.add(g)
+    const t = this.lastT
+    this.friend = { kind, group: g, fig, phase: 'enter', path: [], nodes: [], at: FRIEND_DOOR, pose: 'hop', face: 'camera', until: t + 1.2, leaveAt: t + stay, scale: 0, blinkAt: t + 2, blinkUntil: 0, react: null, play: null }
+    this.opts.onFriend?.('arrive')
+    this.needsRender = true
+  }
+  /** 友達に帰ってもらう（郵便受けまで歩いて消える） */
+  sendFriendHome() { if (this.friend && this.friend.phase !== 'leave') this.friendLeave() }
+  /** 友達の様子（吹き出しを出してよいか） */
+  friendStatus() {
+    const f = this.friend
+    return f ? { kind: f.kind, phase: f.phase, walking: f.path.length > 0 } : null
+  }
+  friendScreenPos(): { x: number; y: number } | null {
+    const f = this.friend
+    if (!f) return null
+    f.group.updateMatrixWorld()
+    f.fig.headTop(this.tmp)
+    this.tmp.project(this.camera)
+    const r = this.el.getBoundingClientRect()
+    return { x: r.left + ((this.tmp.x + 1) / 2) * r.width, y: r.top + ((1 - this.tmp.y) / 2) * r.height }
+  }
+  /** 友達をタップしたとき: ぴょんと跳ねる */
+  private reactFriendTap() {
+    const f = this.friend
+    if (!f) return
+    if (f.path.length) f.fig.spin()
+    else f.react = { pose: 'hop', until: this.lastT + 1.2 }
+  }
+  /** 友達を通り道の点へ歩かせる */
+  private friendWalk(to: string) {
+    const f = this.friend!
+    const nodes = shortestPath(f.at, to)
+    if (nodes.length > 1 && nodes[0] === f.at) nodes.shift()
+    f.nodes = nodes; f.path = nodes.map((n) => new THREE.Vector3(...NODES[n])); f.pose = null
+  }
+  /** LaRa のいる場所のそばで、LaRa の行き先と重ならない床の点 */
+  private nodeNearLara(): string {
+    const lp = this.resident!.position
+    const taken = new Set([this.residentAt, this.residentNodes[this.residentNodes.length - 1]])
+    let best = 'FM', bestD = Infinity
+    for (const [n, v] of Object.entries(NODES)) {
+      if (v[1] !== 0 || taken.has(n) || n === 'BP') continue
+      const d = Math.hypot(v[0] - lp.x, v[2] - lp.z)
+      if (d > 0.45 && d < bestD) { bestD = d; best = n }
+    }
+    return best
+  }
+  private friendPlay() {
+    const f = this.friend!
+    const taken = new Set([this.residentAt, this.residentNodes[this.residentNodes.length - 1], f.at])
+    const options = FRIEND_PLAY.filter((p) => !taken.has(p.node))
+    const p = options[Math.floor(Math.random() * options.length)] ?? FRIEND_PLAY[0]
+    f.phase = 'play'
+    this.friendWalk(p.node)
+    f.face = p.face
+    f.until = Infinity
+    f.play = p
+  }
+  private friendLeave() {
+    const f = this.friend!
+    f.phase = 'leave'
+    this.friendWalk(FRIEND_DOOR)
+    f.face = 'camera'; f.until = Infinity
+    this.opts.onFriend?.('leave')
+  }
+  /** 友達が驚かせたときの LaRa: 跳ねて「!」（寝ていたら起きる）。話しかけられている間は驚かない */
+  private surpriseResident() {
+    if (this.listening || !this.resident) return
+    const t = this.lastT, spot = SPOTS[this.residentState]
+    this.gesture = null
+    this.react = spot.sleeping && this.arrivedAt >= 0 ? { pose: 'wake', until: t + 3 } : { pose: 'hop', until: t + 1.2 }
+    this.showEmote('!')
+    this.holdResident(6)
+  }
+  private removeFriend() {
+    const f = this.friend
+    if (!f) return
+    this.scene.remove(f.group)
+    this.hotspots = this.hotspots.filter((h) => h !== f.group)
+    f.fig.dispose()
+    this.friend = null
+    this.opts.onFriend?.('gone')
+  }
+  /** 毎フレーム: 友達を歩かせ、着いたら仕草。来たら LaRa のそばへ行って驚かせ、しばらく遊んで帰る */
+  private updateFriend(t: number, dt: number) {
+    const f = this.friend
+    if (!f) return
+    // 出入りの大きさ（ぽんと現れて、すっと消える）
+    const wantScale = f.phase === 'leave' && !f.path.length ? 0 : 1
+    f.scale += (wantScale - f.scale) * Math.min(1, dt * 6)
+    f.group.scale.setScalar(Math.max(0.001, f.scale))
+    if (f.phase === 'leave' && !f.path.length && f.scale < 0.02) { this.removeFriend(); return }
+    const p = f.group.position
+    let walking = false, facing: number | null = null
+    if (f.path.length) {
+      const d = f.path[0].clone().sub(p), dist = d.length()
+      if (dist > 0.02) { facing = Math.atan2(d.x, d.z); p.add(d.normalize().multiplyScalar(Math.min(dist, dt * 1.9))); walking = true }
+      else {
+        f.at = f.nodes.shift() ?? f.at; f.path.shift(); walking = f.path.length > 0
+        if (!f.path.length) {
+          // 着いた
+          if (f.phase === 'enter') { f.phase = 'prank'; f.face = 'lara'; f.pose = 'hop'; f.until = t + 1.4; this.surpriseResident(); this.opts.onFriend?.('prank') }
+          else if (f.phase === 'play') {
+            const next = f.play ?? FRIEND_PLAY[0]
+            f.pose = next.pose; f.until = t + next.stay[0] + Math.random() * (next.stay[1] - next.stay[0])
+            if (next.oops) this.opts.onFriend?.('oops')
+            else if (Math.random() < 0.35) this.opts.onFriend?.('idle')
+          }
+        }
+      }
+    } else if (f.phase === 'enter' && t > f.until) {
+      // 現れて跳ねたら、LaRa のそばへ忍び寄る
+      this.friendWalk(this.nodeNearLara())
+    } else if (f.phase !== 'leave' && t > f.until) {
+      if (t > f.leaveAt) this.friendLeave()
+      else this.friendPlay()
+    }
+    if (!walking) {
+      const face = f.face
+      if (face === 'lara') facing = this.resident ? Math.atan2(this.resident.position.x - p.x, this.resident.position.z - p.z) : this.yaw
+      else facing = face === 'camera' ? this.yaw : face
+    }
+    if (f.react && t > f.react.until) f.react = null
+    if (t >= f.blinkAt) { f.blinkUntil = t + 0.14; f.blinkAt = t + 2.5 + Math.random() * 4 }
+    f.fig.setExpression({ blink: t < f.blinkUntil, worried: f.pose === 'trip' && !walking, sleeping: false })
+    f.fig.update(t, dt, {
+      walking, facing, reduced: !!this.opts.reducedMotion, pose: walking ? undefined : f.react?.pose ?? f.pose ?? 'stand',
+      skip: walking && f.phase === 'enter', sleepSide: 1, waving: !walking && f.phase === 'leave', brewing: false, sleeping: false, worried: false,
+    })
+    this.needsRender = true
+  }
+
   residentScreenPos(): { x: number; y: number } | null {
     if (!this.resident || !this.figure) return null
     this.resident.updateMatrixWorld()
@@ -472,6 +643,7 @@ export class ShopScene {
     this.mats.forEach((m) => m.dispose())
     this.seaTex.dispose(); this.festoonMat.dispose(); this.pendantMat.dispose(); this.emoteTex.dispose()
     this.figure?.dispose()
+    this.friend?.fig.dispose()
     this.renderer.dispose()
     this.el.remove()
   }
@@ -1301,6 +1473,7 @@ export class ShopScene {
   }
   private tap(g: THREE.Group) {
     if (g === this.resident) this.reactTap()
+    else if (this.friend && g === this.friend.group) this.reactFriendTap()
     else this.bounces.push({ g, t: 0 })
     this.needsRender = true
     try { navigator.vibrate?.(10) } catch { /* noop */ }
@@ -1423,6 +1596,7 @@ export class ShopScene {
       this.needsRender = true
       }
     }
+    this.updateFriend(t, dt)
     for (let i = this.bounces.length - 1; i >= 0; i--) {
       const b = this.bounces[i]; b.t += dt * 3
       const s = b.t < 1 ? 1 + Math.sin(b.t * Math.PI) * 0.1 : 1

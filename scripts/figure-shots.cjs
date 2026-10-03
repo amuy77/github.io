@@ -6,6 +6,13 @@ const { mkdirSync } = require('node:fs')
 const BASE = process.env.FIGURE_BASE_URL || 'http://127.0.0.1:5173/github.io/scripts/figure-preview.html'
 const VARIANTS = [
   ['idle', 'still=1'],
+  // 幼なじみの LuRu（キャップ・ヤシの葉のえり・ココナッツのしっぽ）
+  ['luru-idle', 'kind=luru&still=1'],
+  ['luru-worried', 'kind=luru&ex=worried&still=1'],
+  ['luru-sleep', 'kind=luru&ex=sleep&still=1'],
+  ['luru-walk', 'kind=luru&motion=walk'],
+  ['luru-wave', 'kind=luru&motion=wave'],
+  ['luru-hop', 'kind=luru&pose=hop'],
   ['worried', 'ex=worried&still=1'],
   ['sleep', 'ex=sleep&still=1'],
   ['walk', 'motion=walk'],
