@@ -429,11 +429,11 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     // LuRu は絵に合わせて、目から下を縦に LOWER 倍つぶして平たい楕円にする（顎が広く丸く、ふっくらしたまま顎につながる）。
     // 顔の横（目の高さ）には小さなふくらみ。輪郭線はこの形から作るので、そのまま沿う
     const pos = headGeo.attributes.position as THREE.BufferAttribute
-    const v = new THREE.Vector3(), cheeks = [new THREE.Vector3(0.95, -0.2, 0.25).normalize(), new THREE.Vector3(-0.95, -0.2, 0.25).normalize()]
+    const v = new THREE.Vector3(), cheeks = [new THREE.Vector3(0.95, -0.28, 0.25).normalize(), new THREE.Vector3(-0.95, -0.28, 0.25).normalize()]
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i)
       let k = 1
-      for (const c of cheeks) k += 0.06 * Math.exp(-(1 - v.dot(c)) / 0.035)
+      for (const c of cheeks) k += 0.1 * Math.exp(-(1 - v.dot(c)) / 0.045)
       pos.setXYZ(i, v.x * k, v.y * k * (v.y < 0 ? LOWER : 1), v.z * k)
     }
   }
@@ -467,31 +467,33 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     const at = onFace(s * 0.16, -0.01, 0.012)
     g.position.copy(at)
     g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(at.x / HEAD.rx ** 2, at.y / HEAD.ry ** 2, at.z / HEAD.rz ** 2).normalize())
-    // まぶたの線: 外側が高く、内側が低い（y = 0.05 + 0.2 * 外向きの x）。目の上 1/4 ほどを切る
-    const lid = (x: number) => 0.05 + 0.2 * x * s
-    const clipped = (rx: number, ry: number, cy = 0) => {
+    // まぶたの線: 外側が高く、内側が低い（y = 0.02 + 0.24 * 外向きの x）。目の上 1/3 ほどを隠す半目で、無愛想に見せる
+    const lid = (x: number) => 0.02 + 0.24 * x * s
+    const clipped = (rx: number, ry: number, cy = 0, cx = 0) => {
       const pts: THREE.Vector2[] = []
-      for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2, x = Math.cos(a) * rx; pts.push(new THREE.Vector2(x, Math.min(cy + Math.sin(a) * ry, lid(x)))) }
+      for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2, x = cx + Math.cos(a) * rx; pts.push(new THREE.Vector2(x, Math.min(cy + Math.sin(a) * ry, lid(x)))) }
       return pts
     }
+    // 横目: 瞳を両目とも向かって右（+x）へ少し寄せて、にらむような流し目に
+    const GLANCE = 0.012
     const flat = (pts: THREE.Vector2[], color: number, z: number) => {
       const m = new THREE.Mesh(G(new THREE.ShapeGeometry(new THREE.Shape(pts))), color === 0xffffff ? toonMat(color) : inkMat(color))
       m.position.z = z; m.raycast = () => {}; g.add(m); return m
     }
     // 白目（まぶたで上を切る）→ その中に茶色の瞳（少し下寄り）→ 瞳孔 → ハイライト。白目の外周に細いふち線
-    const white = clipped(0.08, 0.085)
+    const white = clipped(0.085, 0.07)
     const whiteMat = new THREE.MeshBasicMaterial({ color: 0xfffaf0 }); mats.push(whiteMat)
     const wm = new THREE.Mesh(G(new THREE.ShapeGeometry(new THREE.Shape(white))), whiteMat); wm.raycast = () => {}; g.add(wm)
-    flat(clipped(0.058, 0.07, -0.012), 0x4a2a16, 0.001)
-    flat(clipped(0.036, 0.045, -0.025), 0x24130a, 0.002)
+    flat(clipped(0.068, 0.066, -0.003, GLANCE), 0x4a2a16, 0.001)
+    flat(clipped(0.042, 0.05, -0.015, GLANCE), 0x24130a, 0.002)
     const rim = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(white.map((p) => new THREE.Vector3(p.x, p.y, 0.002)), true), 64, 0.006, 5, true)), inkMat())
     rim.raycast = () => {}; g.add(rim)
     // ハイライト（左上に大きいの、右下に小さいの）
-    for (const [x, y, r] of [[-0.024, -0.008, 0.019], [0.026, -0.045, 0.01]] as const) {
+    for (const [x, y, r] of [[GLANCE - 0.024, -0.004, 0.011], [GLANCE + 0.03, -0.04, 0.006]] as const) {
       const h = new THREE.Mesh(G(new THREE.CircleGeometry(r, 14)), inkMat(0xffffff)); h.position.set(x, y, 0.004); h.raycast = () => {}; g.add(h)
     }
     // まぶた: 太い線をまっすぐ、外側へ少しはみ出す
-    const lidLine = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(-s * 0.08, lid(-s * 0.08) + 0.004, 0.005), new THREE.Vector3(s * 0.105, lid(s * 0.105) + 0.004, 0.005)), 4, 0.014, 6, false)), inkMat())
+    const lidLine = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(-s * 0.08, lid(-s * 0.08) + 0.004, 0.005), new THREE.Vector3(s * 0.115, lid(s * 0.115) + 0.004, 0.005)), 4, 0.016, 6, false)), inkMat())
     lidLine.raycast = () => {}; g.add(lidLine)
     return g
   }
@@ -518,7 +520,7 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   const smile: [number, number][] = []
   for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 - 0.95 + (1.9 * i) / 8; smile.push([Math.cos(a) * 0.165, -0.045 + Math.sin(a) * 0.165]) }
   // LuRu はにやっと片側が上がった小さな口
-  const mouthSmile = luru ? faceLine([[-0.08, -0.135], [-0.02, -0.15], [0.04, -0.148], [0.085, -0.125]], 0.012, face) : faceLine(smile, 0.012, face)
+  const mouthSmile = luru ? faceLine([[-0.07, -0.14], [-0.02, -0.148], [0.03, -0.146], [0.07, -0.13], [0.085, -0.117]], 0.012, face) : faceLine(smile, 0.012, face)
   const mouthFlat = faceLine([[-0.1, -0.175], [-0.035, -0.185], [0.035, -0.165], [0.1, -0.178]], 0.012, face); mouthFlat.visible = false
   // 舌（口の右端）
   const tongue = new THREE.Mesh(G(new THREE.SphereGeometry(0.036, 14, 10)), toonMat(COL.tongue))
@@ -531,8 +533,8 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   for (const s of [-1, 1]) {
     const c = new THREE.Mesh(G(new THREE.SphereGeometry(0.052, 14, 10)), toonMat(COL.pink))
     // LuRu のほっぺは絵のとおり、目の斜め下（顔の前寄り）
-    if (luru) c.scale.setScalar(1.15)
-    c.position.copy(luru ? onFace(s * 0.275, -0.09, -0.02) : onFace(s * 0.285, -0.14, -0.036)); face.add(c)
+    if (luru) c.scale.setScalar(1.3)
+    c.position.copy(luru ? onFace(s * 0.27, -0.1, -0.02) : onFace(s * 0.285, -0.14, -0.036)); face.add(c)
   }
   // 前髪のくるん
   const curl: [number, number][] = []
