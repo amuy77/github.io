@@ -397,10 +397,11 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
       const fg = new THREE.Group(); fg.rotation.set(0, -0.75 - (i % 2) * 0.3, -0.15 - i * 0.4); palm.add(fg)
       solid(frondGeo(0.46 - (i % 3) * 0.05, 7), i % 2 ? COL.palmLeaf : COL.palmLeafD, fg, { line: 0.008 })
     }
-    for (const [x, y, z] of [[-0.02, 0.1, 0.13], [0.07, 0.09, 0.14]] as const) {
-      const nut = solid(new THREE.SphereGeometry(0.068, 14, 10), COL.coconut, palm, { line: 0.01 }); nut.position.set(x, y, z)
+    // ヤシの実 2 つ: 左の首と肩の間（体の +x 側の前）。しっぽと一緒に揺れないよう体に付ける
+    for (const [x, y, z] of [[0.1, 0.42, 0.14], [0.25, 0.41, 0.09]] as const) {
+      const nut = solid(new THREE.SphereGeometry(0.08, 16, 12), COL.coconut, root, { line: 0.013 }); nut.position.set(x, y, z)
       for (const [dx, dy] of [[-0.02, 0.025], [0.022, 0.02], [0, -0.005]] as const) {
-        const d = new THREE.Mesh(G(new THREE.SphereGeometry(0.008, 6, 5)), inkMat(COL.coconutDot)); d.position.set(dx, dy, 0.064); d.raycast = () => {}; nut.add(d)
+        const d = new THREE.Mesh(G(new THREE.SphereGeometry(0.008, 6, 5)), inkMat(COL.coconutDot)); d.position.set(dx, dy, 0.074); d.raycast = () => {}; nut.add(d)
       }
     }
   }
@@ -428,19 +429,55 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     return m
   }
 
+  /**
+   * LuRu の目（絵のとおり）: 茶色の大きな瞳に濃い瞳孔と白いハイライト 2 つ。上は内側が下がった太いまぶたの線でまっすぐ切れていて、
+   * にやっとしたつり目に見える。顔の表面に貼る平たい部品（s は左右）
+   */
+  function luruEye(s: number) {
+    const g = new THREE.Group()
+    const at = onFace(s * 0.16, -0.01, 0.012)
+    g.position.copy(at)
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(at.x / HEAD.rx ** 2, at.y / HEAD.ry ** 2, at.z / HEAD.rz ** 2).normalize())
+    // まぶたの線: 外側が高く、内側が低い（y = 0.025 + 0.22 * 外向きの x）
+    const lid = (x: number) => 0.025 + 0.22 * x * s
+    const clipped = (rx: number, ry: number, cy = 0) => {
+      const pts: THREE.Vector2[] = []
+      for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2, x = Math.cos(a) * rx; pts.push(new THREE.Vector2(x, Math.min(cy + Math.sin(a) * ry, lid(x)))) }
+      return pts
+    }
+    const flat = (pts: THREE.Vector2[], color: number, z: number) => {
+      const m = new THREE.Mesh(G(new THREE.ShapeGeometry(new THREE.Shape(pts))), color === 0xffffff ? toonMat(color) : inkMat(color))
+      m.position.z = z; m.raycast = () => {}; g.add(m); return m
+    }
+    const iris = clipped(0.06, 0.068)
+    flat(iris, 0x6b3f22, 0)
+    flat(clipped(0.04, 0.046, -0.01), 0x2a170d, 0.001)
+    // ふち（瞳のまわりの細い線）
+    const rim = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(iris.map((p) => new THREE.Vector3(p.x, p.y, 0.002)), true), 64, 0.006, 5, true)), inkMat())
+    rim.raycast = () => {}; g.add(rim)
+    // ハイライト（左上に大きいの、右下に小さいの）
+    for (const [x, y, r] of [[-0.022, -0.004, 0.017], [0.024, -0.04, 0.009]] as const) {
+      const h = new THREE.Mesh(G(new THREE.CircleGeometry(r, 14)), inkMat(0xffffff)); h.position.set(x, y, 0.003); h.raycast = () => {}; g.add(h)
+    }
+    // まぶた: 太い線をまっすぐ、外側へ少しはみ出す
+    const lidLine = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(-s * 0.06, lid(-s * 0.06) + 0.004, 0.004), new THREE.Vector3(s * 0.085, lid(s * 0.085) + 0.004, 0.004)), 4, 0.013, 6, false)), inkMat())
+    lidLine.raycast = () => {}; g.add(lidLine)
+    return g
+  }
+
   // 目（開き = 点、閉じ = にっこりの弧）
-  const eyes: THREE.Mesh[] = []
+  const eyes: THREE.Object3D[] = []
   const eyesClosed: THREE.Mesh[] = []
   for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(G(new THREE.SphereGeometry(luru ? 0.05 : 0.037, 14, 10)), inkMat())
-    e.position.copy(onFace(s * 0.165, 0.0, -0.008)); face.add(e); eyes.push(e)
+    if (luru) { const e = luruEye(s); face.add(e); eyes.push(e) }
+    else { const e = new THREE.Mesh(G(new THREE.SphereGeometry(0.037, 14, 10)), inkMat()); e.position.copy(onFace(s * 0.165, 0.0, -0.008)); face.add(e); eyes.push(e) }
     const c = faceLine([[s * 0.165 - 0.05, 0.012], [s * 0.165, -0.018], [s * 0.165 + 0.05, 0.012]], 0.0115, face)
     c.visible = false; eyesClosed.push(c)
   }
   // 困り眉（通常は非表示）
   const brows = [-1, 1].map((s) => { const b = faceLine([[s * 0.27, 0.1], [s * 0.19, 0.135], [s * 0.1, 0.15]], 0.011, face); b.visible = false; return b })
-  // LuRu のいたずら眉（内側が下がったつり眉。いつも出ている）
-  const mischief = luru ? [-1, 1].map((s) => faceLine([[s * 0.26, 0.12], [s * 0.18, 0.1], [s * 0.095, 0.065]], 0.012, face)) : []
+  // LuRu はまぶたの線がつり眉の代わり（眉は描かない）
+  const mischief: THREE.Mesh[] = []
   // 鼻
   faceLine([[-0.022, -0.075], [0, -0.05], [0.022, -0.075]], 0.009, face)
   // 口（笑い）と、心配顔の口
@@ -463,10 +500,21 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   }
   // 前髪のくるん
   const curl: [number, number][] = []
-  // LuRu はおでこの大きなうずまき（2 周近く巻く）
-  const curlTurns = luru ? 3.4 : 1.7, curlR = luru ? 0.06 : 0.045
-  for (let i = 0; i <= 20; i++) { const a = (i / 20) * Math.PI * curlTurns + 0.6, r = 0.012 + (i / 20) * curlR; curl.push([Math.cos(a) * r, (luru ? 0.2 : 0.235) + Math.sin(a) * r * 0.8]) }
-  faceLine(curl, luru ? 0.011 : 0.0095, face, 0.012)
+  if (!luru) {
+    for (let i = 0; i <= 14; i++) { const a = (i / 14) * Math.PI * 1.7 + 0.6, r = 0.012 + (i / 14) * 0.045; curl.push([Math.cos(a) * r, 0.235 + Math.sin(a) * r * 0.8]) }
+    faceLine(curl, 0.0095, face, 0.012)
+  } else {
+    // LuRu: キャップの下から、くせ毛の前髪が 1 本ちょろっと出て、くるんと巻く（顔から少し浮く 3D の毛）
+    const pts: THREE.Vector3[] = []
+    const c = { x: 0.035, y: 0.09 }
+    for (let i = 0; i <= 28; i++) {
+      const t = i / 28, a = Math.PI / 2 + t * Math.PI * 2.1, r = 0.052 * (1 - t * 0.6)
+      pts.push(onFace(c.x + Math.cos(a) * r, c.y + Math.sin(a) * r * 0.9, 0.012 + t * 0.03))
+    }
+    pts.unshift(onFace(c.x - 0.012, c.y + 0.075, 0.006))
+    const strand = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5), 64, 0.0115, 6, false)), inkMat())
+    strand.raycast = () => {}; face.add(strand)
+  }
   // ヒゲ（頬から扇状に。三日月の手前に出る）。LuRu には無い
   if (!luru) for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
     const y0 = 0.0 - i * 0.05, y1 = 0.09 - i * 0.1
@@ -481,17 +529,19 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
 
   // ---------- LuRu: 後ろ向きのキャップとヤシの葉のえり ----------
   // キャップは頭のてっぺんを覆う浅いドーム。後ろへ傾けておでこ（くるん）を見せ、つばは後ろ、前にはアジャスターのひも
-  const luruCap = new THREE.Group(); luruCap.visible = false; luruCap.rotation.set(-0.5, 0, 0.12); luruCap.position.y = 0.05; face.add(luruCap)
+  const luruCap = new THREE.Group(); luruCap.visible = false; luruCap.rotation.set(-0.2, 0, 0.14); luruCap.position.y = 0.035; face.add(luruCap)
   const luruCollar = new THREE.Group(); luruCollar.visible = false; root.add(luruCollar)
   /** キャップのいちばん上（顔の座標）。吹き出しの位置に使う */
-  const CAP_TOP = HEAD.ry * 1.3 + 0.05
+  const CAP_TOP = HEAD.ry * 1.18 + 0.05
   if (luru) {
-    const CAP = { x: HEAD.rx * 1.08, y: HEAD.ry * 1.3, z: HEAD.rz * 1.1 }, TH = 1.25
+    // 頭を深く覆う野球帽。後ろ向きにかぶるので、つばは後ろ（少し左へ流れる）、前はアジャスターの穴とひも
+    const CAP = { x: HEAD.rx * 1.1, y: HEAD.ry * 1.18, z: HEAD.rz * 1.12 }, TH = 1.42
     const dome = new THREE.SphereGeometry(1, 32, 14, 0, Math.PI * 2, 0, TH); dome.scale(CAP.x, CAP.y, CAP.z); dome.computeVertexNormals()
     solid(dome, COL.cap, luruCap, { double: true })
     // 縫い目（てっぺんから前後左右へ）
     const seamMat = inkMat(COL.capD)
-    for (let k = 0; k < 6; k++) {
+    for (let k = 1; k < 6; k++) {
+      // 前（k = 0）は穴とひもがあるので縫い目を引かない
       const phi = (k / 6) * Math.PI * 2, pts: THREE.Vector3[] = []
       for (let i = 0; i <= 12; i++) { const th = (i / 12) * TH * 0.95; pts.push(new THREE.Vector3(CAP.x * Math.sin(th) * Math.sin(phi), CAP.y * Math.cos(th), CAP.z * Math.sin(th) * Math.cos(phi)).multiplyScalar(1.01)) }
       const seam = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.006, 5, false)), seamMat); seam.raycast = () => {}; luruCap.add(seam)
@@ -500,15 +550,33 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
     solid(new THREE.SphereGeometry(0.035, 12, 8), COL.cap, luruCap, { line: 0.01 }).position.set(0, CAP.y + 0.01, 0)
     // つば（後ろ）: 平たい楕円の板。ふちの後ろ側から外へ、少し下がる
     const rimY = CAP.y * Math.cos(TH), rimR = { x: CAP.x * Math.sin(TH), z: CAP.z * Math.sin(TH) }
-    const brim = solid(new THREE.CylinderGeometry(0.2, 0.2, 0.022, 28), COL.cap, luruCap, { line: 0.012 })
-    brim.scale.set(1.05, 1, 0.95); brim.position.set(0, rimY - 0.005, -rimR.z - 0.11); brim.rotation.x = 0.28
+    const brimPivot = new THREE.Group(); brimPivot.rotation.y = -0.65; luruCap.add(brimPivot)
+    const brim = solid(new THREE.CylinderGeometry(0.21, 0.21, 0.024, 28), COL.cap, brimPivot, { line: 0.012 })
+    brim.scale.set(1.0, 1, 0.9); brim.position.set(0, rimY - 0.01, -rimR.z - 0.1); brim.rotation.x = 0.3
+    // アジャスターの穴: 前のふちの上に、頭（クリーム色）が見えるアーチ
+    {
+      // 半円: ふちの前の真ん中から、帽子の表面に沿った半円の弧へ扇形に張る。弧には細い線
+      const sph = (phi: number, th: number, k = 1.012) => new THREE.Vector3(-Math.cos(phi) * Math.sin(th) * CAP.x * k, Math.cos(th) * CAP.y * k, Math.sin(phi) * Math.sin(th) * CAP.z * k)
+      const base = TH - 0.06, arch: THREE.Vector3[] = []
+      for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI; arch.push(sph(Math.PI / 2 + 0.3 * Math.cos(a), base - 0.36 * Math.sin(a))) }
+      // 弧とふちの間を細かい格子で張る（大きな三角だと帽子の丸みの内側にもぐって緑が透ける）
+      const grid = (i: number, j: number) => { const a = (i / 16) * Math.PI; return sph(Math.PI / 2 + 0.3 * Math.cos(a), base - 0.36 * Math.sin(a) * (j / 4)) }
+      const pos: number[] = []
+      for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) {
+        const a = grid(i, j), b = grid(i + 1, j), c = grid(i + 1, j + 1), d = grid(i, j + 1)
+        pos.push(...a.toArray(), ...b.toArray(), ...c.toArray(), ...a.toArray(), ...c.toArray(), ...d.toArray())
+      }
+      const hole = new THREE.BufferGeometry(); hole.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); hole.computeVertexNormals()
+      const holeM = new THREE.Mesh(G(hole), toonMat(COL.cream)); (holeM.material as THREE.Material).side = THREE.DoubleSide; holeM.raycast = () => {}; luruCap.add(holeM)
+      const edge = new THREE.Mesh(G(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(arch.map((v) => v.clone().multiplyScalar(1.002))), 32, 0.007, 5, false)), inkMat()); edge.raycast = () => {}; luruCap.add(edge)
+    }
     // 前のアジャスター: ふちの前側に沿う濃い緑のひも（穴の点つき）
-    const band = new THREE.TorusGeometry(1, 0.022, 6, 24, 1.9); band.rotateZ(Math.PI / 2 - 0.95); band.rotateX(Math.PI / 2); band.scale(rimR.x, 1, rimR.z)
-    const strap = new THREE.Mesh(G(band), toonMat(COL.capD)); strap.position.y = rimY + 0.012; strap.raycast = () => {}; luruCap.add(strap)
+    const band = new THREE.TorusGeometry(1.02, 0.026, 6, 24, 1.0); band.rotateZ(Math.PI / 2 - 0.5); band.rotateX(Math.PI / 2); band.scale(rimR.x, 1, rimR.z)
+    const strap = new THREE.Mesh(G(band), toonMat(COL.capD)); strap.position.y = rimY + 0.022; strap.raycast = () => {}; luruCap.add(strap)
     for (let i = -2; i <= 2; i++) {
-      const a = Math.PI / 2 + i * 0.22
-      const dot = new THREE.Mesh(G(new THREE.SphereGeometry(0.009, 6, 5)), inkMat(0x1d3d25))
-      dot.position.set(Math.cos(a) * rimR.x * 1.02, rimY + 0.03, Math.sin(a) * rimR.z * 1.02); dot.raycast = () => {}; luruCap.add(dot)
+      const a = Math.PI / 2 + i * 0.09
+      const dot = new THREE.Mesh(G(new THREE.SphereGeometry(0.009, 6, 5)), inkMat(0x163220))
+      dot.position.set(Math.cos(a) * rimR.x * 1.05, rimY + 0.024, Math.sin(a) * rimR.z * 1.05); dot.raycast = () => {}; luruCap.add(dot)
     }
     // ヤシの葉のえり: 首のまわりにギザギザの葉を一周、先を下と外へ
     for (let i = 0; i < 14; i++) {
