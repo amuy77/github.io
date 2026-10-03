@@ -415,16 +415,15 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   const face = new THREE.Group(); face.scale.setScalar(0.85); headG.add(face)
   const headGeo = new THREE.SphereGeometry(1, 36, 26)
   if (luru) {
-    // LuRu は絵に合わせて、ほっぺ（左右の下寄り・前寄り）をぷくっとふくらませ、頭の下半分を横に少し広げる（下ぶくれ）。
-    // ふくらみは中心で 14%、離れるほどなだらかに 0 へ。輪郭線はこの形から作るので、ふくらみにそのまま沿う
+    // LuRu は絵に合わせて、顔の横（目の少し下の高さ）だけをぽこっと小さくふくらませる（下半分全体は広げない）。
+    // ふくらみは中心で 10%、離れるとすぐ 0 へ。輪郭線はこの形から作るので、ふくらみにそのまま沿う
     const pos = headGeo.attributes.position as THREE.BufferAttribute
-    const v = new THREE.Vector3(), cheeks = [new THREE.Vector3(0.75, -0.46, 0.47).normalize(), new THREE.Vector3(-0.75, -0.46, 0.47).normalize()]
+    const v = new THREE.Vector3(), cheeks = [new THREE.Vector3(0.93, -0.3, 0.22).normalize(), new THREE.Vector3(-0.93, -0.3, 0.22).normalize()]
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i)
       let k = 1
-      for (const c of cheeks) k += 0.14 * Math.exp(-(1 - v.dot(c)) / 0.09)
-      const wide = v.y < 0 ? 1 + 0.05 * Math.sin(-v.y * Math.PI) : 1
-      pos.setXYZ(i, v.x * k * wide, v.y * k, v.z * k)
+      for (const c of cheeks) k += 0.1 * Math.exp(-(1 - v.dot(c)) / 0.035)
+      pos.setXYZ(i, v.x * k, v.y * k, v.z * k)
     }
   }
   headGeo.scale(HEAD.rx, HEAD.ry, HEAD.rz); headGeo.computeVertexNormals()
@@ -514,8 +513,8 @@ export function buildLaraFigure(kind: FigureKind = 'lara'): LaraFigure {
   // ほっぺ
   for (const s of [-1, 1]) {
     const c = new THREE.Mesh(G(new THREE.SphereGeometry(0.052, 14, 10)), toonMat(COL.pink))
-    // LuRu はほっぺがふくらんでいるので、そのぶん外へ出す
-    c.position.copy(onFace(s * 0.285, -0.14, luru ? 0.03 : -0.036)); face.add(c)
+    // LuRu のほっぺは絵のとおり、目の斜め下（顔の前寄り）
+    c.position.copy(luru ? onFace(s * 0.235, -0.105, -0.03) : onFace(s * 0.285, -0.14, -0.036)); face.add(c)
   }
   // 前髪のくるん
   const curl: [number, number][] = []
