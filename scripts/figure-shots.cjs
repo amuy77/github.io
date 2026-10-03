@@ -13,6 +13,7 @@ const VARIANTS = [
   ['luru-walk', 'kind=luru&motion=walk'],
   ['luru-wave', 'kind=luru&motion=wave'],
   ['luru-hop', 'kind=luru&pose=hop'],
+  ['luru-around', 'kind=luru&still=1&around=1'],
   ['worried', 'ex=worried&still=1'],
   ['sleep', 'ex=sleep&still=1'],
   ['walk', 'motion=walk'],

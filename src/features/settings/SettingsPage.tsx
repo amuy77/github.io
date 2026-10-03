@@ -7,6 +7,7 @@ import { IconLogout } from '@/components/ui/icons'
 import { GenreManager } from '@/features/genres/GenreManager'
 import { CategoryManager } from '@/features/clips/CategoryManager'
 import { LearnedRules } from './LearnedRules'
+import { FoldSection } from './FoldSection'
 import { FriendsCard } from './FriendsCard'
 import { useBadges } from '@/features/game/useBadges'
 import { BADGES } from '@/features/game/badges'
@@ -28,12 +29,10 @@ export function SettingsPage() {
     <>
       <PageHeader title="設定" />
       <div className="flex flex-col gap-4">
-        <SectionTitle>LaRa が覚えたこと</SectionTitle>
-        <LearnedRules />
-        <SectionTitle>レシピのジャンル</SectionTitle>
-        <GenreManager />
-        <SectionTitle>ネタ帳のカテゴリ</SectionTitle>
-        <CategoryManager />
+        {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
+        <FoldSection id="rules" title="LaRa が覚えたこと"><LearnedRules /></FoldSection>
+        <FoldSection id="genres" title="レシピのジャンル"><GenreManager /></FoldSection>
+        <FoldSection id="categories" title="ネタ帳のカテゴリ"><CategoryManager /></FoldSection>
 
         <SectionTitle count={`${badges.unlocked.length} / ${BADGES.length}`}>バッジ</SectionTitle>
         <Card className="grid grid-cols-4 gap-2 md:grid-cols-6">

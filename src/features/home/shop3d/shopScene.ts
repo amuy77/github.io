@@ -207,7 +207,9 @@ export class ShopScene {
   private yaw = 0.62
   /** 基本の向き。縦長の画面では少し正面寄りにして、左右の窓や棚まで収める */
   private yawBase = 0.62
-  private readonly pitch = 1.02
+  private pitch = 1.02
+  /** 画面に合わせるときの部屋の箱（土台 6.8 × 5.6、壁の高さ 3.1。窓の外や飾りは数えない） */
+  private readonly roomBox = new THREE.Box3(new THREE.Vector3(-3.4, -0.36, -2.8), new THREE.Vector3(3.4, 3.2, 2.8))
   private radius = 12
   private mats = new Map<string, THREE.Material>()
   private hotspots: THREE.Group[] = []
@@ -446,7 +448,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null } }
+  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, radius: this.radius, roomBox: [this.roomBox.min.toArray(), this.roomBox.max.toArray()], friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null } }
   /** デバッグ用: 時刻を固定する（null で今の時刻に戻す） */
   debugSetHour(h: number | null) { this.hourOverride = h; this.updateResidentState(); this.drawSea(this.mode, this.lastT) }
   /** デバッグ用: 今の場所での時間を飛ばして、次の行動を選ばせる（優先の行動があるときは何もしない） */
@@ -1417,16 +1419,43 @@ export class ShopScene {
   }
 
   // ---------- camera ----------
+  /**
+   * 画面に合わせる: 縦横比ごとに画角・見下ろし角・注視点を決めたあと、部屋全体（床・壁・家具）が
+   * 上の見出しと下の案内カードの帯を避けて画面いっぱいに収まるよう、カメラの距離と注視点を数回くり返して合わせる
+   */
   private fit() {
     const w = this.container.clientWidth || 1, h = this.container.clientHeight || 1
     const aspect = w / h
     this.camera.aspect = aspect
     const base = aspect < 0.8 ? 0.36 : 0.62
     if (base !== this.yawBase) { this.yawBase = base; this.yaw = base }
-    if (aspect < 0.8) { this.radius = 17.8; this.camera.fov = 38; this.target.set(0.22, 0.55, -0.1) }
-    else if (aspect < 1.2) { this.radius = 13.5; this.camera.fov = 34; this.target.set(0.1, 0.9, -0.3) }
-    else { this.radius = 12; this.camera.fov = 32; this.target.set(0.1, 1.0, -0.3) }
+    const portrait = aspect < 0.8
+    // 縦長はもう少し上から見下ろして、床の奥行きを画面の縦に広げる
+    if (portrait) { this.radius = 17.8; this.camera.fov = 38; this.pitch = 0.84; this.target.set(0.22, 0.45, -0.1) }
+    else if (aspect < 1.2) { this.radius = 13.5; this.camera.fov = 34; this.pitch = 1.02; this.target.set(0.1, 0.9, -0.3) }
+    else { this.radius = 12; this.camera.fov = 32; this.pitch = 1.02; this.target.set(0.1, 1.0, -0.3) }
     this.camera.updateProjectionMatrix()
+    {
+      // 見出し（上）と案内カード（下）が重なる帯（px）を避けた、使える範囲（NDC）。
+      // 部屋は横に広いので、縦長の画面では床の手前の角が左右に少しはみ出すところまで寄る（xLim > 1）
+      const top = portrait ? 70 : 50, bottom = portrait ? 155 : 90
+      const yMax = 1 - (2 * top) / h - 0.03, yMin = -1 + (2 * bottom) / h + 0.03, xLim = portrait ? 1.28 : 0.98
+      const b = this.roomBox, p = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3()
+      const tanF = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)
+      for (let k = 0; k < 5; k++) {
+        this.updateCamera(); this.camera.updateMatrixWorld()
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+        for (let i = 0; i < 8; i++) {
+          p.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).project(this.camera)
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
+        }
+        // 距離: はみ出している割合だけ遠ざける（余っていれば近づける）
+        this.radius = THREE.MathUtils.clamp(this.radius * Math.max((maxX - minX) / (2 * xLim), (maxY - minY) / (yMax - yMin)), 6, 40)
+        // 中心: 部屋の中心が使える範囲の中心に来るよう、注視点をカメラの右・上の向きにずらす
+        right.setFromMatrixColumn(this.camera.matrixWorld, 0); up.setFromMatrixColumn(this.camera.matrixWorld, 1)
+        this.target.addScaledVector(right, ((maxX + minX) / 2) * this.radius * tanF * aspect).addScaledVector(up, ((maxY + minY) / 2 - (yMax + yMin) / 2) * this.radius * tanF)
+      }
+    }
     this.renderer.setSize(w, h, false)
     this.updateCamera()
     this.needsRender = true

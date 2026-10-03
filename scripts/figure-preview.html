@@ -68,7 +68,8 @@
     const target = new THREE.Vector3(0, Number(q.get('ty') || 0.8), 0)
     const R = Number(q.get('r') || 4.6)
     const look = (yaw, elev, r = R) => { cam.position.set(target.x + r * Math.cos(elev) * Math.sin(yaw), target.y + r * Math.sin(elev), target.z + r * Math.cos(elev) * Math.cos(yaw)); cam.lookAt(target) }
-    const views = [
+    // &around=1 で、お店のカメラの高さから 45° ごとに 8 方向（後ろ姿の確認用）
+    const views = q.get('around') ? Array.from({ length: 8 }, (_, i) => ({ name: `${i * 45}°`, yaw: (i / 8) * Math.PI * 2, elev: 0.56 })) : [
       { name: '正面', yaw: 0, elev: 0.05 },
       { name: '正面（お店のカメラの高さ）', yaw: 0, elev: 0.56 },
       { name: '斜め（お店の見え方）', yaw: 0.62, elev: 0.56 },
