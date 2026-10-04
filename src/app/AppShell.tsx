@@ -1,6 +1,6 @@
-import { Suspense, useEffect, useRef } from 'react'
-import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
-import { IconBook, IconCalendar, IconHome, IconInbox, IconPin, IconPlus, IconSettings } from '@/components/ui/icons'
+import { Suspense, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
+import { IconCalendar, IconHome, IconInbox, IconNote, IconPlanner, IconPlus, IconSettings } from '@/components/ui/icons'
 import { paths } from './routes'
 import { cx } from '@/lib/cx'
 import { OfflineBanner } from './OfflineBanner'
@@ -10,12 +10,16 @@ import { useCounts } from '@/features/home/useCounts'
 import { CountBadge } from '@/components/ui/Chip'
 import { Skeleton } from '@/components/ui/Page'
 import { Mascot } from '@/components/mascot/Mascot'
+import { isNotesPath, notesPath } from '@/features/notes/notes'
+import { PLANNER_URL } from '@/features/planner/api'
 
-const tabs = [
-  { to: paths.home, label: 'ホーム', Icon: IconHome, end: true },
-  { to: paths.clips, label: 'ネタ帳', Icon: IconPin },
-  { to: paths.recipes, label: '図鑑', Icon: IconBook },
-  { to: paths.menu, label: 'メニュー', Icon: IconCalendar },
+// 下のタブ: ホーム / ノート（ネタ帳＋図鑑。最後に見た方を開く）/ ＋ / メニュー / Planner（別アプリ）
+type TabDef = { key: string; label: string; Icon: typeof IconHome; to: (pathname: string) => string; active: (pathname: string) => boolean; external?: boolean }
+const tabs: TabDef[] = [
+  { key: 'home', label: 'ホーム', Icon: IconHome, to: () => paths.home, active: (p) => p === paths.home },
+  { key: 'notes', label: 'ノート', Icon: IconNote, to: (p) => notesPath(p.startsWith(paths.recipes) ? 'recipes' : p.startsWith(paths.clips) ? 'clips' : undefined), active: isNotesPath },
+  { key: 'menu', label: 'メニュー', Icon: IconCalendar, to: () => paths.menu, active: (p) => p.startsWith(paths.menu) },
+  { key: 'planner', label: 'Planner', Icon: IconPlanner, to: () => PLANNER_URL, active: () => false, external: true },
 ]
 
 export function AppShell() {
@@ -32,11 +36,7 @@ export function AppShell() {
       {/* デスクトップ: 左レール */}
       <nav className="fixed inset-y-0 left-0 z-30 hidden w-[88px] flex-col items-center gap-1 border-r border-line bg-paper pt-6 md:flex" aria-label="メイン">
         <div className="font-display mb-4 text-xl font-extrabold">LaRa</div>
-        {tabs.map(({ to, label, Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => cx('flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', isActive ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
-            <Icon /> {label}
-          </NavLink>
-        ))}
+        {tabs.map((t) => <RailTab key={t.key} tab={t} pathname={loc.pathname} />)}
         <NavLink to={paths.add} className="mt-2 grid size-12 place-items-center rounded-full bg-green-600 text-white shadow-card" aria-label="すぐメモ"><IconPlus /></NavLink>
         <NavLink to={paths.ask} className={({ isActive }) => cx('mt-2 flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', isActive ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
           <Mascot size={28} /> 聞く
@@ -61,9 +61,9 @@ export function AppShell() {
 
       {/* モバイル: 下タブバー */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-line bg-paper/95 px-2 pb-[var(--safe-bottom)] backdrop-blur md:hidden" style={{ height: 'calc(var(--tabbar-h) + var(--safe-bottom))' }} aria-label="メイン">
-        {tabs.slice(0, 2).map((t) => <Tab key={t.to} {...t} badge={t.to === paths.home ? inbox : 0} />)}
+        {tabs.slice(0, 2).map((t) => <Tab key={t.key} tab={t} pathname={loc.pathname} badge={t.key === 'home' ? inbox : 0} />)}
         <NavLink to={paths.add} className="relative -top-4 grid size-14 place-items-center rounded-full bg-green-600 text-white shadow-sheet" aria-label="すぐメモ"><IconPlus size={28} /></NavLink>
-        {tabs.slice(2).map((t) => <Tab key={t.to} {...t} />)}
+        {tabs.slice(2).map((t) => <Tab key={t.key} tab={t} pathname={loc.pathname} />)}
       </nav>
       {/* モバイル: どの画面からでも LaRa に聞ける丸ボタン（入力中の画面では出さない） */}
       {showAsk && (
@@ -91,8 +91,12 @@ function useScrollMemory() {
   const key = loc.key
   // ブラウザ自身の復元（同じページ内の # 移動でも働く）とぶつからないよう、位置はこちらで全部面倒を見る
   useEffect(() => { if ('scrollRestoration' in history) history.scrollRestoration = 'manual' }, [])
+  // 次の画面を描いた瞬間、ページが短くなるとブラウザがスクロールを縮める（scroll イベントが出る）。
+  // それを前の画面の位置として覚えてしまわないよう、いま表示している画面の key と同じときだけ覚える
+  const shownKey = useRef(key)
+  useLayoutEffect(() => { shownKey.current = key }, [key])
   useEffect(() => {
-    const onScroll = () => saved.current.set(key, window.scrollY)
+    const onScroll = () => { if (shownKey.current === key) saved.current.set(key, window.scrollY) }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [key])
@@ -114,12 +118,33 @@ function useScrollMemory() {
   }, [key, navType])
 }
 
-function Tab({ to, label, Icon, end, badge = 0 }: { to: string; label: string; Icon: typeof IconHome; end?: boolean; badge?: number }) {
+/**
+ * Planner は別アプリなので外部リンク（新しい画面で開く）。iPhone ではホーム画面に追加した Planner へは飛べず、
+ * アプリ内の Safari の画面で開く（iOS にリンクをホーム画面アプリで開く仕組みが無いため）
+ */
+function TabLink({ tab, pathname, className, children }: { tab: TabDef; pathname: string; className: string; children: ReactNode }) {
+  if (tab.external) return <a href={tab.to(pathname)} target="_blank" rel="noopener" aria-label={`${tab.label}（別のアプリ）`} className={className}>{children}</a>
+  return <Link to={tab.to(pathname)} className={className}>{children}</Link>
+}
+
+function Tab({ tab, pathname, badge = 0 }: { tab: TabDef; pathname: string; badge?: number }) {
+  const on = tab.active(pathname)
   return (
-    <NavLink to={to} end={end} className={({ isActive }) => cx('relative flex h-[var(--tabbar-h)] w-16 flex-col items-center justify-center gap-0.5 text-[10px] font-bold', isActive ? 'text-green-600' : 'text-muted')}>
-      <Icon />
-      {label}
+    <TabLink tab={tab} pathname={pathname} className={cx('relative flex h-[var(--tabbar-h)] w-16 flex-col items-center justify-center gap-0.5 text-[10px] font-bold', on ? 'text-green-600' : 'text-muted')}>
+      <tab.Icon />
+      {tab.label}
+      {tab.external && <span className="absolute right-3 top-2.5 text-[9px]" aria-hidden>↗</span>}
       <CountBadge n={badge} className="absolute right-1 top-2" />
-    </NavLink>
+    </TabLink>
+  )
+}
+
+function RailTab({ tab, pathname }: { tab: TabDef; pathname: string }) {
+  const on = tab.active(pathname)
+  return (
+    <TabLink tab={tab} pathname={pathname} className={cx('relative flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', on ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
+      <tab.Icon /> {tab.label}
+      {tab.external && <span className="absolute right-1.5 top-1.5 text-[9px]" aria-hidden>↗</span>}
+    </TabLink>
   )
 }

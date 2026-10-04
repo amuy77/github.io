@@ -13,6 +13,7 @@ import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { SortSelect, sortRows, type SortKey } from '@/components/ui/SortSelect'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
+import { NotesSwitch } from '@/features/notes/NotesSwitch'
 
 const VIEW_KEY = 'lara.clips.view'
 function readView(): Record<string, unknown> { try { return JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? '{}') } catch { return {} } }
@@ -66,6 +67,7 @@ export function ClipsPage() {
   return (
     <>
       <PageHeader title="ネタ帳" sub={clips.data ? `${clips.data.length}件` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => setEditorOpen(true)}>追加</Button>} />
+      <NotesSwitch current="clips" />
       <div className="flex flex-col gap-3">
         {(clips.data?.length ?? 0) > 0 && (
           <div className="grid grid-cols-4 gap-1 rounded-[18px] border border-line bg-paper p-1" role="tablist" aria-label="ネタの種類">

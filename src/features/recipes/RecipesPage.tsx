@@ -17,6 +17,7 @@ import { familyKey, representativeOf } from './family'
 import { PURPOSES } from './purpose'
 import { useListViewState, writeListView } from './listView'
 import { cx } from '@/lib/cx'
+import { NotesSwitch } from '@/features/notes/NotesSwitch'
 
 export function RecipesPage() {
   const nav = useNavigate()
@@ -71,6 +72,7 @@ export function RecipesPage() {
   return (
     <>
       <PageHeader title="レシピ図鑑" sub={grandTotal ? `${grandTotal}品を収録` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(paths.recipeNew)}>作る</Button>} />
+      <NotesSwitch current="recipes" />
       <div className="flex flex-col gap-3">
         {grandTotal > 0 && (
           <div className="grid grid-cols-4 gap-1 rounded-[18px] border border-line bg-paper p-1" role="tablist" aria-label="レシピの種類">

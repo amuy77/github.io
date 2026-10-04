@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ShopScene, type FriendEvent, type Hotspot } from './shopScene'
 import { eventLine, greetLine, monologue, tapLine, type Say, type VoiceCtx } from './laraVoice'
 import { paths } from '@/app/routes'
-import { dayPart, formatMD, greeting, today } from '@/lib/dates'
+import { dayPart, formatMD, today } from '@/lib/dates'
 import { LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
 import { useSettings } from '@/features/settings/useSettings'
@@ -15,7 +15,7 @@ import { TalkBar, TalkBubbleBody, TalkButton } from '@/features/home/chat/LaraTa
 import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 import { useMenuLogs } from '@/features/menu/hooks'
-import { PLANNER_URL, openExternal, useAgendaLine } from '@/features/planner/api'
+import { useAgendaLine } from '@/features/planner/api'
 import { FRIENDS, VISIT_CHANCE, getCharacter, markVisited, planVisit, takeFriendCall, type CharacterDef, type CharacterId } from '@/characters'
 
 type Place = Exclude<Hotspot, 'resident' | 'friend'>
@@ -66,6 +66,9 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
   const agenda = useAgendaLine()
   const agendaRef = useRef(agenda)
   agendaRef.current = agenda
+  // 予定は開くたびに 1 回だけ LaRa が口で言う（下のカードは出さない）。言ったかどうかと、すぐ言わせるための呼び出し
+  const agendaSaidRef = useRef(false)
+  const speakSoonRef = useRef<() => void>(() => {})
   const answersRef = useRef(answers)
   answersRef.current = answers
   // 照明の時間帯。開いたままでも 1 分ごとに見直す
@@ -266,17 +269,25 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
     const speak = () => {
       const scene = sceneRef.current
       const st = scene?.residentStatus()
-      if (!scene || !st || document.hidden || pickedRef.current || talkingRef.current || bubbleRef.current || !(st.arrived || st.sleeping)) { id = window.setTimeout(speak, 4000); return }
+      // ふだんは止まっているときだけ話す。開いたときのあいさつと予定は、歩いている途中でも立ち止まって言う（郵便受けへ歩いていくと言いそびれるので）
+      const firstWords = (!greetedRef.current && Date.now() - opened < 12_000) || (!agendaSaidRef.current && !!agendaRef.current && Date.now() - opened < 60_000)
+      if (!scene || !st || document.hidden || pickedRef.current || talkingRef.current || bubbleRef.current || !(st.arrived || st.sleeping || firstWords)) { id = window.setTimeout(speak, firstWords ? 1000 : 4000); return }
       const ctx = voiceCtx(st)
       // あいさつは開いてすぐのときだけ（遅れて出ると、来たばかりのように聞こえる）
       const greet = !greetedRef.current && Date.now() - opened < 12_000
       greetedRef.current = true
-      say(scene, greet ? [...greetLine(ctx, away), ...(agendaRef.current && !ctx.sleeping ? [agendaRef.current] : [])] : monologue(ctx))
+      // 予定: まだ言っていなくて、開いてから 1 分以内なら言う（あいさつに間に合えば続けて、間に合わなければ届いたときに）
+      const agendaNow = !agendaSaidRef.current && agendaRef.current && !ctx.sleeping && Date.now() - opened < 60_000 ? agendaRef.current : null
+      if (agendaNow) agendaSaidRef.current = true
+      say(scene, greet ? [...greetLine(ctx, away), ...(agendaNow ? [agendaNow] : [])] : agendaNow ? [agendaNow] : monologue(ctx))
       id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 20000 + Math.random() * 20000)
     }
     id = window.setTimeout(speak, 2500 + Math.random() * 1500)
-    return () => window.clearTimeout(id)
+    // 予定があいさつの後に届いたら、次のひとことを待たずに少ししてから言う
+    speakSoonRef.current = () => { if (greetedRef.current && !agendaSaidRef.current && Date.now() - opened < 60_000) { window.clearTimeout(id); id = window.setTimeout(speak, 1500) } }
+    return () => { window.clearTimeout(id); speakSoonRef.current = () => {} }
   }, [reduced])
+  useEffect(() => { if (agenda) speakSoonRef.current() }, [agenda])
   // 友達が遊びに来る: 設定画面の「今すぐ呼ぶ」ならすぐ。そうでなければ昼間に、設定の頻度で日に 1 回だけ抽選（来る日は開いてから 15〜45 秒後）
   useEffect(() => {
     const called = takeFriendCall()
@@ -385,32 +396,23 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
 
       {/* 下部: 案内シート */}
       <div className="absolute inset-x-0 bottom-0 px-4 pb-3">
-        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : (<>
-        {/* 今日の予定と ToDo（Planner）。タップで Planner へ */}
-        {!info && agenda && (
-          <button type="button" onClick={() => openExternal(PLANNER_URL)} aria-label="Planner で今日の予定を開く"
-            className="mb-2 flex w-full items-center gap-2 rounded-card border border-line bg-paper/95 px-3.5 py-2.5 text-left shadow-card backdrop-blur">
-            <span className="text-[20px]" aria-hidden>📅</span>
-            <span className="line-clamp-2 min-w-0 flex-1 text-[13px] font-bold leading-snug">{agenda}</span>
-            <span className="shrink-0 text-[12px] font-bold text-green-700">Planner ›</span>
-          </button>
-        )}
-        <motion.div layout className="flex items-center gap-2 rounded-card sm:gap-3 border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
-          <span className={cx('text-[26px]', !info && 'hidden sm:inline')} aria-hidden>{info ? info.em : '👋'}</span>
-          <div className="min-w-0 flex-1">
-            <p className="font-display truncate text-[15px] font-bold">{info ? info.name : greeting()}</p>
-            <p className="truncate text-xs text-muted">{info ? info.sub : part === 'night' ? 'お店は閉店。小物をタップすると各画面へ。' : '小物をタップすると各画面へ。ドラッグで少し回せるよ。'}</p>
-          </div>
-          {info ? (
+        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : info ? (
+          // 小物を選んだときだけ、その名前と「開く」
+          <motion.div layout className="flex items-center gap-2 rounded-card sm:gap-3 border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
+            <span className="text-[26px]" aria-hidden>{info.em}</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display truncate text-[15px] font-bold">{info.name}</p>
+              <p className="truncate text-xs text-muted">{info.sub}</p>
+            </div>
             <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(info.to)}>開く →</button>
-          ) : (
-            <>
-              <TalkButton onClick={startTalk} dot={answers > 0} />
-              <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(paths.menuDay(today()))}>今日を記録</button>
-            </>
-          )}
-        </motion.div>
-        </>)}
+          </motion.div>
+        ) : (
+          // ふだんは「聞く」と「今日を記録」だけ。それぞれ別のボタンで（予定は LaRa が口で言う）
+          <div className="flex items-end justify-between gap-3">
+            <TalkButton onClick={startTalk} dot={answers > 0} floating />
+            <button type="button" className="h-11 shrink-0 rounded-chip bg-green-600 px-4 text-[14px] font-bold text-white shadow-card" onClick={() => nav(paths.menuDay(today()))}>今日を記録</button>
+          </div>
+        )}
       </div>
     </div>
   )
