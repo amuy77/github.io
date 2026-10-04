@@ -886,3 +886,102 @@ test.describe('safe: dates follow Japan time', () => {
     await expect(page.getByText(`${jst.getUTCMonth() + 1}/${jst.getUTCDate()}（`)).toBeVisible()
   })
 })
+
+// ---- スプリント 2「スマホで気持ちいい」: 拡大しない・押しやすい・戻ったら同じ場所 ----
+
+test('comfy: inputs are 16px so iOS does not zoom, and tap targets are 40px or more', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  const fontSize = (loc: ReturnType<Page['getByRole']>) => loc.evaluate((el) => getComputedStyle(el).fontSize)
+  expect(await fontSize(page.getByRole('textbox', { name: '検索' }))).toBe('16px')
+  const fav = page.getByRole('button', { name: /お気に入り/ }).first()
+  expect((await fav.boundingBox())!.height).toBeGreaterThanOrEqual(40)
+  expect((await page.getByRole('button', { name: /サンド/ }).first().boundingBox())!.height).toBeGreaterThanOrEqual(40)
+  await page.goto('#/recipes/new')
+  expect(await fontSize(page.getByRole('textbox', { name: '材料 1' }))).toBe('16px')
+  expect(await fontSize(page.getByRole('textbox', { name: '手順 1' }))).toBe('16px')
+})
+
+test('comfy: going back returns to where you were, opening a tab starts at the top', async ({ page }) => {
+  await stubSupabase(page)
+  await page.setViewportSize({ width: 390, height: 520 })
+  await page.goto('#/clips')
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 260))
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200)
+  const y = await page.evaluate(() => window.scrollY)
+  await page.getByText('ヴィーニョ・ヴェルデ 2024').click()
+  await expect(page).toHaveURL(/#\/clips\//)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+  await page.getByRole('button', { name: '戻る' }).click()
+  await expect(page).toHaveURL(/#\/clips$/)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(y - 20)
+  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: '図鑑' }).click()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+})
+
+test('comfy: back from 聞く goes to the recipe it was opened from', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/recipes')
+  await page.getByText('エッグサラダ').click()
+  await expect(page).toHaveURL(/#\/recipes\/d1000000-0000-4000-8000-000000000002$/)
+  await page.getByRole('button', { name: 'LaRa に相談' }).click()
+  await expect(page).toHaveURL(/#\/ask\?/)
+  await page.getByRole('button', { name: '戻る' }).click()
+  await expect(page).toHaveURL(/#\/recipes\/d1000000-0000-4000-8000-000000000002$/)
+})
+
+test('comfy: the calendar keeps its month after visiting a past day, and the tab shows this month', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/menu')
+  const thisMonth = iso(daysAgo(0)).slice(0, 7)
+  await page.getByRole('button', { name: '前の月' }).click()
+  await expect(page).toHaveURL(/#\/menu\?m=\d{4}-\d{2}$/)
+  const lastMonth = new URL(page.url()).hash.split('m=')[1]
+  expect(lastMonth).not.toBe(thisMonth)
+  await page.getByRole('button', { name: '15', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`#/menu/${lastMonth}-15$`))
+  await page.getByRole('button', { name: '戻る' }).click()
+  await expect(page).toHaveURL(new RegExp(`#/menu\\?m=${lastMonth}$`))
+  const nav = page.getByRole('navigation', { name: 'メイン' })
+  await (await nav.count() > 1 ? nav.last() : nav.first()).getByRole('link', { name: 'メニュー' }).click()
+  await expect(page).toHaveURL(/#\/menu$/)
+})
+
+test('comfy: unticking 売れた数 saves the counts as empty', async ({ page }) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/menu_log_items')) posts.push(r.postDataJSON()) })
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  const tick = page.getByRole('checkbox', { name: /売れた数も記録する/ })
+  await expect(tick).toBeChecked()
+  await tick.click()
+  await page.getByRole('button', { name: '更新する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  const rows = posts[0] as { sold_count: number | null }[]
+  expect(rows.length).toBeGreaterThan(0)
+  expect(rows.every((r) => r.sold_count === null)).toBe(true)
+})
+
+test('comfy: a finished job whose clip is already reviewed opens that clip', async ({ page }) => {
+  await stubSupabase(page)
+  const done = { id: 'e1000000-0000-4000-8000-000000000004', user_id: USER_ID, kind: 'auto_from_image', status: 'done', payload: { image_paths: ['x/d.jpg'] }, result: { decided: 'clip', clip_id: 'c1000000-0000-4000-8000-000000000001', summary: 'クロックムッシュ' }, error: null, attempts: 1, started_at: ts(0), finished_at: ts(0), created_at: ts(0) }
+  await page.route(`https://${REF}.supabase.co/rest/v1/ai_jobs**`, (route) => route.request().method() === 'GET'
+    ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-0/1', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify([done]) })
+    : route.fallback())
+  await page.goto('#/inbox')
+  await page.getByRole('link', { name: /ネタ帳に保存/ }).click()
+  await expect(page).toHaveURL(/#\/clips\/c1000000-0000-4000-8000-000000000001$/)
+})
+
+test('comfy: a sheet takes focus and gives it back when closed', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  const add = page.getByRole('button', { name: '追加', exact: true })
+  await add.click()
+  const editor = page.getByRole('dialog', { name: 'ネタ帳に追加' })
+  await expect(editor.getByLabel('タイトル')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(editor).toBeHidden()
+  await expect(add).toBeFocused()
+})

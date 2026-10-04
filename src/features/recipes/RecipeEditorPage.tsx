@@ -44,7 +44,15 @@ export function RecipeEditorPage() {
   return <Editor key={id ?? fromId ?? 'new'} recipe={existing.data ?? null} from={fromId ? from.data ?? null : null} initialTab={id || fromId ? 'manual' : initialTab} />
 }
 
-interface FormState { title: string; genreId: string | null; ingredients: Ingredient[]; steps: string[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string; purpose: RecipePurpose }
+// 材料・手順の行には並び替え・削除で崩れない key を付ける（index を key にすると、途中の行を消したとき入力中の IME やフォーカスが隣の行へ移る）
+type IngRow = Ingredient & { key: string }
+type StepRow = { key: string; text: string }
+let keySeq = 0
+const newKey = () => `r${++keySeq}`
+const ingRows = (list: Ingredient[]): IngRow[] => (list.length ? list : [{ name: '', amount: '' }]).map((i) => ({ ...i, key: newKey() }))
+const stepRows = (list: string[]): StepRow[] => (list.length ? list : ['']).map((text) => ({ key: newKey(), text }))
+
+interface FormState { title: string; genreId: string | null; ingredients: IngRow[]; steps: StepRow[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string; purpose: RecipePurpose }
 
 function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: RecipeRow | null; initialTab: Tab }) {
   const nav = useNavigate()
@@ -59,8 +67,8 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
     // ?from=<id>: その版をコピーして同じグループの次の試作を作る（写真はコピーしない）
     const src = recipe ?? from
     return {
-      title: src?.title ?? '', genreId: src?.genre_id ?? null, ingredients: src?.ingredients?.length ? src.ingredients : [{ name: '', amount: '' }],
-      steps: src?.steps?.length ? src.steps : [''], notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
+      title: src?.title ?? '', genreId: src?.genre_id ?? null, ingredients: ingRows(src?.ingredients ?? []),
+      steps: stepRows(src?.steps ?? []), notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
       rating: recipe?.rating ?? null,
       // 手で作るレシピはお店のメニューが基本。試作は元の版に合わせる
       purpose: recipe?.purpose ?? from?.purpose ?? 'menu',
@@ -90,17 +98,17 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
 
   // --- 材料・手順のリピーター ---
   const setIng = (i: number, patch: Partial<Ingredient>) => set('ingredients', form.ingredients.map((x, k) => (k === i ? { ...x, ...patch } : x)))
-  const addIng = () => set('ingredients', [...form.ingredients, { name: '', amount: '' }])
-  const rmIng = (i: number) => set('ingredients', form.ingredients.length > 1 ? form.ingredients.filter((_, k) => k !== i) : [{ name: '', amount: '' }])
-  const setStep = (i: number, v: string) => set('steps', form.steps.map((x, k) => (k === i ? v : x)))
-  const addStep = () => set('steps', [...form.steps, ''])
-  const rmStep = (i: number) => set('steps', form.steps.length > 1 ? form.steps.filter((_, k) => k !== i) : [''])
+  const addIng = () => set('ingredients', [...form.ingredients, ...ingRows([])])
+  const rmIng = (i: number) => set('ingredients', form.ingredients.length > 1 ? form.ingredients.filter((_, k) => k !== i) : ingRows([]))
+  const setStep = (i: number, v: string) => set('steps', form.steps.map((x, k) => (k === i ? { ...x, text: v } : x)))
+  const addStep = () => set('steps', [...form.steps, ...stepRows([])])
+  const rmStep = (i: number) => set('steps', form.steps.length > 1 ? form.steps.filter((_, k) => k !== i) : stepRows([]))
 
   // --- テキスト → カード ---
   const applyText = () => {
     const p = parseRecipeText(text)
     if (!p.title && p.ingredients.length === 0 && p.steps.length === 0) { toast('うまく読み取れませんでした。手入力で続けてね'); setTab('manual'); return }
-    setForm((f) => ({ ...f, title: f.title || p.title, ingredients: p.ingredients.length ? p.ingredients : f.ingredients, steps: p.steps.length ? p.steps : f.steps, notes: [f.notes, p.notes].filter(Boolean).join('\n'), sourceKind: 'text_paste' }))
+    setForm((f) => ({ ...f, title: f.title || p.title, ingredients: p.ingredients.length ? ingRows(p.ingredients) : f.ingredients, steps: p.steps.length ? stepRows(p.steps) : f.steps, notes: [f.notes, p.notes].filter(Boolean).join('\n'), sourceKind: 'text_paste' }))
     setTab('manual')
     toast('カードにしました。中身を確認してね', 'success')
   }
@@ -140,7 +148,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
       const row = {
         title, genre_id: form.genreId, hero_image: hero,
         ingredients: form.ingredients.map((i) => ({ name: i.name.trim(), amount: i.amount.trim() })).filter((i) => i.name),
-        steps: form.steps.map((s) => s.trim()).filter(Boolean),
+        steps: form.steps.map((s) => s.text.trim()).filter(Boolean),
         notes: form.notes.trim(), source_kind: form.sourceKind, status: 'published' as const,
         rating: form.rating, purpose: form.purpose, family_id: form.familyId, variant_label: form.familyId || isFamilyHead ? form.label.trim() : '',
       }
@@ -198,7 +206,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
           {photoFiles.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
               {photoFiles.map((p, i) => (
-                <div key={p.url} className="relative"><img src={p.url} alt="" className="aspect-square w-full rounded-[10px] object-cover" /><button type="button" aria-label="外す" onClick={() => setPhotoFiles((f) => f.filter((_, k) => k !== i))} className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-espresso-900 text-white"><IconX size={14} /></button></div>
+                <div key={p.url} className="relative"><img src={p.url} alt="" className="aspect-square w-full rounded-[10px] object-cover" /><button type="button" aria-label="外す" onClick={() => setPhotoFiles((f) => f.filter((_, k) => k !== i))} className="absolute -right-1 -top-1 grid size-7 place-items-center rounded-full bg-espresso-900 text-white before:absolute before:-inset-2 before:content-['']"><IconX size={14} /></button></div>
               ))}
             </div>
           )}
@@ -239,7 +247,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
             {(pendingHero || form.hero) && (
               <div className="relative w-40">
                 {pendingHero ? <img src={pendingHero.url} alt="" className="aspect-[4/3] w-full rounded-[10px] object-cover" /> : <ImageThumb src={photoUrl(form.hero, 'thumb')} className="aspect-[4/3] rounded-[10px]" />}
-                <button type="button" aria-label="写真を外す" onClick={() => { if (pendingHero) URL.revokeObjectURL(pendingHero.url); setPendingHero(null); set('hero', null) }} className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-espresso-900 text-white"><IconX size={14} /></button>
+                <button type="button" aria-label="写真を外す" onClick={() => { if (pendingHero) URL.revokeObjectURL(pendingHero.url); setPendingHero(null); set('hero', null) }} className="absolute -right-1 -top-1 grid size-7 place-items-center rounded-full bg-espresso-900 text-white before:absolute before:-inset-2 before:content-['']"><IconX size={14} /></button>
               </div>
             )}
             <PhotoPicker multiple={false} compact onFiles={(files) => { const f = files[0]; if (f) setPendingHero({ file: f, url: URL.createObjectURL(f) }) }} />
@@ -248,9 +256,9 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
           <Card className="flex flex-col gap-2">
             <p className="text-[13px] font-bold text-espresso-700">材料</p>
             {form.ingredients.map((ing, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} placeholder="食パン" aria-label={`材料 ${i + 1}`} className="h-10 min-w-0 flex-[3] rounded-[10px] border border-line px-3 text-[15px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (isEnter(e) && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
-                <input value={ing.amount} onChange={(e) => setIng(i, { amount: e.target.value })} placeholder="2枚" aria-label={`分量 ${i + 1}`} className="h-10 min-w-0 flex-[2] rounded-[10px] border border-line px-3 text-[15px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (isEnter(e) && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
+              <div key={ing.key} className="flex items-center gap-2">
+                <input value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} placeholder="食パン" aria-label={`材料 ${i + 1}`} className="h-10 min-w-0 flex-[3] rounded-[10px] border border-line px-3 text-[16px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (isEnter(e) && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
+                <input value={ing.amount} onChange={(e) => setIng(i, { amount: e.target.value })} placeholder="2枚" aria-label={`分量 ${i + 1}`} className="h-10 min-w-0 flex-[2] rounded-[10px] border border-line px-3 text-[16px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (isEnter(e) && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
                 <IconButton label="この材料を消す" className="size-9 shrink-0 text-muted" onClick={() => rmIng(i)}><IconTrash size={16} /></IconButton>
               </div>
             ))}
@@ -260,9 +268,9 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
           <Card className="flex flex-col gap-2">
             <p className="text-[13px] font-bold text-espresso-700">作り方</p>
             {form.steps.map((s, i) => (
-              <div key={i} className="flex items-start gap-2">
+              <div key={s.key} className="flex items-start gap-2">
                 <span className="font-display mt-2 grid size-7 shrink-0 place-items-center rounded-full bg-green-600 text-[13px] font-bold text-white">{i + 1}</span>
-                <textarea value={s} onChange={(e) => setStep(i, e.target.value)} placeholder="ベーコンをカリカリに焼く" aria-label={`手順 ${i + 1}`} rows={2} className="min-h-10 min-w-0 flex-1 rounded-[10px] border border-line px-3 py-2 text-[15px] leading-relaxed focus:border-green-600 focus:outline-none" />
+                <textarea value={s.text} onChange={(e) => setStep(i, e.target.value)} placeholder="ベーコンをカリカリに焼く" aria-label={`手順 ${i + 1}`} rows={2} className="min-h-10 min-w-0 flex-1 rounded-[10px] border border-line px-3 py-2 text-[16px] leading-relaxed focus:border-green-600 focus:outline-none" />
                 <IconButton label="この手順を消す" className="mt-1 size-9 shrink-0 text-muted" onClick={() => rmStep(i)}><IconTrash size={16} /></IconButton>
               </div>
             ))}

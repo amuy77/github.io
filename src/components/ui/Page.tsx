@@ -1,15 +1,21 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { IconArrowLeft } from './icons'
 import { IconButton } from './Button'
 import { cx } from '@/lib/cx'
 
-/** ページ共通ヘッダー。明朝の見出し + 右側にアクション。onBack を渡すと戻るの動きを差し替えられる（未保存の確認など） */
+/**
+ * ページ共通ヘッダー。明朝の見出し + 右側にアクション。
+ * back に文字列を渡すと、開いた元の画面があればそこへ（履歴を 1 つ戻る＝スクロール位置も戻る）、
+ * 直リンクで開いたときだけその文字列の画面へ。onBack を渡すと戻るの動きを差し替えられる（未保存の確認など）
+ */
 export function PageHeader({ title, sub, back, onBack, actions, className }: { title: ReactNode; sub?: ReactNode; back?: boolean | string; onBack?: () => void; actions?: ReactNode; className?: string }) {
   const nav = useNavigate()
+  const fromApp = useLocation().key !== 'default'
+  const goBack = () => { if (onBack) onBack(); else if (typeof back === 'string' && !fromApp) nav(back); else nav(-1) }
   return (
     <header className={cx('sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-2 bg-oat-50/90 px-4 pb-2 pt-[calc(10px+var(--safe-top))] backdrop-blur', className)}>
-      {(back || onBack) && <IconButton label="戻る" className="-ml-2" onClick={() => (onBack ? onBack() : typeof back === 'string' ? nav(back) : nav(-1))}><IconArrowLeft /></IconButton>}
+      {(back || onBack) && <IconButton label="戻る" className="-ml-2" onClick={goBack}><IconArrowLeft /></IconButton>}
       <div className="min-w-0 flex-1">
         <h1 className="font-display truncate text-[22px] font-extrabold leading-tight">{title}</h1>
         {sub && <p className="text-xs text-muted">{sub}</p>}
@@ -57,7 +63,7 @@ export function SegmentedTabs<T extends string>({ value, onChange, options, clas
     <div className={cx('inline-flex rounded-chip border border-line bg-paper p-0.5', className)} role="tablist">
       {options.map((o) => (
         <button key={o.value} type="button" role="tab" aria-selected={o.value === value} onClick={() => onChange(o.value)}
-          className={cx('h-8 rounded-chip px-3 text-[13px] font-bold transition-colors', o.value === value ? 'bg-green-600 text-white' : 'text-espresso-900 hover:bg-oat-100')}>
+          className={cx('h-10 rounded-chip px-3 text-[13px] font-bold transition-colors', o.value === value ? 'bg-green-600 text-white' : 'text-espresso-900 hover:bg-oat-100')}>
           {o.label}
         </button>
       ))}

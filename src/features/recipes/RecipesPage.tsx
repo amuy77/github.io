@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
@@ -14,7 +14,7 @@ import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { RecipeCard, RecipeListRow } from './RecipeCard'
 import { familyKey, representativeOf } from './family'
 import { PURPOSES } from './purpose'
-import { readListView, useListViewState, writeListView } from './listView'
+import { useListViewState, writeListView } from './listView'
 import { cx } from '@/lib/cx'
 
 export function RecipesPage() {
@@ -59,20 +59,7 @@ export function RecipesPage() {
 
   // 並んでいる順を覚えておく（詳細画面の「次へ」用）
   useEffect(() => { if (recipes.data) writeListView({ order: sections.flatMap((s) => s.items.map((r) => r.id)) }) }, [sections, recipes.data])
-  // スクロール位置を覚えて、戻ってきたら同じ場所から
-  const restored = useRef(false)
-  useEffect(() => {
-    if (restored.current || !recipes.data || !genres.data) return
-    restored.current = true
-    const y = readListView().scrollY
-    if (y > 0) requestAnimationFrame(() => window.scrollTo(0, y))
-  }, [recipes.data, genres.data])
-  useEffect(() => {
-    let raf = 0
-    const onScroll = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (restored.current) writeListView({ scrollY: window.scrollY }) }) }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
-  }, [])
+  // スクロール位置は AppShell が「戻る」のときだけ全画面共通で戻す
 
   const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
   const [layout, setLayout] = useListLayout('lara.recipes.layout')
@@ -101,7 +88,7 @@ export function RecipesPage() {
         <div className="flex items-center gap-2">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
             <IconSearch size={18} className="text-muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
           </label>
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>

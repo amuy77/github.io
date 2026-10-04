@@ -40,9 +40,9 @@ export function GenreManager() {
             <span className="text-xl" aria-hidden>{genreEmoji(g)}</span>
             <span className="truncate font-bold">{g.name}</span>
           </button>
-          <IconButton label="上へ" className="size-8" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
-          <IconButton label="下へ" className="size-8" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
-          <IconButton label={`${g.name} を編集`} className="size-8" onClick={() => setEditing(g)}><IconEdit size={16} /></IconButton>
+          <IconButton label="上へ" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
+          <IconButton label="下へ" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
+          <IconButton label={`${g.name} を編集`} onClick={() => setEditing(g)}><IconEdit size={16} /></IconButton>
         </Card>
       ))}
       <Button variant="secondary" icon={<IconPlus size={16} />} onClick={() => setEditing('new')}>ジャンルを追加</Button>

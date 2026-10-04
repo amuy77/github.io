@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useMemo } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { PageHeader, Skeleton } from '@/components/ui/Page'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -15,9 +15,17 @@ import { cx } from '@/lib/cx'
 
 const WD = ['月', '火', '水', '木', '金', '土', '日']
 
+/** 見ている月は URL（?m=YYYY-MM）に持つ。過去の日を開いて戻ってきても同じ月のまま。タブから来たときは今月 */
+function useMonthParam(): [string, (m: string) => void] {
+  const [params, setParams] = useSearchParams()
+  const m = params.get('m')
+  const month = m && /^\d{4}-\d{2}$/.test(m) ? `${m}-01` : monthStart(today())
+  return [month, (next) => setParams({ m: next.slice(0, 7) }, { replace: true })]
+}
+
 export function MenuCalendarPage() {
   const nav = useNavigate()
-  const [month, setMonth] = useState(() => monthStart(today()))
+  const [month, setMonth] = useMonthParam()
   const from = monthStart(month), to = monthEnd(month)
   const logs = useMenuLogs(from, to)
   const recipes = useRecipes()

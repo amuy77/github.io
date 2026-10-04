@@ -53,8 +53,8 @@ function Rule({ pref }: { pref: AiPreferenceRow }) {
           className={cx('h-8 rounded-chip border px-3 text-[12px] font-bold', pref.active ? 'border-green-600 bg-green-600 text-white' : 'border-line bg-paper text-muted')}>
           {pref.active ? '守っている' : '止めている'}
         </button>
-        <button type="button" aria-label="書き直す" onClick={() => setEditing(!editing)} className="ml-auto grid size-8 place-items-center rounded-full text-muted hover:bg-oat-100"><IconEdit size={16} /></button>
-        <button type="button" aria-label="忘れさせる" onClick={() => remove.mutate(pref.id)} className="grid size-8 place-items-center rounded-full text-brick-500 hover:bg-oat-100"><IconTrash size={16} /></button>
+        <button type="button" aria-label="書き直す" onClick={() => setEditing(!editing)} className="ml-auto grid size-10 place-items-center rounded-full text-muted hover:bg-oat-100"><IconEdit size={16} /></button>
+        <button type="button" aria-label="忘れさせる" onClick={() => remove.mutate(pref.id)} className="grid size-10 place-items-center rounded-full text-brick-500 hover:bg-oat-100"><IconTrash size={16} /></button>
       </div>
     </li>
   )

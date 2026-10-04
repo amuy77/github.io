@@ -83,7 +83,7 @@ export function ClipsPage() {
         <div className="flex items-center gap-2">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
             <IconSearch size={18} className="text-muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent outline-none placeholder:text-muted/70" aria-label="検索" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
           </label>
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>

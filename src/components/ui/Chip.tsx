@@ -13,7 +13,7 @@ export function Chip({ active, icon, count, className, children, ...rest }: Chip
       type="button"
       aria-pressed={active}
       className={cx(
-        'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-chip border px-3 text-[13px] font-bold transition-colors',
+        'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-chip border px-3 text-[13px] font-bold transition-colors',
         active ? 'border-green-600 bg-green-600 text-white' : 'border-line bg-paper text-espresso-900 hover:bg-oat-100',
         className,
       )}

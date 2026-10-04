@@ -100,7 +100,7 @@ function Picker({ side, value, fam, latestId, onPick }: { side: 0 | 1; value: Re
   return (
     <div className="flex flex-col gap-1">
       <span className={cx('text-[11px] font-bold', side === 0 ? 'text-muted' : 'text-green-700')}>{side === 0 ? 'A（比べる元）' : 'B（比べる先）'}</span>
-      <select value={value.id} onChange={(e) => onPick(side, e.target.value)} className="h-10 w-full rounded-[10px] border border-line bg-paper px-2 text-[14px] font-bold">
+      <select value={value.id} onChange={(e) => onPick(side, e.target.value)} className="h-10 w-full rounded-[10px] border border-line bg-paper px-2 text-[16px] font-bold">
         {fam.map((r) => <option key={r.id} value={r.id}>{[versionName(fam, r), r.id === latestId ? '最新' : '', r.is_main ? '採用中' : ''].filter(Boolean).join('・')}</option>)}
       </select>
     </div>

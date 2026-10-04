@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router'
 import { paths } from './routes'
 import { AppShell } from './AppShell'
 import { RequireAuth } from './RequireAuth'
-import { TabokibaRescue } from './TabokibaRescue'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { HomePage } from '@/features/home/HomePage'
 import { ClipsPage } from '@/features/clips/ClipsPage'
@@ -23,7 +22,6 @@ import { DevUiPage } from '@/features/dev/DevUiPage'
 export function App() {
   return (
     <>
-      <TabokibaRescue />
       <Routes>
         <Route path={paths.login} element={<LoginPage />} />
         <Route element={<RequireAuth />}>
