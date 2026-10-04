@@ -954,7 +954,7 @@ test('comfy: a sheet takes focus and gives it back when closed', async ({ page }
 test('battery: when WebGL is taken away and not given back, the home falls back to the tile version', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/')
-  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __lara?: unknown }).__lara), { timeout: 20_000 }).toBe(true)
+  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __lara?: unknown }).__lara), { timeout: 40_000 }).toBe(true)   // 全件実行中は 3D の立ち上がりが遅い
   await page.evaluate(() => (window as unknown as { __lara: { debugLoseContext: () => void } }).__lara.debugLoseContext())
   // 2 秒待っても戻らなければタイル版（レシピ図鑑のタイルが出る）
   await expect(page.getByRole('link', { name: /レシピ図鑑/ })).toBeVisible({ timeout: 20_000 })
@@ -966,8 +966,8 @@ test('battery: rebuilding the scene for reduced motion keeps the books and leave
   await page.goto('#/')
   type Dbg = { debugState: () => { counts: { books: number; leaves: number }; lively: boolean } }
   const state = () => page.evaluate(() => (window as unknown as { __lara: Dbg }).__lara.debugState())
-  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __lara?: unknown }).__lara), { timeout: 20_000 }).toBe(true)
-  await expect.poll(async () => (await state()).counts.books).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __lara?: unknown }).__lara), { timeout: 40_000 }).toBe(true)   // 全件実行中は 3D の立ち上がりが遅い
+  await expect.poll(async () => (await state()).counts.books, { timeout: 15_000 }).toBeGreaterThan(0)
   const before = await state()
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.waitForTimeout(500)

@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { Card } from '@/components/ui/Card'
-import { Button, IconButton } from '@/components/ui/Button'
+import { Button } from '@/components/ui/Button'
+import { EmojiPicker } from '@/components/ui/EmojiPicker'
+import { ReorderRow } from '@/components/ui/ReorderRow'
 import { Chip } from '@/components/ui/Chip'
 import { Input } from '@/components/ui/Field'
 import { Confirm, Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
 import { isEnter } from '@/lib/keys'
-import { IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
 import { autoEmoji, GENRE_EMOJI_CHOICES, genreEmoji } from './api'
 import { GENRE_PALETTE, genreColor } from '@/lib/genreColors'
@@ -34,16 +35,11 @@ export function GenreManager() {
     <div className="flex flex-col gap-2">
       {list.length === 0 && <p className="rounded-[10px] bg-oat-50 px-3 py-3 text-center text-sm text-muted">ジャンルはまだありません</p>}
       {list.map((g, i) => (
-        <Card key={g.id} className="flex items-center gap-2 py-2">
-          <button type="button" onClick={() => setEditing(g)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <span className="size-2.5 shrink-0 rounded-full" style={{ background: hexOf(g.color) }} aria-hidden />
-            <span className="text-xl" aria-hidden>{genreEmoji(g)}</span>
-            <span className="truncate font-bold">{g.name}</span>
-          </button>
-          <IconButton label="上へ" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
-          <IconButton label="下へ" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
-          <IconButton label={`${g.name} を編集`} onClick={() => setEditing(g)}><IconEdit size={16} /></IconButton>
-        </Card>
+        <ReorderRow key={g.id} name={g.name} index={i} count={list.length} onMove={(dir) => move(i, dir)} onEdit={() => setEditing(g)}>
+          <span className="size-2.5 shrink-0 rounded-full" style={{ background: hexOf(g.color) }} aria-hidden />
+          <span className="text-xl" aria-hidden>{genreEmoji(g)}</span>
+          <span className="truncate font-bold">{g.name}</span>
+        </ReorderRow>
       ))}
       <Button variant="secondary" icon={<IconPlus size={16} />} onClick={() => setEditing('new')}>ジャンルを追加</Button>
       <GenreEditSheet genre={editing} onClose={() => setEditing(null)} />
@@ -99,21 +95,12 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">アイコン</span>
-        <div className="grid grid-cols-8 gap-1.5" role="radiogroup" aria-label="アイコン">
-          <button type="button" role="radio" aria-checked={emoji === ''} aria-label="名前から自動" onClick={() => setEmoji('')}
-            className={cx('col-span-2 h-10 whitespace-nowrap rounded-[10px] border-2 text-[12px] font-bold', emoji === '' ? 'border-green-600 bg-green-600/10' : 'border-line bg-paper')}>
-            自動 {autoEmoji(name)}
-          </button>
-          {GENRE_EMOJI_CHOICES.map((e) => (
-            <button key={e} type="button" role="radio" aria-checked={emoji === e} aria-label={e} onClick={() => setEmoji(e)}
-              className={cx('h-10 rounded-[10px] border-2 text-xl', emoji === e ? 'border-green-600 bg-green-600/10' : 'border-transparent bg-oat-50')}>
-              {e}
-            </button>
-          ))}
-        </div>
-      </div>
+      <EmojiPicker value={emoji} onChange={setEmoji} choices={GENRE_EMOJI_CHOICES} lead={
+        <button type="button" role="radio" aria-checked={emoji === ''} aria-label="名前から自動" onClick={() => setEmoji('')}
+          className={cx('col-span-2 h-10 whitespace-nowrap rounded-[10px] border-2 text-[12px] font-bold', emoji === '' ? 'border-green-600 bg-green-600/10' : 'border-line bg-paper')}>
+          自動 {autoEmoji(name)}
+        </button>
+      } />
 
       <div className="flex flex-col gap-2">
         <span className="text-[13px] font-bold text-espresso-700">色 <span className="font-normal text-muted">（{genreColor(color).label}）</span></span>

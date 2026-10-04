@@ -1,7 +1,7 @@
 import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { genreColor } from '@/lib/genreColors'
 import type { MenuLogWithItems } from './api'
-import { addDays, parseIso, today } from '@/lib/dates'
+import { parseIso, today } from '@/lib/dates'
 
 /** グラフ用の色（ブランド色より少し彩度高め）。ジャンル色ごとの対応は src/lib/genreColors.ts */
 export const CHART_NONE = '#9A8F85'
@@ -53,14 +53,6 @@ export function notServedRecently(allLogs: MenuLogWithItems[], recipes: RecipeRo
     .slice(0, 8)
 }
 
-/** 期間の日付リスト（from〜to） */
-export function dateRange(from: string, to: string): string[] {
-  const out: string[] = []
-  for (let d = from; d <= to; d = addDays(d, 1)) out.push(d)
-  return out
-}
-
-/** その日の「主なジャンル」の色（カレンダーのドット用） */
 export function dominantColor(log: MenuLogWithItems, recipes: RecipeRow[], genres: GenreRow[]): string {
   const shares = genreShares([log], recipes, genres)
   return shares[0]?.color ?? CHART_NONE
