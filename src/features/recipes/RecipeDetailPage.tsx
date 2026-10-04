@@ -12,12 +12,16 @@ import { IconCalendar, IconEdit, IconPlus, IconStar, IconTrash } from '@/compone
 import { photoUrl } from '@/lib/images/upload'
 import { dateOf, formatMD, today } from '@/lib/dates'
 import { paths } from '@/app/routes'
+import type { RecipeRow } from '@/lib/supabase/database.types'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useClip } from '@/features/clips/hooks'
 import { clipTitle } from '@/features/clips/ClipCard'
 import { RecipeReviewSheet } from '@/features/ai/ReviewSheet'
 import { AskLaraButton } from '@/features/ask/AskLaraButton'
+import { useUndoableDelete } from '@/lib/useUndoableDelete'
+import { useQueryClient } from '@tanstack/react-query'
+import { qk } from '@/lib/supabase/queryKeys'
 import { AiFixButton } from '@/features/ai/AiFixPanel'
 import { useDeleteRecipe, useRecipe, useRecipes, useSetMain, useUpdateRecipe } from './hooks'
 import { familyOf, latestOf, versionName } from './family'
@@ -36,6 +40,8 @@ export function RecipeDetailPage() {
   const genres = useGenres()
   const update = useUpdateRecipe()
   const setMain = useSetMain()
+  const qc = useQueryClient()
+  const undoable = useUndoableDelete()
   const del = useDeleteRecipe()
   const [confirm, setConfirm] = useState(false)
   const [review, setReview] = useState(false)
@@ -168,8 +174,16 @@ export function RecipeDetailPage() {
           <Button variant="ghost" size="sm" icon={<IconTrash size={16} />} className="text-brick-500" onClick={() => setConfirm(true)}>削除</Button>
         </div>
       </div>
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title="このレシピを削除しますか？" body={fam.length > 1 ? 'この版だけ消えます（他の版は残ります）。メニュー記録からも消えます。' : 'メニュー記録からも消えます。元に戻せません。'} confirmLabel="削除する" danger
-        onConfirm={async () => { try { await del.mutateAsync(r); toast('削除しました'); nav(paths.recipes, { replace: true }) } catch { toast('削除できませんでした', 'error') } }} />
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title="このレシピを削除しますか？" body={fam.length > 1 ? 'この版だけ消えます（他の版は残ります）。メニュー記録からも消えます。' : 'メニュー記録からも消えます。数秒のあいだは「元に戻す」で戻せます。'} confirmLabel="削除する" danger
+        onConfirm={() => {
+          const row = r
+          undoable('レシピ', {
+            key: row.id,
+            hide: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.filter((x) => x.id !== row.id)); nav(paths.recipes, { replace: true }) },
+            restore: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => (old && !old.some((x) => x.id === row.id) ? [row, ...old].sort((a, b) => b.created_at.localeCompare(a.created_at)) : old)); qc.invalidateQueries({ queryKey: qk.recipes }) },
+            run: () => del.mutateAsync(row),
+          })
+        }} />
       <RecipeReviewSheet recipe={review ? r : null} onClose={() => setReview(false)} />
       {lightbox && r.hero_image && (
         <button type="button" className="fixed inset-0 z-[80] grid place-items-center bg-espresso-900/90 p-4" onClick={() => setLightbox(false)} aria-label="閉じる">

@@ -10,6 +10,7 @@ import { CategoryManagerSheet } from './CategoryManager'
 import { useClips, useUpdateClip } from './hooks'
 import { ClipCard, ClipListRow, clipTitle } from './ClipCard'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
+import { SortSelect, sortRows, type SortKey } from '@/components/ui/SortSelect'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
 
@@ -31,6 +32,7 @@ export function ClipsPage() {
   const [favOnly, setFavOnly] = useRemembered('favOnly', false)
   const [minRating, setMinRating] = useRemembered<0 | 4 | -1>('minRating', 0)
   const [purpose, setPurpose] = useRemembered<ClipPurpose | 'all'>('purpose', 'all')
+  const [sort, setSort] = useRemembered<SortKey>('sort', 'new')
   const [editorOpen, setEditorOpen] = useState(false)
   const [managing, setManaging] = useState(false)
   const categories = useCategoryList()
@@ -38,15 +40,15 @@ export function ClipsPage() {
   const list = useMemo(() => {
     const all = (clips.data ?? []).filter((c) => purpose === 'all' || c.purpose === purpose)
     const needle = q.trim().toLowerCase()
-    return all.filter((c) => {
+    return sortRows(all.filter((c) => {
       if (cat !== 'all' && c.category !== cat) return false
       if (favOnly && !c.favorite) return false
       if (minRating === -1 ? c.type === 'idea' || c.rating !== null : minRating > 0 && (c.rating ?? 0) < minRating) return false
       if (!needle) return true
       const hay = `${clipTitle(c)} ${c.note} ${c.shop_name ?? ''} ${c.tags.join(' ')} ${c.preview?.title ?? ''}`.toLowerCase()
       return hay.includes(needle)
-    })
-  }, [clips.data, q, cat, favOnly, minRating, purpose])
+    }), sort, clipTitle)
+  }, [clips.data, q, cat, favOnly, minRating, purpose, sort])
   const purposeCount = (p: ClipPurpose) => (clips.data ?? []).filter((c) => c.purpose === p).length
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
@@ -85,6 +87,7 @@ export function ClipsPage() {
             <IconSearch size={18} className="text-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
           </label>
+          <SortSelect value={sort} onChange={setSort} />
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
