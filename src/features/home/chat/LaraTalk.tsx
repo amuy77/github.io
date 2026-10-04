@@ -3,6 +3,8 @@ import { IconX } from '@/components/ui/icons'
 import { SUGGEST, type LaraTalk } from './useLaraTalk'
 import { openExternal } from '@/features/planner/api'
 import { Mascot } from '@/components/mascot/Mascot'
+import { Link } from 'react-router'
+import { paths } from '@/app/routes'
 
 const isExternal = (to: string) => /^https?:\/\//.test(to)
 
@@ -32,10 +34,12 @@ export function TalkBar({ talk, onClose }: { talk: LaraTalk; onClose: () => void
   return (
     <div className="flex flex-col gap-2">
       <div className="scroll-x flex gap-1.5">
+        {/* 探す・提案・味の相談は「LaRa に聞く」画面で */}
+        <Link to={paths.ask} className="shrink-0 rounded-chip border border-green-600/40 bg-paper/95 px-3 py-1.5 text-[12px] font-bold text-green-700 shadow-card backdrop-blur">🔍 くわしく探す →</Link>
         {SUGGEST.map((s) => <button key={s} type="button" disabled={talk.busy} onClick={() => send(s)} className="shrink-0 rounded-chip border border-line bg-paper/95 px-3 py-1.5 text-[12px] font-bold shadow-card backdrop-blur">{s}</button>)}
       </div>
       <form className="flex items-center gap-2 rounded-card border border-line bg-paper/95 p-2 shadow-card backdrop-blur" onSubmit={(e) => { e.preventDefault(); send(text) }}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="LaRa に話しかける" aria-label="LaRa に話しかける" enterKeyHint="send" autoFocus
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="LaRa に聞く" aria-label="LaRa に聞く" enterKeyHint="send" autoFocus
           className="h-10 min-w-0 flex-1 rounded-chip border border-line bg-paper px-4 text-[15px] focus:border-green-600 focus:outline-none" />
         <button type="submit" disabled={!text.trim() || talk.busy} className="h-10 shrink-0 rounded-chip bg-green-600 px-4 text-[14px] font-bold text-white disabled:opacity-40">送る</button>
         <button type="button" onClick={onClose} aria-label="話すのをやめる" className="grid size-10 shrink-0 place-items-center rounded-full text-muted"><IconX /></button>
@@ -44,11 +48,11 @@ export function TalkBar({ talk, onClose }: { talk: LaraTalk; onClose: () => void
   )
 }
 
-/** ホーム上部の「話しかける」ボタン。相談の答えが届いていたら点を付ける */
+/** ホームの案内カードに置く小さな「聞く」ボタン（その場で LaRa が吹き出しで答える）。相談の答えが届いていたら点を付ける */
 export function TalkButton({ onClick, dot }: { onClick: () => void; dot?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className="pointer-events-auto relative flex shrink-0 items-center gap-1 rounded-chip border border-line bg-paper/90 py-0.5 pl-0.5 pr-3 text-[13px] font-bold shadow-card backdrop-blur">
-      <Mascot size={30} /> 話しかける
+    <button type="button" onClick={onClick} aria-label="LaRa に聞く" className="relative flex h-9 shrink-0 items-center gap-1 rounded-chip border border-line bg-paper py-0 pl-0.5 pr-3 text-[13px] font-bold">
+      <Mascot size={28} /> 聞く
       {dot && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-brick-500" aria-label="相談の答えが届いています" />}
     </button>
   )

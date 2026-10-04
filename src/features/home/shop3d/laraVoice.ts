@@ -123,7 +123,7 @@ export function greetLine(ctx: VoiceCtx, away: 'long' | 'soon' | 'normal'): Say 
 
 /**
  * タイル版ホーム（3D のお店を出さないとき）の LaRa のひとこと。お店の場面のセリフから、お店の絵が無くても通じるものだけ選ぶ
- * （黒板・チョークの話は除く。「右上」の話しかけるボタンはタイル版にもあるので残す）。吹き出しは 1 つにつなげる
+ * （黒板・チョークの話は除く。「聞く」ボタンはタイル版にもあるので、その話は残す）。吹き出しは 1 つにつなげる
  */
 export function tileLine(kind: 'answers' | 'worried' | 'greet', hour: number): string {
   const part = hour < 6 || hour >= 20 ? 'late' : hour < 10 ? 'morning' : hour < 17 ? 'day' : 'evening'
