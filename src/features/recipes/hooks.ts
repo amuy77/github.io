@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { RecipeRow } from '@/lib/supabase/database.types'
-import { deleteRecipe, getRecipe, insertRecipe, listRecipes, updateRecipe, type RecipeInsert, type RecipeUpdate } from './api'
+import { deleteRecipe, getRecipe, insertRecipe, listRecipes, setMainRecipe, updateRecipe, type RecipeInsert, type RecipeUpdate } from './api'
 
 /** 全レシピ（draft 込み）。図鑑では published だけを見せる */
 export function useRecipes(enabled = true) {
@@ -65,15 +65,16 @@ export function useDeleteRecipe() {
   })
 }
 
-/** グループの本命（採用中）を 1 件にする。同じグループの他の版は外す */
+/** グループの本命（採用中）を 1 件にする。同じグループの他の版は外す（1 回の書き込み。途中で止まって 2 件「採用中」にならない） */
 export function useSetMain() {
-  const update = useUpdateRecipe()
+  const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ family, id }: { family: RecipeRow[]; id: string | null }) => {
-      for (const r of family) {
-        const want = r.id === id
-        if (r.is_main !== want) await update.mutateAsync({ id: r.id, patch: { is_main: want } })
-      }
+    mutationFn: ({ family, id }: { family: RecipeRow[]; id: string | null }) => setMainRecipe(family.map((r) => r.id), id),
+    onSuccess: (_r, { family, id }) => {
+      const apply = (r: RecipeRow) => (family.some((f) => f.id === r.id) ? { ...r, is_main: r.id === id } : r)
+      qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.map(apply))
+      for (const f of family) qc.setQueryData<RecipeRow | null>(qk.recipe(f.id), (old) => (old ? apply(old) : old))
+      qc.invalidateQueries({ queryKey: qk.recipes })
     },
   })
 }

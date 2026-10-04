@@ -1,14 +1,13 @@
 import { getSupabase } from '@/lib/supabase/client'
 import type { ClipRow, Database, LinkPreview } from '@/lib/supabase/database.types'
 import { deleteUnusedPhotos } from '@/lib/images/upload'
+import { fetchAll } from '@/lib/supabase/fetchAll'
 
 export type ClipInsert = Database['public']['Tables']['clips']['Insert']
 export type ClipUpdate = Database['public']['Tables']['clips']['Update']
 
 export async function listClips(): Promise<ClipRow[]> {
-  const { data, error } = await getSupabase().from('clips').select('*').order('created_at', { ascending: false }).limit(500)
-  if (error) throw error
-  return data as ClipRow[]
+  return fetchAll<ClipRow>(getSupabase().from('clips').select('*').order('created_at', { ascending: false }))
 }
 
 export async function getClip(id: string): Promise<ClipRow | null> {

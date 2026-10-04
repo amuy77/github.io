@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase/client'
+import { callRpc } from '@/lib/supabase/rpc'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
 
 /** アイコンに選べる絵文字 */
@@ -46,5 +47,9 @@ export async function deleteGenre(id: string): Promise<void> {
 }
 
 export async function reorderGenres(ids: string[]): Promise<void> {
-  await Promise.all(ids.map((id, i) => getSupabase().from('genres').update({ sort_order: i + 1 }).eq('id', id)))
+  await callRpc('reorder_genres', { p_ids: ids }, async () => {
+    const results = await Promise.all(ids.map((id, i) => getSupabase().from('genres').update({ sort_order: i + 1 }).eq('id', id)))
+    for (const r of results) if (r.error) throw r.error   // supabase-js は throw しないので、見ないと失敗が消える
+    return null
+  })
 }

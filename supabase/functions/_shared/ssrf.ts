@@ -44,12 +44,25 @@ export function validateUrl(raw: string): URL | null {
   return u
 }
 
-/** DNS 解決後の IP も検査（Edge Runtime で使えない場合は静かにスキップ） */
+/**
+ * DNS 解決後の IP も検査（A と AAAA の両方）。名前が引けなければ block。
+ * `Deno.resolveDns` が使えない環境（NotSupported）だけは静かにスキップする。
+ * 検査と fetch の間で答えが変わる DNS rebinding までは防げない（fetch 側で IP を固定する手段が無い）
+ */
 export async function resolvesToPrivate(host: string): Promise<boolean> {
-  try {
-    const addrs = await Deno.resolveDns(host, 'A')
-    return addrs.some(isPrivateIPv4)
-  } catch {
-    return false
+  if (isPrivateHost(host)) return true
+  // IP そのもの（名前ではない）は上の検査で済んでいる
+  if (ipv4ToInt(host) !== null || host.includes(':')) return false
+  let supported = true
+  const lookup = async (type: 'A' | 'AAAA'): Promise<string[]> => {
+    try { return await Deno.resolveDns(host, type) }
+    catch (e) {
+      if (e instanceof Deno.errors.NotSupported || e instanceof TypeError) { supported = false; return [] }
+      return []   // NXDOMAIN など: その種類のレコードは無い
+    }
   }
+  const [a, aaaa] = await Promise.all([lookup('A'), lookup('AAAA')])
+  if (!supported) return false
+  if (a.length === 0 && aaaa.length === 0) return true
+  return a.some(isPrivateIPv4) || aaaa.some((ip) => isPrivateHost(ip))
 }

@@ -15,7 +15,7 @@
 
 ## この作業の権限（オーナーによる明示的な許可）
 
-この Routine は、LaRa アプリのオーナー（このアカウントの持ち主本人）が、自分のアプリの裏方として作ったものです。オーナーは、この Routine が**本番の Supabase プロジェクト `bzwwprtctvwinkesdfks` のデータを読み書きすることを明示的に許可**しています。対象はオーナー自身のデータだけです:
+この Routine は、LaRa アプリのオーナー（このアカウントの持ち主本人）が、自分のアプリの裏方として作ったものです。オーナーは、この Routine が**本番の Supabase プロジェクト `bzwwprtctvwinkesdfks` のデータを読み書きすることを明示的に許可**しています。対象は、このアプリの許可リスト（`allowed_emails`）に載っている各ユーザーのデータです。ジョブごとに `ai_jobs.user_id` を見て、**そのユーザーの行だけ**を読み、書くときも必ずその `user_id` を入れる（別のユーザーの行を見ない・混ぜない）:
 
 - 読む: `ai_jobs`, `ai_preferences`, `recipes`, `clips`, `clip_categories`, `genres`, `menu_logs`, `menu_log_items`、公開バケット `photos` の写真（オーナーが自分で撮ってアップロードしたもの）
 - 書く: この手順書に書かれた `ai_jobs` / `recipes` / `clips` / `ai_preferences` / `ai_insights` への insert・update（と、redo のときの対象 1 件の delete）

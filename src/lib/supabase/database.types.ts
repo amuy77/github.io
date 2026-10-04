@@ -87,6 +87,12 @@ export type Database = {
     Views: { [_ in never]: never }
     Functions: {
       activity_days: { Args: { since: string }; Returns: string[] }
+      save_menu_log: { Args: { p_date: string; p_note: string; p_items: { recipe_id: string; sold_count: number | null }[] }; Returns: string }
+      set_main_recipe: { Args: { p_ids: string[]; p_main: string | null }; Returns: null }
+      delete_recipe: { Args: { p_id: string }; Returns: null }
+      delete_clip_category: { Args: { p_id: string }; Returns: null }
+      reorder_genres: { Args: { p_ids: string[] }; Returns: null }
+      reorder_clip_categories: { Args: { p_ids: string[] }; Returns: null }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

@@ -80,7 +80,7 @@ const fixtures: Record<string, object[]> = {
 /** Planner（予定・ToDo のアプリ）の今日のまとめ。既定は予定も ToDo も無い日 */
 const emptyAgenda = (date: string) => ({ date, today: iso(daysAgo(0)), events: [], tasks: [], url: 'https://planner-mu-lovat.vercel.app/' })
 
-async function stubSupabase(page: Page, opts: { noKey?: boolean; agenda?: (date: string) => object } = {}) {
+async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean; agenda?: (date: string) => object } = {}) {
   const s = session()
   await page.route('https://planner-mu-lovat.vercel.app/api/v1/agenda**', (route) => {
     const date = new URL(route.request().url()).searchParams.get('date') ?? ''
@@ -99,6 +99,17 @@ async function stubSupabase(page: Page, opts: { noKey?: boolean; agenda?: (date:
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: 'さっぱりなら [[R2]] がおすすめ。ネタ帳の [[C1]] の見せ方も合いそう！', refs: { R2: { type: 'recipe', id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド（試作2）' }, C1: { type: 'clip', id: 'c1000000-0000-4000-8000-000000000001', title: 'クロックムッシュ ¥980' } } }) })
     }
     if (p.includes('/rest/v1/rpc/activity_days')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([iso(daysAgo(2)), iso(daysAgo(1)), iso(daysAgo(0))]) })
+    // DB 関数（RPC）: save_menu_log はその日の記録の id（無ければ新しい id）、それ以外は null
+    const rpc = p.match(/\/rest\/v1\/rpc\/([a-z_]+)/)
+    if (rpc) {
+      if (opts.noRpc) return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST202', message: `Could not find the function public.${rpc[1]}`, details: null, hint: null }) })
+      if (rpc[1] === 'save_menu_log') {
+        const date = (req.postDataJSON() as { p_date: string }).p_date
+        const log = (fixtures.menu_logs as { id: string; log_date: string }[]).find((l) => l.log_date === date)
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(log?.id ?? crypto.randomUUID()) })
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
+    }
     const m = p.match(/\/rest\/v1\/([a-z_]+)/)
     if (m) {
       const table = m[1]
@@ -800,7 +811,7 @@ test('safe: deleting a recipe keeps a photo that another recipe still uses', asy
   const checks: string[] = []
   page.on('request', (r) => {
     if (r.url().includes('/storage/v1/')) storage.push(`${r.method()} ${r.url()}`)
-    if (r.method() === 'DELETE' && r.url().includes('/rest/v1/recipes')) deletes.push(r.url())
+    if ((r.method() === 'DELETE' && r.url().includes('/rest/v1/recipes')) || (r.method() === 'POST' && r.url().includes('/rest/v1/rpc/delete_recipe'))) deletes.push(r.url())
     if (r.url().includes('hero_image-%3E%3Epath') || r.url().includes('hero_image->>path')) checks.push(r.url())
   })
   await page.route(`https://${REF}.supabase.co/rest/v1/recipes**`, (route) => {
@@ -902,14 +913,14 @@ test('comfy: the calendar keeps its month after visiting a past day, and the tab
 test('comfy: unticking 売れた数 saves the counts as empty', async ({ page }) => {
   await stubSupabase(page)
   const posts: unknown[] = []
-  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/menu_log_items')) posts.push(r.postDataJSON()) })
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/rpc/save_menu_log')) posts.push(r.postDataJSON()) })
   await page.goto(`#/menu/${iso(daysAgo(0))}`)
   const tick = page.getByRole('checkbox', { name: /売れた数も記録する/ })
   await expect(tick).toBeChecked()
   await tick.click()
   await page.getByRole('button', { name: '更新する' }).click()
   await expect.poll(() => posts.length).toBe(1)
-  const rows = posts[0] as { sold_count: number | null }[]
+  const rows = (posts[0] as { p_items: { sold_count: number | null }[] }).p_items
   expect(rows.length).toBeGreaterThan(0)
   expect(rows.every((r) => r.sold_count === null)).toBe(true)
 })
@@ -963,4 +974,40 @@ test('battery: rebuilding the scene for reduced motion keeps the books and leave
   expect(after.counts.books).toBe(before.counts.books)
   expect(after.counts.leaves).toBe(before.counts.leaves)
   expect(typeof after.lively).toBe('boolean')
+})
+
+// ---- スプリント 5「データの穴と安全」: 多段の書き込みは DB 関数 1 本、無ければ今まで通り ----
+
+test('atomic: setting the main version is one RPC call, and a reorder sends the ids in order', async ({ page }) => {
+  await stubSupabase(page)
+  const calls: { name: string; body: unknown }[] = []
+  page.on('request', (r) => { const m = r.url().match(/\/rest\/v1\/rpc\/([a-z_]+)/); if (m && r.method() === 'POST') calls.push({ name: m[1], body: r.postDataJSON() }) })
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000001')
+  await page.getByRole('button', { name: /採用中にする/ }).click()
+  await expect.poll(() => calls.length).toBe(1)
+  expect(calls[0].name).toBe('set_main_recipe')
+  expect(calls[0].body).toMatchObject({ p_main: 'd1000000-0000-4000-8000-000000000001' })
+  expect((calls[0].body as { p_ids: string[] }).p_ids.sort()).toEqual(['d1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000005'])
+
+  await page.goto('#/recipes')
+  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).first().click()
+  const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
+  await manager.getByRole('button', { name: '下へ' }).first().click()
+  await expect.poll(() => calls.length).toBe(2)
+  expect(calls[1].name).toBe('reorder_genres')
+  expect((calls[1].body as { p_ids: string[] }).p_ids.slice(0, 2)).toEqual(['aaaaaaaa-0000-4000-8000-000000000002', 'aaaaaaaa-0000-4000-8000-000000000001'])
+})
+
+test('atomic: when the DB functions are not there yet, saving falls back to the old writes', async ({ page }) => {
+  await stubSupabase(page, { noRpc: true })
+  const posts: string[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/')) posts.push(r.url().replace(/^.*\/rest\/v1\//, '').replace(/\?.*$/, '')) })
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  await page.getByRole('button', { name: 'エッグサラダ' }).click()
+  await page.getByRole('button', { name: '更新する' }).click()
+  // 関数が無い（PGRST202）→ 今までの 3 段階（menu_logs の upsert → items）に戻る
+  await expect.poll(() => posts.includes('menu_log_items')).toBe(true)
+  expect(posts[0]).toBe('rpc/save_menu_log')
+  expect(posts.indexOf('menu_logs')).toBeGreaterThan(0)
+  expect(posts.indexOf('menu_log_items')).toBeGreaterThan(posts.indexOf('menu_logs'))
 })

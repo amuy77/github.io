@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase/client'
+import { callRpc } from '@/lib/supabase/rpc'
 import type { ClipCategoryRow } from '@/lib/supabase/database.types'
 
 /** 読み込み前や、まだカテゴリが無いときに使う既定のカテゴリ（DB の初期値と同じ） */
@@ -38,13 +39,20 @@ export async function updateClipCategory(id: string, patch: Partial<Pick<ClipCat
 
 /** カテゴリを消す。そのカテゴリのネタは「その他」へ移す */
 export async function deleteClipCategory(cat: ClipCategoryRow): Promise<void> {
-  const sb = getSupabase()
-  const { error: moveError } = await sb.from('clips').update({ category: FALLBACK_KEY }).eq('category', cat.key)
-  if (moveError) throw moveError
-  const { error } = await sb.from('clip_categories').delete().eq('id', cat.id)
-  if (error) throw error
+  await callRpc('delete_clip_category', { p_id: cat.id }, async () => {
+    const sb = getSupabase()
+    const { error: moveError } = await sb.from('clips').update({ category: FALLBACK_KEY }).eq('category', cat.key)
+    if (moveError) throw moveError
+    const { error } = await sb.from('clip_categories').delete().eq('id', cat.id)
+    if (error) throw error
+    return null
+  })
 }
 
 export async function reorderClipCategories(ids: string[]): Promise<void> {
-  await Promise.all(ids.map((id, i) => getSupabase().from('clip_categories').update({ sort_order: i + 1 }).eq('id', id)))
+  await callRpc('reorder_clip_categories', { p_ids: ids }, async () => {
+    const results = await Promise.all(ids.map((id, i) => getSupabase().from('clip_categories').update({ sort_order: i + 1 }).eq('id', id)))
+    for (const r of results) if (r.error) throw r.error
+    return null
+  })
 }

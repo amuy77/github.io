@@ -5,6 +5,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.128.0'
 import { cors, json, jsonError } from '../_shared/cors.ts'
 import { requireUser } from '../_shared/auth.ts'
+import { fetchAll } from '../_shared/fetchAll.ts'
 
 const MODEL = 'claude-opus-5'
 const MAX_TURNS = 20
@@ -81,7 +82,8 @@ Deno.serve(async (req) => {
     sb.from('recipes').select('id,title,genre_id,ingredients,steps,notes,rating,family_id,variant_label,is_main,status,created_at').order('created_at', { ascending: false }).limit(400),
     sb.from('clips').select('id,type,title,note,shop_name,category,tags,rating,created_at').order('created_at', { ascending: false }).limit(300),
     sb.from('genres').select('id,name'),
-    sb.from('menu_log_items').select('recipe_id, menu_logs!inner(log_date)').gte('menu_logs.log_date', since).limit(3000),
+    // PostgREST は 1000 行で切るので、ページを回して全部読む（limit 3000 と書いても 1000 で切られていた）
+    fetchAll(sb.from('menu_log_items').select('recipe_id, menu_logs!inner(log_date)').gte('menu_logs.log_date', since).order('recipe_id')),
   ])
   if (rs.error || cs.error) return jsonError(req, 500, 'DB_ERROR', 'データを読めませんでした')
   const genres = new Map(((gs.data ?? []) as { id: string; name: string }[]).map((g) => [g.id, g.name]))
@@ -122,6 +124,7 @@ Deno.serve(async (req) => {
     if (e instanceof Anthropic.RateLimitError) return jsonError(req, 429, 'RATE_LIMITED', '混み合っています。少し待ってからもう一度どうぞ')
     if (e instanceof Anthropic.AuthenticationError) return jsonError(req, 503, 'NO_API_KEY', 'Claude API キーが正しくありません')
     if (e instanceof Anthropic.APIError) return jsonError(req, 502, 'AI_ERROR', `AI の呼び出しに失敗しました（${e.status ?? '?'}）`)
-    return jsonError(req, 502, 'AI_ERROR', e instanceof Error ? e.message : 'AI の呼び出しに失敗しました')
+    console.error('lara-chat failed', e)
+    return jsonError(req, 502, 'AI_ERROR', 'AI の呼び出しに失敗しました')
   }
 })
