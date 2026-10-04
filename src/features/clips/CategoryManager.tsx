@@ -5,6 +5,7 @@ import { Chip } from '@/components/ui/Chip'
 import { Input } from '@/components/ui/Field'
 import { Confirm, Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
+import { isEnter } from '@/lib/keys'
 import { IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { ClipCategoryRow } from '@/lib/supabase/database.types'
 import { CATEGORY_EMOJI_CHOICES, FALLBACK_KEY } from './categoryApi'
@@ -88,7 +89,7 @@ function CategoryForm({ category, onClose, onCreated }: { category: ClipCategory
       <div className="flex items-end gap-3">
         <span className="grid size-14 shrink-0 place-items-center rounded-card bg-oat-100 text-3xl" aria-hidden>{emoji}</span>
         <div className="min-w-0 flex-1">
-          <Input label="カテゴリ名" placeholder="例: スイーツ / パン屋さん / 器・雑貨" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save() }} />
+          <Input label="カテゴリ名" placeholder="例: スイーツ / パン屋さん / 器・雑貨" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (isEnter(e)) void save() }} />
         </div>
       </div>
       <div className="flex flex-col gap-2">

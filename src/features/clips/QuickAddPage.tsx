@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
 import { IconBook, IconBulb, IconCamera, IconClipboard, IconImage, IconLink, IconNote, IconSparkles, IconX } from '@/components/ui/icons'
 import { useToast } from '@/components/ui/Toast'
+import { friendlyError } from '@/lib/errors'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { paths } from '@/app/routes'
 import { useSession } from '@/features/auth/useSession'
@@ -79,7 +80,7 @@ export function QuickAddPage() {
       toast(`AI に渡しました。次の処理は ${nextWorkerTime()} ごろ`, 'success')
       nav(paths.inbox, { replace: true })
     } catch (e) {
-      toast(e instanceof Error ? e.message : '送れませんでした', 'error')
+      toast(friendlyError(e, '送れませんでした'), 'error')
     } finally {
       setSending(false)
     }

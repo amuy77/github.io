@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { cx } from '@/lib/cx'
 
@@ -8,14 +8,24 @@ interface ToastApi { toast: (text: string, kind?: Kind) => void }
 
 const Ctx = createContext<ToastApi>({ toast: () => {} })
 
+type Listener = (text: string, kind: Kind) => void
+const listeners = new Set<Listener>()
+/** React の外（QueryClient の onError など）からトーストを出すための入口 */
+export const toastBus = {
+  emit(text: string, kind: Kind = 'info') { for (const l of listeners) l(text, kind) },
+  error(text: string) { this.emit(text, 'error') },
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([])
   const seq = useRef(0)
   const toast = useCallback((text: string, kind: Kind = 'info') => {
     const id = ++seq.current
-    setItems((s) => [...s.slice(-2), { id, text, kind }])
+    // 同じ文面が出ている間は重ねない（global の失敗通知と各画面の通知が同時に来ても 1 つに）
+    setItems((s) => (s.some((t) => t.text === text) ? s : [...s.slice(-2), { id, text, kind }]))
     window.setTimeout(() => setItems((s) => s.filter((t) => t.id !== id)), 2600)
   }, [])
+  useEffect(() => { listeners.add(toast); return () => { listeners.delete(toast) } }, [toast])
   const api = useMemo(() => ({ toast }), [toast])
   return (
     <Ctx.Provider value={api}>

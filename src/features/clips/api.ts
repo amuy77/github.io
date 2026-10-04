@@ -1,6 +1,6 @@
 import { getSupabase } from '@/lib/supabase/client'
 import type { ClipRow, Database, LinkPreview } from '@/lib/supabase/database.types'
-import { deletePhotos } from '@/lib/images/upload'
+import { deleteUnusedPhotos } from '@/lib/images/upload'
 
 export type ClipInsert = Database['public']['Tables']['clips']['Insert']
 export type ClipUpdate = Database['public']['Tables']['clips']['Update']
@@ -32,7 +32,7 @@ export async function updateClip(id: string, patch: ClipUpdate): Promise<ClipRow
 export async function deleteClip(clip: ClipRow): Promise<void> {
   const { error } = await getSupabase().from('clips').delete().eq('id', clip.id)
   if (error) throw error
-  await deletePhotos(clip.images ?? [])
+  await deleteUnusedPhotos(clip.images ?? [])
 }
 
 export class FunctionError extends Error {

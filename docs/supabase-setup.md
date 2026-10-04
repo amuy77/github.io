@@ -98,6 +98,13 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 追加（2026-10-04）: 写真バケットの一覧を非公開に
+
+- マイグレーション `20261004000000_photos_select_own.sql` を **SQL エディタで実行する**（Dashboard → SQL Editor に貼り付けて Run）。
+  `photos_select_public`（誰でも `storage.list()` で全パスが取れていた）を外し、本人の prefix だけ SELECT できるようにする。
+  写真の URL（`/object/public/…`）は public バケットなので今まで通り見える。当てるまでアプリは今まで通り動く。
+- Edge Function `lara-chat` も更新あり（レシピを新しい順に読む）: `supabase functions deploy lara-chat`
+
 ## 追加（2026-09-28）: 確認画面・★評価・レシピの版・LaRa に聞く
 
 - マイグレーション `20260928010000_review_rating_versions.sql` を適用済み（`clips.rating` / `clips.needs_review`、`recipes.rating` / `family_id` / `variant_label` / `is_main`、`ai_jobs.kind` に `consult`）

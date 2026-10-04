@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { PageHeader, Skeleton, EmptyState } from '@/components/ui/Page'
+import { PageHeader, Skeleton, EmptyState, LoadError } from '@/components/ui/Page'
+import { useDiscardGuard } from '@/components/ui/useDiscardGuard'
+import { friendlyError } from '@/lib/errors'
+import { isEnter } from '@/lib/keys'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Chip } from '@/components/ui/Chip'
@@ -11,7 +14,7 @@ import { useToast } from '@/components/ui/Toast'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { IconClipboard, IconPlus, IconSparkles, IconTrash, IconX } from '@/components/ui/icons'
 import type { ImageRef, Ingredient, RecipePurpose, RecipeRow, RecipeSourceKind } from '@/lib/supabase/database.types'
-import { deletePhotos, photoUrl, uploadPhoto } from '@/lib/images/upload'
+import { deleteUnusedPhotos, photoUrl, uploadPhoto } from '@/lib/images/upload'
 import { parseRecipeText } from '@/lib/recipeParser'
 import { paths } from '@/app/routes'
 import { useSession } from '@/features/auth/useSession'
@@ -35,6 +38,7 @@ export function RecipeEditorPage() {
   const from = useRecipe(fromId)
   if (fromId && from.isLoading) return <><PageHeader title="試作を作る" back /><Skeleton className="h-40" /></>
   if (id && existing.isLoading) return <><PageHeader title="レシピを編集" back /><Skeleton className="h-40" /></>
+  if (id && existing.isError) return <><PageHeader title="レシピを編集" back /><LoadError onRetry={() => void existing.refetch()} /></>
   if (id && !existing.data) return <><PageHeader title="レシピを編集" back /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
   const initialTab = (params.get('tab') as Tab | null) ?? 'manual'
   return <Editor key={id ?? fromId ?? 'new'} recipe={existing.data ?? null} from={fromId ? from.data ?? null : null} initialTab={id || fromId ? 'manual' : initialTab} />
@@ -78,6 +82,11 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
   const [saving, setSaving] = useState(false)
   const saveBtn = useRef<HTMLButtonElement>(null)
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }))
+  // 開いたときの中身と違っていたら「入力途中」。戻る・やめるで確認を出す
+  const [initialForm] = useState(() => JSON.stringify(form))
+  const dirty = JSON.stringify(form) !== initialForm || !!pendingHero || !!text.trim() || !!hint.trim() || photoFiles.length > 0
+  const { requestLeave, dialog: discardDialog } = useDiscardGuard(dirty && !saving)
+  const backTo = recipe ? paths.recipe(recipe.id) : from ? paths.recipe(from.id) : paths.recipes
 
   // --- 材料・手順のリピーター ---
   const setIng = (i: number, patch: Partial<Ingredient>) => set('ingredients', form.ingredients.map((x, k) => (k === i ? { ...x, ...patch } : x)))
@@ -114,7 +123,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
       toast(`トレイに入れました。次の処理は ${nextWorkerTime()} ごろ`, 'success')
       nav(paths.inbox, { replace: true })
     } catch (e) {
-      toast(e instanceof Error ? e.message : '送れませんでした', 'error')
+      toast(friendlyError(e, '送れませんでした'), 'error')
     } finally { setSaving(false) }
   }
 
@@ -125,9 +134,9 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
     if (!title) { toast('レシピ名を入れてね', 'error'); return }
     setSaving(true)
     try {
-      let hero = form.hero
-      if (pendingHero) { hero = await uploadPhoto(pendingHero.file, userId); if (recipe?.hero_image) void deletePhotos([recipe.hero_image]) }
-      else if (!hero && recipe?.hero_image) void deletePhotos([recipe.hero_image])
+      // 古い写真を消すのは保存が成功してから（先に消すと、保存に失敗したとき写真だけ無いレシピになる）
+      const hero = pendingHero ? await uploadPhoto(pendingHero.file, userId) : form.hero
+      const oldHero = recipe?.hero_image && recipe.hero_image.path !== hero?.path ? recipe.hero_image : null
       const row = {
         title, genre_id: form.genreId, hero_image: hero,
         ingredients: form.ingredients.map((i) => ({ name: i.name.trim(), amount: i.amount.trim() })).filter((i) => i.name),
@@ -137,6 +146,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
       }
       if (recipe) {
         const saved = await update.mutateAsync({ id: recipe.id, patch: row })
+        if (oldHero) void deleteUnusedPhotos([oldHero])
         toast(recipe.status === 'draft' ? '図鑑に載せました！' : '更新しました', 'success')
         nav(paths.recipe(saved.id), { replace: true })
       } else {
@@ -146,7 +156,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
         nav(paths.recipe(saved.id), { replace: true })
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : '保存できませんでした', 'error')
+      toast(friendlyError(e), 'error')
     } finally { setSaving(false) }
   }
 
@@ -154,7 +164,8 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
 
   return (
     <>
-      <PageHeader title={recipe ? 'レシピを編集' : from ? '試作を作る' : 'レシピを作る'} sub={from ? `「${from.title}」をコピーしたよ。変えたところだけ直してね` : undefined} back={recipe ? paths.recipe(recipe.id) : from ? paths.recipe(from.id) : paths.recipes} />
+      <PageHeader title={recipe ? 'レシピを編集' : from ? '試作を作る' : 'レシピを作る'} sub={from ? `「${from.title}」をコピーしたよ。変えたところだけ直してね` : undefined} onBack={() => requestLeave(() => nav(backTo))} />
+      {discardDialog}
       {!recipe && !from && (
         <div className="mb-4 grid grid-cols-3 gap-1 rounded-chip border border-line bg-paper p-1" role="tablist">
           {([['manual', '✍️ 手入力'], ['text', '📋 テキスト'], ['photo', '📷 写真 → AI']] as [Tab, string][]).map(([t, l]) => (
@@ -238,8 +249,8 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
             <p className="text-[13px] font-bold text-espresso-700">材料</p>
             {form.ingredients.map((ing, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} placeholder="食パン" aria-label={`材料 ${i + 1}`} className="h-10 min-w-0 flex-[3] rounded-[10px] border border-line px-3 text-[15px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (e.key === 'Enter' && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
-                <input value={ing.amount} onChange={(e) => setIng(i, { amount: e.target.value })} placeholder="2枚" aria-label={`分量 ${i + 1}`} className="h-10 min-w-0 flex-[2] rounded-[10px] border border-line px-3 text-[15px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (e.key === 'Enter' && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
+                <input value={ing.name} onChange={(e) => setIng(i, { name: e.target.value })} placeholder="食パン" aria-label={`材料 ${i + 1}`} className="h-10 min-w-0 flex-[3] rounded-[10px] border border-line px-3 text-[15px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (isEnter(e) && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
+                <input value={ing.amount} onChange={(e) => setIng(i, { amount: e.target.value })} placeholder="2枚" aria-label={`分量 ${i + 1}`} className="h-10 min-w-0 flex-[2] rounded-[10px] border border-line px-3 text-[15px] focus:border-green-600 focus:outline-none" onKeyDown={(e) => { if (isEnter(e) && i === form.ingredients.length - 1) { e.preventDefault(); addIng() } }} />
                 <IconButton label="この材料を消す" className="size-9 shrink-0 text-muted" onClick={() => rmIng(i)}><IconTrash size={16} /></IconButton>
               </div>
             ))}
@@ -261,7 +272,7 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
           <Textarea label="メモ（任意）" placeholder="ソースは前日に仕込む。夏はトマト多め。" value={form.notes} onChange={(e) => set('notes', e.target.value)} />
 
           <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] -mx-4 flex gap-2 border-t border-line bg-oat-50/95 px-4 py-3 backdrop-blur md:bottom-0">
-            <Button variant="secondary" onClick={() => nav(-1)} disabled={saving}>やめる</Button>
+            <Button variant="secondary" onClick={() => requestLeave(() => nav(backTo))} disabled={saving}>やめる</Button>
             <Button ref={saveBtn} full size="lg" loading={saving} onClick={save}>{recipe ? (recipe.status === 'draft' ? '図鑑に載せる' : '更新する') : '図鑑に登録'}</Button>
           </div>
         </div>

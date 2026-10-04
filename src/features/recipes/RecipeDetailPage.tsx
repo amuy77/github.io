@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { PageHeader, EmptyState, Skeleton, SectionTitle } from '@/components/ui/Page'
+import { PageHeader, EmptyState, LoadError, Skeleton, SectionTitle } from '@/components/ui/Page'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Tag } from '@/components/ui/Chip'
@@ -10,7 +10,7 @@ import { RatingInput, RatingStars } from '@/components/ui/Rating'
 import { useToast } from '@/components/ui/Toast'
 import { IconCalendar, IconEdit, IconPlus, IconStar, IconTrash } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
-import { formatMD, today } from '@/lib/dates'
+import { dateOf, formatMD, today } from '@/lib/dates'
 import { paths } from '@/app/routes'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
@@ -55,6 +55,8 @@ export function RecipeDetailPage() {
   }, [r, all.data])
 
   if (recipe.isLoading) return <><PageHeader title="レシピ" back={paths.recipes} /><Skeleton className="aspect-[4/3]" /></>
+  // 通信の失敗と「本当に無い」は分ける
+  if (recipe.isError) return <><PageHeader title="レシピ" back={paths.recipes} /><LoadError onRetry={() => void recipe.refetch()} /></>
   if (!r) return <><PageHeader title="レシピ" back={paths.recipes} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
   const genre = genres.data?.find((g) => g.id === r.genre_id) ?? null
   const latest = fam.length > 1 ? latestOf(fam) : null
@@ -62,7 +64,7 @@ export function RecipeDetailPage() {
 
   return (
     <>
-      <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(r.created_at.slice(0, 10))}`} back={paths.recipes}
+      <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(dateOf(r.created_at))}`} back={paths.recipes}
         actions={<>
           <IconButton label="お気に入り" onClick={() => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })} className={r.favorite ? 'text-mustard-400' : ''}><IconStar filled={r.favorite} /></IconButton>
           <IconButton label="編集" onClick={() => nav(paths.recipeEdit(r.id))}><IconEdit /></IconButton>
@@ -91,7 +93,7 @@ export function RecipeDetailPage() {
                 <Link key={v.id} to={paths.recipe(v.id)} replace
                   className={cx('flex shrink-0 flex-col gap-0.5 rounded-[12px] border px-3 py-2 text-left', v.id === r.id ? 'border-green-600 bg-green-600 text-white' : 'border-line bg-paper')}>
                   <span className="text-[13px] font-bold">{versionName(fam, v)}</span>
-                  <span className={cx('text-[11px]', v.id === r.id ? 'text-white/80' : 'text-muted')}>{formatMD(v.created_at.slice(0, 10))}</span>
+                  <span className={cx('text-[11px]', v.id === r.id ? 'text-white/80' : 'text-muted')}>{formatMD(dateOf(v.created_at))}</span>
                   <span className="flex gap-1">
                     {v.id === latest?.id && <span className="whitespace-nowrap rounded-chip bg-brick-500 px-1.5 text-[10px] font-bold text-white">最新</span>}
                     {v.is_main && <span className="whitespace-nowrap rounded-chip bg-mustard-400 px-1.5 text-[10px] font-bold text-espresso-900">採用中</span>}

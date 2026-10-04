@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { IconX } from './icons'
@@ -15,17 +15,31 @@ export interface SheetProps {
   footer?: ReactNode
 }
 
+// 開いているシート／ダイアログの重なり順。Esc は一番上のものだけが受ける
+// （シートの中からシートを開いたとき、Esc 1 回で両方閉じて入力が消えないように）
+const openStack: symbol[] = []
+function useEscape(open: boolean, onClose: () => void) {
+  const token = useRef(Symbol('layer'))
+  useEffect(() => {
+    if (!open) return
+    const me = token.current
+    openStack.push(me)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && openStack[openStack.length - 1] === me) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey); const i = openStack.indexOf(me); if (i >= 0) openStack.splice(i, 1) }
+  }, [open, onClose])
+}
+
 /** 下からせり上がるシート（モバイル）／中央寄せの大きめモーダル（デスクトップ） */
 export function Sheet({ open, onClose, title, children, tall, footer }: SheetProps) {
   const reduced = useReducedMotion()
+  useEscape(open, onClose)
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
-  }, [open, onClose])
+    return () => { document.body.style.overflow = prev }
+  }, [open])
 
   // body 直下に出す（シートの中からシートを開いても、親の transform に閉じ込められないように）
   return createPortal(
@@ -55,19 +69,27 @@ export function Sheet({ open, onClose, title, children, tall, footer }: SheetPro
   )
 }
 
-/** 確認ダイアログ */
-export function Confirm({ open, onClose, onConfirm, title, body, confirmLabel = '実行する', danger }: { open: boolean; onClose: () => void; onConfirm: () => void; title: string; body?: string; confirmLabel?: string; danger?: boolean }) {
+/** 確認ダイアログ。onConfirm が Promise を返すときは終わるまでボタンを回して、終わってから閉じる */
+export function Confirm({ open, onClose, onConfirm, title, body, confirmLabel = '実行する', danger }: { open: boolean; onClose: () => void; onConfirm: () => void | Promise<void>; title: string; body?: string; confirmLabel?: string; danger?: boolean }) {
+  const [busy, setBusy] = useState(false)
+  useEscape(open && !busy, onClose)
+  const run = async () => {
+    setBusy(true)
+    try { await onConfirm(); onClose() } catch { /* 失敗の通知は呼び出し側か global のトーストに任せる。ダイアログは開いたままにしてやり直せるように */ } finally { setBusy(false) }
+  }
   return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" role="alertdialog" aria-modal="true" aria-label={title}>
-          <motion.div className="absolute inset-0 bg-espresso-900/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
+          <motion.div className="absolute inset-0 bg-espresso-900/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={busy ? undefined : onClose} />
           <motion.div className="relative w-full max-w-sm rounded-card bg-paper p-5 shadow-sheet" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
             <h3 className="font-display text-lg font-bold">{title}</h3>
             {body && <p className="mt-2 text-sm text-muted">{body}</p>}
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" className="h-10 rounded-chip px-4 text-sm font-bold hover:bg-oat-100" onClick={onClose}>やめる</button>
-              <button type="button" className={cx('h-10 rounded-chip px-4 text-sm font-bold text-white', danger ? 'bg-brick-500' : 'bg-green-600')} onClick={() => { onConfirm(); onClose() }}>{confirmLabel}</button>
+              <button type="button" className="h-10 rounded-chip px-4 text-sm font-bold hover:bg-oat-100" onClick={onClose} disabled={busy}>やめる</button>
+              <button type="button" className={cx('inline-flex h-10 items-center gap-2 rounded-chip px-4 text-sm font-bold text-white disabled:opacity-60', danger ? 'bg-brick-500' : 'bg-green-600')} onClick={() => void run()} disabled={busy}>
+                {busy && <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />}{confirmLabel}
+              </button>
             </div>
           </motion.div>
         </div>

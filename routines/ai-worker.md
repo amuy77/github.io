@@ -304,7 +304,7 @@ returning id;
 
 - 触ってよいテーブル: `ai_jobs`, `recipes`, `clips`（`consult` では読むだけ）, `ai_preferences`（読む。`redo` のときだけ追加してよい）, `genres`/`clip_categories`(読むだけ), `menu_logs`/`menu_log_items`(読むだけ), `ai_insights`。それ以外は読み書きしない。
 - `delete` / `drop` / `truncate` は実行しない。**唯一の例外**は `redo` で作り直したときの、対象の行 1 件だけの `delete`（`id` と `user_id` の両方で絞る）。
-- 1 回の実行で処理するジョブは最大 10 件。3 回失敗したジョブは放置する（`attempts < 3` の条件で除外される）。
+- 1 回の実行で処理するジョブは最大 10 件。3 回失敗したジョブは放置する（`attempts < 3` の条件で除外される）。店主がトレイで「再試行」を押すと `attempts` が 0 に戻って `pending` になるので、また拾う。
 - SQL の文字列はシングルクォートを `''` にエスケープする。JSON の中の `'` も同様。
 - 同じジョブを二度処理しない（必ず `processing` への更新が 1 行成功したことを確認してから作業する）。
 - リポジトリのファイルは変更しない。コミットや push もしない。
