@@ -3,7 +3,7 @@ import type { HomeCounts } from '@/features/home/useCounts'
 import { searchLocal } from '@/features/ask/api'
 import { clipTitle } from '@/features/clips/ClipCard'
 import { paths } from '@/app/routes'
-import { today } from '@/lib/dates'
+import { dayPartOfHour, today } from '@/lib/dates'
 import { chatLine } from './chatVoice'
 import { agendaReply, type Agenda } from '@/features/planner/agendaLine'
 import { PLANNER_URL } from '@/features/planner/api'
@@ -28,8 +28,8 @@ export interface LaraContext {
 
 const has = (t: string, ...words: string[]) => words.some((w) => t.includes(w))
 const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length)]
-/** 夜（18 時〜朝 6 時。お店が暗くなるのと同じ）は、日なたや雲など昼の景色を言わない */
-const isNight = (h: number) => h >= 18 || h < 6
+/** 夜（お店が暗くなるのと同じ境目）は、日なたや雲など昼の景色を言わない */
+const isNight = (h: number) => dayPartOfHour(h) === 'night'
 
 /** 相談っぽい言い方（その場では答えず、預かる） */
 export const looksLikeConsult = (t: string) => has(t, '相談', 'どうしたら', 'どうすれば', 'アドバイス', '改善', '良くしたい', 'よくしたい', '美味しく', 'おいしく', 'どう思う', '悩', '迷って', 'コツ')

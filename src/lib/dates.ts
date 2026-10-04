@@ -72,13 +72,17 @@ export function relativeDay(isoOrTs: string): string {
 
 export type DayPart = 'morning' | 'day' | 'evening' | 'night'
 
-export function dayPart(d = new Date()): DayPart {
-  const h = d.getHours()
+/** お店の照明の時間帯。「夜」の境目（20 時・6 時）はここだけで決める（セリフやタイル版のひとことも同じ境目を使う） */
+export function dayPartOfHour(h: number): DayPart {
   if (h < 6) return 'night'
   if (h < 10) return 'morning'
   if (h < 17) return 'day'
   if (h < 20) return 'evening'
   return 'night'
+}
+
+export function dayPart(d = new Date()): DayPart {
+  return dayPartOfHour(d.getHours())
 }
 
 export function greeting(d = new Date()): string {

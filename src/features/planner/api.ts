@@ -21,13 +21,14 @@ export async function fetchAgenda(date: string): Promise<Agenda | null> {
   return (await res.json()) as Agenda
 }
 
-export function usePlannerAgenda(which: 'today' | 'tomorrow' = 'today') {
+export function usePlannerAgenda(which: 'today' | 'tomorrow' = 'today', enabled = true) {
   const date = which === 'today' ? today() : addDays(today(), 1)
   return useQuery({
     queryKey: ['planner-agenda', date],
     queryFn: () => fetchAgenda(date).catch(() => null),
     staleTime: 5 * 60_000,
     retry: false,
+    enabled,
   })
 }
 

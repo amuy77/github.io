@@ -3,8 +3,8 @@ import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import { deleteMenuLog, getMenuLog, listInsights, listMenuLogs, saveMenuLog, type MenuItemInput } from './api'
 
-export function useMenuLogs(from: string, to: string) {
-  return useQuery({ queryKey: qk.menuLogs(from, to), queryFn: () => listMenuLogs(from, to), enabled: isSupabaseConfigured })
+export function useMenuLogs(from: string, to: string, enabled = true) {
+  return useQuery({ queryKey: qk.menuLogs(from, to), queryFn: () => listMenuLogs(from, to), enabled: isSupabaseConfigured && enabled })
 }
 
 export function useMenuLog(date: string) {
