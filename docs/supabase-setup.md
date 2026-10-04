@@ -98,6 +98,24 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 追加（2026-10-05）: 書き込みを DB 関数に・他人の行を指せないように
+
+- マイグレーション `20261005000000_atomic_writes.sql` を **SQL エディタで実行する**。
+  メニュー記録の保存・レシピ削除・採用中の切り替え・カテゴリ削除・並び替えが DB 関数 1 回になる（途中で止まって不整合、が無くなる）。
+  当てる前でもアプリは今までのやり方で動く（関数が無ければ自動で戻る）。
+  同時に、他人のレシピやジャンルを自分の行から指せないチェック（2 人目を迎える準備）と、`activity_days` の日付のずれも直る。
+- Edge Function `link-preview` と `lara-chat` も更新あり（DNS の検査強化、エラー文面）: `supabase functions deploy link-preview` / `lara-chat`
+
+## 2 人目を足す（彩加さん）
+
+データは最初から「ログインした本人の分しか見えない」（RLS）ので、同じアプリ・同じプロジェクトのまま、アカウントを足すだけでよい。
+
+1. SQL エディタで許可リストに入れる: `insert into public.allowed_emails (email, note) values ('<彩加さんのメール>', '彩加') on conflict do nothing;`
+2. 本人が公開 URL を開いて「はじめての登録」→ ジャンル・カテゴリ入りの空っぽのお店ができる（ネタ帳・図鑑・記録・写真は完全に別）
+3. Planner も同じメールで登録すれば、ホームの「今日の予定」も本人の分が出る
+4. AI の裏方（Routine）はジョブの `user_id` ごとに処理するので、本人の写真も届く（`routines/ai-worker.md`）
+5. 店名やキャラは共通。本人用に変えたくなったら「プロフィール設定」として別途
+
 ## 追加（2026-10-04）: 写真バケットの一覧を非公開に
 
 - マイグレーション `20261004000000_photos_select_own.sql` を **SQL エディタで実行する**（Dashboard → SQL Editor に貼り付けて Run）。

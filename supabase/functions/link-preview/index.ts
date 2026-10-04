@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
     const instagram_blocked = isInstagram && !image
     return json(req, 200, { title, description, image, site_name, final_url: page.finalUrl, instagram_blocked, fetched_at: new Date().toISOString() })
   } catch (e) {
-    return jsonError(req, 502, 'FETCH_FAILED', e instanceof Error ? e.message : 'fetch failed')
+    console.error('link-preview failed', e)
+    return jsonError(req, 502, 'FETCH_FAILED', 'ページを取得できませんでした')
   }
 })

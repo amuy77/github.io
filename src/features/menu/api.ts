@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase/client'
+import { callRpc } from '@/lib/supabase/rpc'
 import type { AiInsightRow, MenuLogItemRow, MenuLogRow } from '@/lib/supabase/database.types'
 
 export type MenuLogWithItems = MenuLogRow & { menu_log_items: MenuLogItemRow[] }
@@ -16,8 +17,16 @@ export async function getMenuLog(date: string): Promise<MenuLogWithItems | null>
   return (data as unknown as MenuLogWithItems | null) ?? null
 }
 
-/** 日別記録を保存（無ければ作る）。items は全置き換え */
+/** 日別記録を保存（無ければ作る）。items は全置き換え。DB 関数で 1 トランザクション（無ければ今までの 3 段階） */
 export async function saveMenuLog(date: string, note: string, items: MenuItemInput[]): Promise<MenuLogWithItems> {
+  const sb = getSupabase()
+  const logId = await callRpc('save_menu_log', { p_date: date, p_note: note, p_items: items }, () => saveMenuLogStepwise(date, note, items))
+  const { data: fresh, error: e4 } = await sb.from('menu_logs').select('*, menu_log_items(*)').eq('id', logId).single()
+  if (e4) throw e4
+  return fresh as unknown as MenuLogWithItems
+}
+
+async function saveMenuLogStepwise(date: string, note: string, items: MenuItemInput[]): Promise<string> {
   const sb = getSupabase()
   const { data: log, error } = await sb.from('menu_logs').upsert({ log_date: date, note }, { onConflict: 'user_id,log_date' }).select('*').single()
   if (error) throw error
@@ -30,9 +39,7 @@ export async function saveMenuLog(date: string, note: string, items: MenuItemInp
   if (toDelete.length) { const { error: e2 } = await sb.from('menu_log_items').delete().in('id', toDelete); if (e2) throw e2 }
   const toUpsert = items.map((i) => ({ menu_log_id: logId, recipe_id: i.recipe_id, sold_count: i.sold_count }))
   if (toUpsert.length) { const { error: e3 } = await sb.from('menu_log_items').upsert(toUpsert, { onConflict: 'menu_log_id,recipe_id' }); if (e3) throw e3 }
-  const { data: fresh, error: e4 } = await sb.from('menu_logs').select('*, menu_log_items(*)').eq('id', logId).single()
-  if (e4) throw e4
-  return fresh as unknown as MenuLogWithItems
+  return logId
 }
 
 export async function deleteMenuLog(id: string): Promise<void> {
