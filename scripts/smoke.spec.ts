@@ -286,19 +286,17 @@ test('home: settings button opens settings', async ({ page }) => {
   await expect(page.getByText('LaRa の服', { exact: true })).toBeVisible()
 })
 
-test('home: talk sits at the top, ask in the bottom card, no streak chip', async ({ page }, info) => {
+test('home: only settings at the top, 聞く in the bottom card answers in a bubble and links to the ask page', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/')
-  const talk = page.getByRole('button', { name: /話しかける/ })
-  await expect(talk).toBeVisible()
-  const box = await talk.boundingBox()
-  expect(box!.y).toBeLessThan(120)
-  await expect(page.getByText(/日連続|今日から記録/)).toHaveCount(0)
-  await page.screenshot({ path: `screenshots/${info.project.name}-home-top.png` })
-  if (info.project.name !== 'phone') return
-  const ask = page.getByRole('link', { name: 'LaRa に聞く' })
+  const ask = page.getByRole('button', { name: 'LaRa に聞く' })
+  await expect(ask).toBeVisible()
   expect((await ask.boundingBox())!.y).toBeGreaterThan(400)
+  await expect(page.getByText(/話しかける|日連続|今日から記録/)).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-top.png` })
   await ask.click()
+  await expect(page.getByRole('status', { name: 'LaRa の返事' })).toBeVisible()
+  await page.getByRole('link', { name: /くわしく探す/ }).click()
   await expect(page).toHaveURL(/#\/ask$/)
 })
 
@@ -523,11 +521,11 @@ test('home talk: LaRa turns around and answers in her bubble, and a consult is h
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/ai_jobs')) sent.push(r.postDataJSON()) })
   await page.goto('#/')
   await page.waitForFunction(() => (window as unknown as LaraW).__lara?.debugState().figure, null, { timeout: 20_000 })
-  await page.getByRole('button', { name: /話しかける/ }).click()
+  await page.getByRole('button', { name: 'LaRa に聞く' }).click()
   expect(await listening(page)).toBe(true)
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
   await expect(bubble).toBeVisible()
-  const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
+  const box = page.getByRole('textbox', { name: 'LaRa に聞く' })
   await box.fill('こんにちは')
   await page.getByRole('button', { name: '送る' }).click()
   // あいさつは、お店の LaRa と同じ口調のセリフ集（昼 / 夜）のどれか
@@ -558,7 +556,7 @@ test('home talk: LaRa turns around and answers in her bubble, and a consult is h
   await expect(bubble).toHaveCount(0)
   expect(await listening(page)).toBe(false)
   // 返事のボタンを押すと、その画面へ
-  await page.getByRole('button', { name: /話しかける/ }).click()
+  await page.getByRole('button', { name: 'LaRa に聞く' }).click()
   await page.getByRole('button', { name: '確認待ちある？' }).click()
   await bubble.getByRole('button', { name: '受信トレイを開く →' }).click()
   await expect(page).toHaveURL(/#\/inbox$/)
@@ -572,9 +570,9 @@ test('home talk: the easygoing voice still says the facts (counts, names, button
   // アプリが数えた確認待ちの件数（読み込みを待つ）
   await expect.poll(() => page.evaluate(() => (window as unknown as W).__lara!.debugState().counts.inbox)).toBeGreaterThan(0)
   const inbox = await page.evaluate(() => (window as unknown as W).__lara!.debugState().counts.inbox)
-  await page.getByRole('button', { name: /話しかける/ }).click()
+  await page.getByRole('button', { name: 'LaRa に聞く' }).click()
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
-  const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
+  const box = page.getByRole('textbox', { name: 'LaRa に聞く' })
   // 話しかけて、返事が出るのを待つ。どの返事にも {変数} が埋まらずに残っていない
   const ask = async (q: string) => {
     await box.fill(q); await box.press('Enter'); await expect(bubble.getByText(`「${q}」`)).toBeVisible()
@@ -611,7 +609,7 @@ test('home talk: finished consult answers are told first, one by one', async ({ 
     : route.fallback())
   await page.goto('#/')
   // 答えが届いたこと（ボタンの点）をアプリが読み込んでから話しかける
-  const talkButton = page.getByRole('button', { name: /話しかける/ })
+  const talkButton = page.getByRole('button', { name: 'LaRa に聞く' })
   await expect(talkButton.getByLabel('相談の答えが届いています')).toBeVisible()
   await talkButton.click()
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
@@ -621,7 +619,7 @@ test('home talk: finished consult answers are told first, one by one', async ({ 
   await expect(bubble.getByText(/かぼちゃのサンド/)).toBeVisible()
   // 一度伝えたら、次に話しかけたときはもう言わない
   await page.getByRole('button', { name: '話すのをやめる' }).click()
-  await page.getByRole('button', { name: /話しかける/ }).click()
+  await page.getByRole('button', { name: 'LaRa に聞く' }).click()
   await expect(bubble.getByText(/」の相談/)).toHaveCount(0)
 })
 
@@ -642,7 +640,7 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
   expect(authz.some((a) => a.startsWith('Bearer '))).toBe(true)
   await page.screenshot({ path: `screenshots/${info.project.name}-home-planner.png` })
   await page.waitForFunction(() => (window as unknown as LaraW).__lara?.debugState().figure, null, { timeout: 20_000 })
-  await page.getByRole('button', { name: /話しかける/ }).click()
+  await page.getByRole('button', { name: 'LaRa に聞く' }).click()
   await page.getByRole('button', { name: '今日の予定は？' }).click()
   const bubble = page.getByRole('status', { name: 'LaRa の返事' })
   await expect(bubble.getByText(/今日の予定は 1 件/)).toBeVisible()
@@ -652,7 +650,7 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
   await expect(bubble.getByText(/廃業届出（今日やる）/)).toBeVisible()
   await expect(bubble.getByText(/ゴミシール購入（持ち越し）/)).toBeVisible()
   await expect(bubble.getByRole('button', { name: 'Planner を開く →' })).toBeVisible()
-  const box = page.getByRole('textbox', { name: 'LaRa に話しかける' })
+  const box = page.getByRole('textbox', { name: 'LaRa に聞く' })
   await box.fill('明日の予定は？')
   await box.press('Enter')
   await expect(bubble.getByText(/明日の予定は入ってない/)).toBeVisible()
