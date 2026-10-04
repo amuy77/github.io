@@ -323,7 +323,7 @@ export class ShopScene {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'default' })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
     this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.shadowMap.type = THREE.PCFShadowMap   // r186 で PCFSoft は無くなった（指定すると警告を出して PCF にされる）
     this.renderer.shadowMap.autoUpdate = false
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.el = this.renderer.domElement
@@ -669,8 +669,7 @@ export class ShopScene {
     this.figure?.dispose()
     this.friend?.fig.dispose()
     this.renderer.dispose()
-    // GL の文脈をすぐ返す（返さないと、画面を行き来するたびに文脈が溜まって古いものから消される）
-    this.renderer.forceContextLoss()
+    // forceContextLoss() は呼ばない: ソフトウェア描画（テスト環境）では数秒止まり、画面の切り替えが引っかかる。canvas を外せば文脈はまもなく回収される
     this.el.remove()
   }
 

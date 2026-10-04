@@ -1,27 +1,36 @@
+import { lazy, Suspense, type ComponentType } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { paths } from './routes'
 import { AppShell } from './AppShell'
 import { RequireAuth } from './RequireAuth'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { HomePage } from '@/features/home/HomePage'
-import { ClipsPage } from '@/features/clips/ClipsPage'
-import { ClipDetailPage } from '@/features/clips/ClipDetailPage'
-import { QuickAddPage } from '@/features/clips/QuickAddPage'
-import { RecipesPage } from '@/features/recipes/RecipesPage'
-import { RecipeDetailPage } from '@/features/recipes/RecipeDetailPage'
-import { RecipeEditorPage } from '@/features/recipes/RecipeEditorPage'
-import { RecipeComparePage } from '@/features/recipes/RecipeComparePage'
-import { AskPage } from '@/features/ask/AskPage'
-import { MenuCalendarPage } from '@/features/menu/MenuCalendarPage'
-import { MenuDayPage } from '@/features/menu/MenuDayPage'
-import { MenuStatsPage } from '@/features/menu/MenuStatsPage'
-import { InboxPage } from '@/features/ai/InboxPage'
-import { SettingsPage } from '@/features/settings/SettingsPage'
-import { DevUiPage } from '@/features/dev/DevUiPage'
+import { Skeleton } from '@/components/ui/Page'
+
+// ホーム以外の画面は開くときに読む（最初に全部を読まない）。PWA は全部先にキャッシュするので、2 回目からはオフラインでも開ける
+const page = <T extends Record<string, ComponentType>, K extends keyof T>(load: () => Promise<T>, name: K) => lazy(() => load().then((m) => ({ default: m[name] })))
+const ClipsPage = page(() => import('@/features/clips/ClipsPage'), 'ClipsPage')
+const ClipDetailPage = page(() => import('@/features/clips/ClipDetailPage'), 'ClipDetailPage')
+const QuickAddPage = page(() => import('@/features/clips/QuickAddPage'), 'QuickAddPage')
+const RecipesPage = page(() => import('@/features/recipes/RecipesPage'), 'RecipesPage')
+const RecipeDetailPage = page(() => import('@/features/recipes/RecipeDetailPage'), 'RecipeDetailPage')
+const RecipeEditorPage = page(() => import('@/features/recipes/RecipeEditorPage'), 'RecipeEditorPage')
+const RecipeComparePage = page(() => import('@/features/recipes/RecipeComparePage'), 'RecipeComparePage')
+const AskPage = page(() => import('@/features/ask/AskPage'), 'AskPage')
+const MenuCalendarPage = page(() => import('@/features/menu/MenuCalendarPage'), 'MenuCalendarPage')
+const MenuDayPage = page(() => import('@/features/menu/MenuDayPage'), 'MenuDayPage')
+const MenuStatsPage = page(() => import('@/features/menu/MenuStatsPage'), 'MenuStatsPage')
+const InboxPage = page(() => import('@/features/ai/InboxPage'), 'InboxPage')
+const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage')
+const DevUiPage = page(() => import('@/features/dev/DevUiPage'), 'DevUiPage')
+
+function Loading() {
+  return <div className="flex flex-col gap-3 pt-[calc(14px+var(--safe-top))]"><Skeleton className="h-8 w-40" /><Skeleton className="h-40" /></div>
+}
 
 export function App() {
   return (
-    <>
+    <Suspense fallback={<Loading />}>
       <Routes>
         <Route path={paths.login} element={<LoginPage />} />
         <Route element={<RequireAuth />}>
@@ -46,6 +55,6 @@ export function App() {
           </Route>
         </Route>
       </Routes>
-    </>
+    </Suspense>
   )
 }

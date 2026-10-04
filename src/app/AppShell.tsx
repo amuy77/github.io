@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { IconBook, IconCalendar, IconHome, IconInbox, IconPin, IconPlus, IconSettings } from '@/components/ui/icons'
 import { paths } from './routes'
@@ -8,6 +8,7 @@ import { UpdateToast } from './UpdateToast'
 import { TabokibaRescue } from './TabokibaRescue'
 import { useCounts } from '@/features/home/useCounts'
 import { CountBadge } from '@/components/ui/Chip'
+import { Skeleton } from '@/components/ui/Page'
 import { Mascot } from '@/components/mascot/Mascot'
 
 const tabs = [
@@ -52,7 +53,10 @@ export function AppShell() {
       </nav>
 
       <main className={cx('mx-auto w-full max-w-[1100px] md:pl-[88px]', isHome ? '' : cx('px-4 md:px-8 md:pb-10', showAsk ? 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+80px)]' : 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)]'))}>
-        <Outlet />
+        {/* 画面の中身を読み込んでいる間も、タブバーと左レールは出したまま（ここで受けないと shell ごと消えてちらつく） */}
+        <Suspense fallback={<div className="flex flex-col gap-3 pt-[calc(14px+var(--safe-top))]"><Skeleton className="h-8 w-40" /><Skeleton className="h-40" /></div>}>
+          <Outlet />
+        </Suspense>
       </main>
 
       {/* モバイル: 下タブバー */}
