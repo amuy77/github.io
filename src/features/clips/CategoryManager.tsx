@@ -1,16 +1,16 @@
 import { useState } from 'react'
-import { Card } from '@/components/ui/Card'
-import { Button, IconButton } from '@/components/ui/Button'
+import { Button } from '@/components/ui/Button'
+import { EmojiPicker } from '@/components/ui/EmojiPicker'
+import { ReorderRow } from '@/components/ui/ReorderRow'
 import { Chip } from '@/components/ui/Chip'
 import { Input } from '@/components/ui/Field'
 import { Confirm, Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
 import { isEnter } from '@/lib/keys'
-import { IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { ClipCategoryRow } from '@/lib/supabase/database.types'
 import { CATEGORY_EMOJI_CHOICES, FALLBACK_KEY } from './categoryApi'
 import { useCategoryList, useClipCategories, useClipCategoryMutations } from './categoryHooks'
-import { cx } from '@/lib/cx'
 
 /** ネタ帳のカテゴリの一覧（並び替え・編集・追加）。設定画面と、ネタ帳などから開くシートで使う */
 export function CategoryManager() {
@@ -30,15 +30,10 @@ export function CategoryManager() {
   return (
     <div className="flex flex-col gap-2">
       {list.map((c, i) => (
-        <Card key={c.id} className="flex items-center gap-2 py-2">
-          <button type="button" onClick={() => setEditing(c)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <span className="text-xl" aria-hidden>{c.emoji || '🏷️'}</span>
-            <span className="truncate font-bold">{c.name}</span>
-          </button>
-          <IconButton label="上へ" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
-          <IconButton label="下へ" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
-          <IconButton label={`${c.name} を編集`} onClick={() => setEditing(c)}><IconEdit size={16} /></IconButton>
-        </Card>
+        <ReorderRow key={c.id} name={c.name} index={i} count={list.length} onMove={(dir) => move(i, dir)} onEdit={() => setEditing(c)}>
+          <span className="text-xl" aria-hidden>{c.emoji || '🏷️'}</span>
+          <span className="truncate font-bold">{c.name}</span>
+        </ReorderRow>
       ))}
       <Button variant="secondary" icon={<IconPlus size={16} />} onClick={() => setEditing('new')}>カテゴリを追加</Button>
       <CategoryEditSheet category={editing} onClose={() => setEditing(null)} />
@@ -92,17 +87,7 @@ function CategoryForm({ category, onClose, onCreated }: { category: ClipCategory
           <Input label="カテゴリ名" placeholder="例: スイーツ / パン屋さん / 器・雑貨" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (isEnter(e)) void save() }} />
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">アイコン</span>
-        <div className="grid grid-cols-8 gap-1.5" role="radiogroup" aria-label="アイコン">
-          {CATEGORY_EMOJI_CHOICES.map((e) => (
-            <button key={e} type="button" role="radio" aria-checked={emoji === e} aria-label={e} onClick={() => setEmoji(e)}
-              className={cx('h-10 rounded-[10px] border-2 text-xl', emoji === e ? 'border-green-600 bg-green-600/10' : 'border-transparent bg-oat-50')}>
-              {e}
-            </button>
-          ))}
-        </div>
-      </div>
+      <EmojiPicker value={emoji} onChange={setEmoji} choices={CATEGORY_EMOJI_CHOICES} />
       <Button full size="lg" loading={busy} onClick={save}>{category ? '保存する' : '追加する'}</Button>
       {category && (isFallback
         ? <p className="text-center text-xs text-muted">「{category.name}」は、カテゴリを消したときのネタの行き先なので消せません（名前とアイコンは変えられます）。</p>

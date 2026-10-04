@@ -85,7 +85,7 @@ export function ClipDetailPage() {
             {c.shop_name && <p className="text-sm"><span className="text-muted">お店:</span> <b>{c.shop_name}</b></p>}
             {c.note && <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{c.note}</p>}
             {c.url && (
-              <a href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] border border-line bg-oat-50 p-3">
+              <a href={/^https?:\/\//i.test(c.url) ? c.url : undefined} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] border border-line bg-oat-50 p-3">
                 {c.preview?.image ? <ImageThumb src={c.preview.image} className="size-14 shrink-0 rounded-[8px]" /> : <span className="grid size-14 shrink-0 place-items-center rounded-[8px] bg-oat-100 text-muted"><IconLink /></span>}
                 <div className="min-w-0"><p className="line-clamp-2 text-[13px] font-bold">{c.preview?.title ?? 'リンクを開く'}</p><p className="truncate text-[11px] text-muted">{c.url}</p></div>
               </a>
