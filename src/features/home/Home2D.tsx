@@ -72,8 +72,9 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
       )}
       <div className="grid grid-cols-2 gap-3">
         {tiles.map((t) => (
-          <Link key={t.to} to={t.to} className="block">
-            <Card accent={t.accent} pressable className="flex h-32 flex-col justify-between">
+          <Link key={t.to} to={t.to} className="block active:scale-[0.985]">
+            {/* リンクの中に role=button を入れない（タブ移動が 2 回止まる）。押した感じはリンク側で付ける */}
+            <Card accent={t.accent} className="flex h-32 flex-col justify-between">
               <span className="text-2xl" aria-hidden>{t.em}</span>
               <div className="flex items-end justify-between">
                 <span className="font-display text-[15px] font-bold">{t.name}</span>

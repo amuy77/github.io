@@ -52,7 +52,8 @@ body {
 
 /* iOS のホーム画面アプリでテキスト選択やダブルタップズームを抑える */
 button, a, [role="button"] { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-input, textarea { font: inherit; }
+/* base 層に入れる: 層の外に書くと Tailwind のユーティリティ（text-[16px] など）より強くなって、入力欄の文字サイズ指定が効かない */
+@layer base { input, textarea { font: inherit; } }
 
 /* 見出しは明朝 */
 .font-display { font-family: var(--font-display); }

@@ -177,13 +177,13 @@ function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Om
               {images.map((im, i) => (
                 <div key={im.path} className="relative">
                   <ImageThumb src={photoUrl(im, 'thumb')} className="aspect-square rounded-[10px]" />
-                  <button type="button" aria-label="写真を外す" onClick={() => removeImage(i)} className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-espresso-900 text-white"><IconX size={14} /></button>
+                  <button type="button" aria-label="写真を外す" onClick={() => removeImage(i)} className="absolute -right-1 -top-1 grid size-7 place-items-center rounded-full bg-espresso-900 text-white before:absolute before:-inset-2 before:content-['']"><IconX size={14} /></button>
                 </div>
               ))}
               {pending.map((p, i) => (
                 <div key={p.url} className="relative">
                   <img src={p.url} alt="" className="aspect-square w-full rounded-[10px] object-cover" />
-                  <button type="button" aria-label="写真を外す" onClick={() => removePending(i)} className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-espresso-900 text-white"><IconX size={14} /></button>
+                  <button type="button" aria-label="写真を外す" onClick={() => removePending(i)} className="absolute -right-1 -top-1 grid size-7 place-items-center rounded-full bg-espresso-900 text-white before:absolute before:-inset-2 before:content-['']"><IconX size={14} /></button>
                 </div>
               ))}
             </div>

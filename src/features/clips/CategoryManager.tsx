@@ -35,9 +35,9 @@ export function CategoryManager() {
             <span className="text-xl" aria-hidden>{c.emoji || '🏷️'}</span>
             <span className="truncate font-bold">{c.name}</span>
           </button>
-          <IconButton label="上へ" className="size-8" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
-          <IconButton label="下へ" className="size-8" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
-          <IconButton label={`${c.name} を編集`} className="size-8" onClick={() => setEditing(c)}><IconEdit size={16} /></IconButton>
+          <IconButton label="上へ" onClick={() => move(i, -1)} disabled={i === 0}><IconChevronLeft size={16} className="rotate-90" /></IconButton>
+          <IconButton label="下へ" onClick={() => move(i, 1)} disabled={i === list.length - 1}><IconChevronRight size={16} className="rotate-90" /></IconButton>
+          <IconButton label={`${c.name} を編集`} onClick={() => setEditing(c)}><IconEdit size={16} /></IconButton>
         </Card>
       ))}
       <Button variant="secondary" icon={<IconPlus size={16} />} onClick={() => setEditing('new')}>カテゴリを追加</Button>

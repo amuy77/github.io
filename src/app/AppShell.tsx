@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { useEffect, useRef } from 'react'
+import { NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { IconBook, IconCalendar, IconHome, IconInbox, IconPin, IconPlus, IconSettings } from '@/components/ui/icons'
 import { paths } from './routes'
 import { cx } from '@/lib/cx'
 import { OfflineBanner } from './OfflineBanner'
 import { UpdateToast } from './UpdateToast'
+import { TabokibaRescue } from './TabokibaRescue'
 import { useCounts } from '@/features/home/useCounts'
 import { CountBadge } from '@/components/ui/Chip'
 import { Mascot } from '@/components/mascot/Mascot'
@@ -21,8 +22,7 @@ export function AppShell() {
   const counts = useCounts()
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
-  // 画面を切り替えたら一番上から（図鑑の一覧は自分で前の位置へ戻すので、そちらが後から上書きする）
-  useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
+  useScrollMemory()
   // ホームは下の案内カードに「聞く」を置くので、浮かぶボタンは出さない
   const showAsk = !isHome && !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
   return (
@@ -67,9 +67,41 @@ export function AppShell() {
           <Mascot size={34} /> 聞く
         </NavLink>
       )}
-      <UpdateToast />
+      {/* ボトムの積み重ね: 更新の案内・タブ置き場の案内。聞くボタンの上に並べて、重ならないように */}
+      <div className="pointer-events-none fixed inset-x-4 z-40 flex flex-col gap-2 *:pointer-events-auto md:left-auto md:right-6 md:bottom-6 md:w-80" style={{ bottom: 'calc(var(--tabbar-h) + var(--safe-bottom) + 68px)' }}>
+        <UpdateToast />
+        <TabokibaRescue />
+      </div>
     </div>
   )
+}
+
+/**
+ * スクロール位置の記憶: 進む（タブや開く）→ 一番上から、戻る → 前に見ていた位置へ。
+ * 位置は history のエントリ（location.key）ごとに覚える。一覧の読み込みを待つため、ページの高さが足りるまで少し待って戻す
+ */
+function useScrollMemory() {
+  const loc = useLocation()
+  const navType = useNavigationType()
+  const saved = useRef(new Map<string, number>())
+  const key = loc.key
+  useEffect(() => {
+    const onScroll = () => saved.current.set(key, window.scrollY)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [key])
+  useEffect(() => {
+    const y = navType === 'POP' ? saved.current.get(key) ?? 0 : 0
+    if (y <= 0) { window.scrollTo(0, 0); return }
+    let tries = 0, raf = 0
+    const tryRestore = () => {
+      const canReach = document.documentElement.scrollHeight - window.innerHeight >= y - 1
+      if (canReach || tries++ > 30) { window.scrollTo(0, y); return }
+      raf = requestAnimationFrame(tryRestore)
+    }
+    raf = requestAnimationFrame(tryRestore)
+    return () => cancelAnimationFrame(raf)
+  }, [key, navType])
 }
 
 function Tab({ to, label, Icon, end, badge = 0 }: { to: string; label: string; Icon: typeof IconHome; end?: boolean; badge?: number }) {

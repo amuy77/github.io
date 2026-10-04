@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -36,6 +36,7 @@ const STATUS: Record<AiJobRow['status'], { label: string; cls: string }> = {
 
 export function InboxPage() {
   const toast = useToast()
+  const nav = useNavigate()
   const recipes = useRecipes()
   const clips = useClips()
   const genres = useGenres()
@@ -56,11 +57,16 @@ export function InboxPage() {
   // 開いているシートの中身は常に最新のキャッシュから引く
   const liveClip = clipOpen ? (clips.data ?? []).find((c) => c.id === clipOpen.id) ?? null : null
   const liveRecipe = recipeOpen ? (recipes.data ?? []).find((r) => r.id === recipeOpen.id) ?? null : null
+  // 結果のリンク: 確認待ちならその場の確認シート、確認済みならその詳細へ。行がもう無ければそう伝える
   const openJobResult = (j: AiJobRow) => {
     const r = (j.result ?? {}) as AutoResult
-    const c = r.clip_id ? (clips.data ?? []).find((x) => x.id === r.clip_id && x.needs_review) : undefined
-    const d = r.recipe_ids?.[0] ? (recipes.data ?? []).find((x) => x.id === r.recipe_ids![0] && x.status === 'draft') : undefined
-    if (c) setClipOpen(c); else if (d) setRecipeOpen(d); else toast('もう確認済みです')
+    const c = r.clip_id ? (clips.data ?? []).find((x) => x.id === r.clip_id) : undefined
+    const d = r.recipe_ids?.[0] ? (recipes.data ?? []).find((x) => x.id === r.recipe_ids![0]) : undefined
+    if (c?.needs_review) setClipOpen(c)
+    else if (d?.status === 'draft') setRecipeOpen(d)
+    else if (c) nav(paths.clip(c.id))
+    else if (d) nav(paths.recipe(d.id))
+    else toast('もう消えています')
   }
 
   return (

@@ -4,6 +4,9 @@ import { cx } from '@/lib/cx'
 /** 読み込み中はスケルトン、失敗時は絵文字。src が null なら絵文字プレースホルダ */
 export function ImageThumb({ src, alt = '', className, emoji = '🖼️', fit = 'cover' }: { src: string | null | undefined; alt?: string; className?: string; emoji?: string; fit?: 'cover' | 'contain' }) {
   const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+  // src が変わったら（前後のレシピへ移ったときなど）読み込み状態も最初から。前の画像の失敗を引きずらない
+  const [shownSrc, setShownSrc] = useState(src)
+  if (src !== shownSrc) { setShownSrc(src); setState('loading') }
   if (!src || state === 'error') {
     return <div className={cx('grid place-items-center bg-oat-100 text-3xl', className)} aria-hidden>{emoji}</div>
   }

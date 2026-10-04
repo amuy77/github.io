@@ -49,9 +49,11 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
   const dirty = useMemo(() => {
     const before = new Map((initial?.menu_log_items ?? []).map((i) => [i.recipe_id, i.sold_count]))
     if (before.size !== items.size || (initial?.note ?? '') !== note) return true
+    // 「売れた数も記録する」を外すと、保存で数が消えるので、それも変更のうち
+    if (!showSold && [...before.values()].some((v) => v !== null)) return true
     for (const [k, v] of items) if (!before.has(k) || before.get(k) !== v) return true
     return false
-  }, [items, note, initial])
+  }, [items, note, initial, showSold])
   // 前の日・次の日・戻るで、入力途中の記録を黙って捨てない
   const { requestLeave, dialog: discardDialog } = useDiscardGuard(dirty && !save.isPending)
   const go = (to: string) => requestLeave(() => nav(to, { replace: true }))
@@ -71,17 +73,18 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
 
   async function onSave() {
     try {
-      await save.mutateAsync({ date, note: note.trim(), items: [...items.entries()].map(([recipe_id, sold_count]) => ({ recipe_id, sold_count })) })
+      // 「売れた数も記録する」を外していたら、隠れている数は保存しない
+      await save.mutateAsync({ date, note: note.trim(), items: [...items.entries()].map(([recipe_id, sold_count]) => ({ recipe_id, sold_count: showSold ? sold_count : null })) })
       if (!initial) celebrate('small')
       toast(initial ? '更新しました' : '記録しました！', 'success')
-      nav(paths.menu, { replace: true })
+      nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true })
     } catch (e) { toast(friendlyError(e), 'error') }
   }
 
   const isToday = date === today()
   return (
     <>
-      <PageHeader title={`${formatMD(date)}${isToday ? ' ・ 今日' : ''}`} sub={`${items.size} 品を提供`} onBack={() => requestLeave(() => nav(paths.menu))}
+      <PageHeader title={`${formatMD(date)}${isToday ? ' ・ 今日' : ''}`} sub={`${items.size} 品を提供`} onBack={() => requestLeave(() => nav(`${paths.menu}?m=${date.slice(0, 7)}`))}
         actions={<>
           <IconButton label="前の日" onClick={() => go(paths.menuDay(addDays(date, -1)))}><IconChevronLeft /></IconButton>
           <IconButton label="次の日" onClick={() => go(paths.menuDay(addDays(date, 1)))} disabled={date >= today()} className={date >= today() ? 'opacity-30' : ''}><IconChevronRight /></IconButton>
@@ -102,9 +105,9 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
                       <button type="button" aria-pressed={on} onClick={() => toggle(r.id)} className="flex h-10 items-center gap-1.5">{on && <IconCheck size={16} />}{r.title}</button>
                       {on && showSold && (
                         <span className="ml-1 flex items-center gap-0.5 rounded-chip bg-paper px-1 text-espresso-900">
-                          <button type="button" aria-label="減らす" className="size-7 rounded-full hover:bg-oat-100" onClick={() => setSold(r.id, Math.max(0, (items.get(r.id) ?? 0) - 1))}>−</button>
-                          <input inputMode="numeric" aria-label={`${r.title} の売数`} value={items.get(r.id) ?? ''} placeholder="売数" onChange={(e) => setSold(r.id, e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0))} className="w-10 bg-transparent text-center text-[13px] tabular-nums outline-none" />
-                          <button type="button" aria-label="増やす" className="size-7 rounded-full hover:bg-oat-100" onClick={() => setSold(r.id, (items.get(r.id) ?? 0) + 1)}>＋</button>
+                          <button type="button" aria-label="減らす" className="size-9 rounded-full hover:bg-oat-100" onClick={() => setSold(r.id, Math.max(0, (items.get(r.id) ?? 0) - 1))}>−</button>
+                          <input inputMode="numeric" aria-label={`${r.title} の売数`} value={items.get(r.id) ?? ''} placeholder="売数" onChange={(e) => setSold(r.id, e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0))} className="w-12 bg-transparent text-center text-[16px] tabular-nums outline-none" />
+                          <button type="button" aria-label="増やす" className="size-9 rounded-full hover:bg-oat-100" onClick={() => setSold(r.id, (items.get(r.id) ?? 0) + 1)}>＋</button>
                         </span>
                       )}
                       {on && !showSold && <span className="w-1" />}
@@ -125,7 +128,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
           <Button full size="lg" loading={save.isPending} onClick={onSave} disabled={!dirty && !!initial}>{initial ? '更新する' : '記録する'}</Button>
         </div>
       </div>
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消しますか？" confirmLabel="消す" danger onConfirm={async () => { if (!initial) return; await del.mutateAsync({ id: initial.id, date }); toast('消しました'); nav(paths.menu, { replace: true }) }} />
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消しますか？" confirmLabel="消す" danger onConfirm={async () => { if (!initial) return; await del.mutateAsync({ id: initial.id, date }); toast('消しました'); nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true }) }} />
     </>
   )
 }

@@ -134,7 +134,7 @@ export function QuickAddPage() {
             {photos.map((p, i) => (
               <div key={p.url} className="relative">
                 <img src={p.url} alt="" className="aspect-square w-full rounded-[10px] object-cover" />
-                {!sending && <button type="button" aria-label="写真を外す" onClick={() => removePhoto(i)} className="absolute -right-1 -top-1 grid size-6 place-items-center rounded-full bg-espresso-900 text-white"><IconX size={14} /></button>}
+                {!sending && <button type="button" aria-label="写真を外す" onClick={() => removePhoto(i)} className="absolute -right-1 -top-1 grid size-7 place-items-center rounded-full bg-espresso-900 text-white before:absolute before:-inset-2 before:content-['']"><IconX size={14} /></button>}
               </div>
             ))}
             {!sending && (

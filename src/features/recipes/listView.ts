@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import type { RecipePurpose } from '@/lib/supabase/database.types'
 
 /**
- * 図鑑の「いま見ている並び」を覚えておく（タブ・ジャンル・★・検索・スクロール位置・表示順）。
+ * 図鑑の「いま見ている並び」を覚えておく（タブ・ジャンル・★・検索・表示順）。スクロール位置は AppShell が全画面共通で戻す。
  * レシピを開いて戻ってきても、仕分けの途中から続けられるように。タブを閉じるまでの一時的な記憶。
  */
 export interface RecipeListView {
@@ -11,13 +11,12 @@ export interface RecipeListView {
   favOnly: boolean
   minRating: 0 | 3 | 2 | -1
   q: string
-  scrollY: number
   /** 一覧に並んでいた順のレシピ id（詳細画面の「次へ」用） */
   order: string[]
 }
 
 const KEY = 'lara.recipes.view'
-const EMPTY: RecipeListView = { purpose: null, genreId: 'all', favOnly: false, minRating: 0, q: '', scrollY: 0, order: [] }
+const EMPTY: RecipeListView = { purpose: null, genreId: 'all', favOnly: false, minRating: 0, q: '', order: [] }
 
 export function readListView(): RecipeListView {
   try {

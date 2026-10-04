@@ -30,10 +30,37 @@ function useEscape(open: boolean, onClose: () => void) {
   }, [open, onClose])
 }
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+/**
+ * フォーカスの受け渡し: 開いたら中へ（最初の入力かボタン）、Tab は中で循環、閉じたら開く前の要素へ戻す。
+ * 外側のページにフォーカスが残ったまま Enter で裏のボタンを押してしまう、を防ぐ
+ */
+function useFocusTrap(panel: React.RefObject<HTMLElement | null>, open: boolean) {
+  useEffect(() => {
+    if (!open) return
+    const before = document.activeElement as HTMLElement | null
+    const focusables = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => el.offsetParent !== null)
+    // せり上がるアニメーションの途中でフォーカスすると画面が飛ぶので、少し待つ
+    const t = window.setTimeout(() => { if (panel.current && !panel.current.contains(document.activeElement)) (focusables().find((el) => el.matches('input, textarea')) ?? focusables()[0] ?? panel.current)?.focus() }, 80)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !panel.current) return
+      const list = focusables()
+      if (!list.length) { e.preventDefault(); return }
+      const first = list[0], last = list[list.length - 1], cur = document.activeElement
+      if (e.shiftKey && (cur === first || !panel.current.contains(cur))) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => { window.clearTimeout(t); window.removeEventListener('keydown', onKey); if (before && document.contains(before)) before.focus() }
+  }, [open, panel])
+}
+
 /** 下からせり上がるシート（モバイル）／中央寄せの大きめモーダル（デスクトップ） */
 export function Sheet({ open, onClose, title, children, tall, footer }: SheetProps) {
   const reduced = useReducedMotion()
+  const panel = useRef<HTMLDivElement>(null)
   useEscape(open, onClose)
+  useFocusTrap(panel, open)
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
@@ -47,8 +74,8 @@ export function Sheet({ open, onClose, title, children, tall, footer }: SheetPro
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center" role="dialog" aria-modal="true" aria-label={title}>
           <motion.div className="absolute inset-0 bg-espresso-900/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} />
-          <motion.div
-            className={cx('relative flex w-full flex-col bg-paper shadow-sheet md:max-w-xl md:rounded-card', 'rounded-t-[22px]', tall ? 'h-[92dvh] md:h-[86vh]' : 'max-h-[88dvh] md:max-h-[86vh]')}
+          <motion.div ref={panel} tabIndex={-1}
+            className={cx('relative flex w-full flex-col bg-paper shadow-sheet outline-none md:max-w-xl md:rounded-card', 'rounded-t-[22px]', tall ? 'h-[92dvh] md:h-[86vh]' : 'max-h-[88dvh] md:max-h-[86vh]')}
             initial={reduced ? { opacity: 0 } : { y: '100%' }}
             animate={reduced ? { opacity: 1 } : { y: 0 }}
             exit={reduced ? { opacity: 0 } : { y: '100%' }}
@@ -72,7 +99,9 @@ export function Sheet({ open, onClose, title, children, tall, footer }: SheetPro
 /** 確認ダイアログ。onConfirm が Promise を返すときは終わるまでボタンを回して、終わってから閉じる */
 export function Confirm({ open, onClose, onConfirm, title, body, confirmLabel = '実行する', danger }: { open: boolean; onClose: () => void; onConfirm: () => void | Promise<void>; title: string; body?: string; confirmLabel?: string; danger?: boolean }) {
   const [busy, setBusy] = useState(false)
+  const panel = useRef<HTMLDivElement>(null)
   useEscape(open && !busy, onClose)
+  useFocusTrap(panel, open)
   const run = async () => {
     setBusy(true)
     try { await onConfirm(); onClose() } catch { /* 失敗の通知は呼び出し側か global のトーストに任せる。ダイアログは開いたままにしてやり直せるように */ } finally { setBusy(false) }
@@ -82,7 +111,7 @@ export function Confirm({ open, onClose, onConfirm, title, body, confirmLabel = 
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" role="alertdialog" aria-modal="true" aria-label={title}>
           <motion.div className="absolute inset-0 bg-espresso-900/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={busy ? undefined : onClose} />
-          <motion.div className="relative w-full max-w-sm rounded-card bg-paper p-5 shadow-sheet" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+          <motion.div ref={panel} tabIndex={-1} className="relative w-full max-w-sm rounded-card bg-paper p-5 shadow-sheet outline-none" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
             <h3 className="font-display text-lg font-bold">{title}</h3>
             {body && <p className="mt-2 text-sm text-muted">{body}</p>}
             <div className="mt-5 flex justify-end gap-2">
