@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { IconBook, IconCalendar, IconHome, IconInbox, IconPin, IconPlus, IconSettings } from '@/components/ui/icons'
 import { paths } from './routes'
@@ -20,6 +21,8 @@ export function AppShell() {
   const counts = useCounts()
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
+  // 画面を切り替えたら一番上から（図鑑の一覧は自分で前の位置へ戻すので、そちらが後から上書きする）
+  useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
   // ホームは上部に「聞く」を置くので、浮かぶボタンは出さない
   const showAsk = !isHome && !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
   return (
