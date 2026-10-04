@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { IconX } from '@/components/ui/icons'
 import { SUGGEST, type LaraTalk } from './useLaraTalk'
 import { openExternal } from '@/features/planner/api'
+import { Mascot } from '@/components/mascot/Mascot'
 
 const isExternal = (to: string) => /^https?:\/\//.test(to)
 
@@ -43,11 +44,11 @@ export function TalkBar({ talk, onClose }: { talk: LaraTalk; onClose: () => void
   )
 }
 
-/** ホームの案内カードに置く小さな「話しかける」ボタン。相談の答えが届いていたら点を付ける */
+/** ホーム上部の「話しかける」ボタン。相談の答えが届いていたら点を付ける */
 export function TalkButton({ onClick, dot }: { onClick: () => void; dot?: boolean }) {
   return (
-    <button type="button" onClick={onClick} className="relative h-9 shrink-0 rounded-chip border border-line bg-paper px-2.5 text-[12px] font-bold">
-      💬 話しかける
+    <button type="button" onClick={onClick} className="pointer-events-auto relative flex shrink-0 items-center gap-1 rounded-chip border border-line bg-paper/90 py-0.5 pl-0.5 pr-3 text-[13px] font-bold shadow-card backdrop-blur">
+      <Mascot size={30} /> 話しかける
       {dot && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-brick-500" aria-label="相談の答えが届いています" />}
     </button>
   )

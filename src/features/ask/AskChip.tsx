@@ -1,13 +1,12 @@
 import { Link } from 'react-router'
-import { Mascot } from '@/components/mascot/Mascot'
 import { paths } from '@/app/routes'
 import { cx } from '@/lib/cx'
 
-/** ホーム上部の「LaRa に聞く」ボタン */
+/** ホーム下の案内カードに置く小さな「LaRa に聞く」ボタン */
 export function AskChip({ className }: { className?: string }) {
   return (
-    <Link to={paths.ask} aria-label="LaRa に聞く" className={cx('pointer-events-auto flex items-center gap-1 rounded-chip border border-line bg-paper/90 py-0.5 pl-0.5 pr-3 text-[13px] font-bold shadow-card backdrop-blur md:hidden', className)}>
-      <Mascot size={30} /> 聞く
+    <Link to={paths.ask} aria-label="LaRa に聞く" className={cx('flex h-9 shrink-0 items-center rounded-chip border border-line bg-paper px-2.5 text-[12px] font-bold md:hidden', className)}>
+      🔍 聞く
     </Link>
   )
 }

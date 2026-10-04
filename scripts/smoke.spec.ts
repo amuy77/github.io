@@ -286,6 +286,22 @@ test('home: settings button opens settings', async ({ page }) => {
   await expect(page.getByText('LaRa の服', { exact: true })).toBeVisible()
 })
 
+test('home: talk sits at the top, ask in the bottom card, no streak chip', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  const talk = page.getByRole('button', { name: /話しかける/ })
+  await expect(talk).toBeVisible()
+  const box = await talk.boundingBox()
+  expect(box!.y).toBeLessThan(120)
+  await expect(page.getByText(/日連続|今日から記録/)).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-top.png` })
+  if (info.project.name !== 'phone') return
+  const ask = page.getByRole('link', { name: 'LaRa に聞く' })
+  expect((await ask.boundingBox())!.y).toBeGreaterThan(400)
+  await ask.click()
+  await expect(page).toHaveURL(/#\/ask$/)
+})
+
 test('clip editor opens from list', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/clips')
