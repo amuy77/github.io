@@ -870,6 +870,8 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
   await page.setViewportSize({ width: 390, height: 520 })
   await page.goto('#/clips')
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+  // Web フォントが後から届くと行の折り返しが変わってページが縮む（CI では届く）ので、測る前に待つ
+  await page.evaluate(() => document.fonts.ready)
   await page.evaluate(() => window.scrollTo(0, 260))
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200)
   const y = await page.evaluate(() => window.scrollY)
@@ -878,7 +880,9 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await page.getByRole('button', { name: '戻る' }).click()
   await expect(page).toHaveURL(/#\/clips$/)
-  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThanOrEqual(y - 20)
+  // 元の位置（ページが縮んでいたら、その中でいちばん下）まで戻る
+  await expect.poll(() => page.evaluate(() => { const max = document.documentElement.scrollHeight - window.innerHeight; return window.scrollY >= Math.min(260, max) - 20 }), { timeout: 10_000 }).toBe(true)
+  expect(y).toBeGreaterThan(200)
   await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: '図鑑' }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
 })
