@@ -49,9 +49,11 @@ export function TalkBar({ talk, onClose }: { talk: LaraTalk; onClose: () => void
 }
 
 /** ホームの案内カードに置く小さな「聞く」ボタン（その場で LaRa が吹き出しで答える）。相談の答えが届いていたら点を付ける */
-export function TalkButton({ onClick, dot }: { onClick: () => void; dot?: boolean }) {
+export function TalkButton({ onClick, dot, floating }: { onClick: () => void; dot?: boolean; floating?: boolean }) {
   return (
-    <button type="button" onClick={onClick} aria-label="LaRa に聞く" className="relative flex h-9 shrink-0 items-center gap-1 rounded-chip border border-line bg-paper py-0 pl-0.5 pr-3 text-[13px] font-bold">
+    <button type="button" onClick={onClick} aria-label="LaRa に聞く" className={floating
+      ? 'relative flex h-11 shrink-0 items-center gap-1 rounded-chip border border-line bg-paper/95 py-0 pl-1 pr-4 text-[14px] font-bold shadow-card backdrop-blur'
+      : 'relative flex h-9 shrink-0 items-center gap-1 rounded-chip border border-line bg-paper py-0 pl-0.5 pr-3 text-[13px] font-bold'}>
       <Mascot size={28} /> 聞く
       {dot && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-brick-500" aria-label="相談の答えが届いています" />}
     </button>

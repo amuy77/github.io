@@ -593,11 +593,9 @@ test('planner: LaRa tells today\'s schedule on the home and answers 今日の予
     ? { ...emptyAgenda(date), events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '廃業届出', due_date: null, due_time: null, overdue: false, starred: false, list: '四谷旅館業', planned_for: date }, { title: 'ゴミシール購入', due_date: null, due_time: null, overdue: false, starred: false, list: 'マイタスク', planned_for: iso(daysAgo(1)) }, { title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
     : emptyAgenda(date) })
   await page.goto('#/')
-  // 下の案内に今日の予定（タップで Planner）
-  const sheet = page.getByRole('button', { name: 'Planner で今日の予定を開く' })
-  await expect(sheet).toBeVisible({ timeout: 20_000 })
-  await expect(sheet).toContainText('N89 ルーター回収')
-  await expect(sheet).toContainText('ToDo')
+  // 予定は下のカードではなく、開いたときに LaRa が吹き出しで 1 回言う
+  await expect(page.getByText(/N89 ルーター回収/).first()).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: 'Planner で今日の予定を開く' })).toHaveCount(0)
   // ログイン中の本人のトークンで読む
   expect(authz.some((a) => a.startsWith('Bearer '))).toBe(true)
   await page.screenshot({ path: `screenshots/${info.project.name}-home-planner.png` })
@@ -872,18 +870,21 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
   // Web フォントが後から届くと行の折り返しが変わってページが縮む（CI では届く）ので、測る前に待つ
   await page.evaluate(() => document.fonts.ready)
+  // 押すネタを画面に入れてから位置を測る（Playwright は押す前に要素が見えるところまで自分でスクロールするので、
+  // 先に測ると「押す直前に動いた位置」とずれて、アプリは正しく戻しているのにテストが落ちる）
+  const target = page.getByText('ヴィーニョ・ヴェルデ 2024')
   await page.evaluate(() => window.scrollTo(0, 260))
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200)
+  await target.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(200)
   const y = await page.evaluate(() => window.scrollY)
-  await page.getByText('ヴィーニョ・ヴェルデ 2024').click()
+  expect(y).toBeGreaterThan(100)
+  await target.click()
   await expect(page).toHaveURL(/#\/clips\//)
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await page.getByRole('button', { name: '戻る' }).click()
   await expect(page).toHaveURL(/#\/clips$/)
-  // 元の位置（ページが縮んでいたら、その中でいちばん下）まで戻る
-  await expect.poll(() => page.evaluate(() => { const max = document.documentElement.scrollHeight - window.innerHeight; return window.scrollY >= Math.min(260, max) - 20 ? 'ok' : `scrollY=${window.scrollY} max=${max} hash=${location.hash}` }), { timeout: 10_000 }).toBe('ok')
-  expect(y).toBeGreaterThan(200)
-  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: '図鑑' }).click()
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThanOrEqual(y - 20)
+  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: 'メニュー' }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
 })
 
@@ -1099,6 +1100,41 @@ test('gaps: when the network is gone, the last-read lists still open from the de
   await page.route(`https://${REF}.supabase.co/rest/v1/**`, (route) => route.abort('internetdisconnected'))
   await page.reload()
   await expect(page.getByText('エッグサラダ')).toBeVisible()
-  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: 'ネタ帳' }).click()
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+})
+
+// ---- タブバー: ノート（ネタ帳＋図鑑）と Planner、ホームの下は「聞く」「今日を記録」だけ ----
+
+test('tabs: ノート opens the side you saw last, switches between clips and recipes, and Planner is an outside link', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  const nav = info.project.name === 'phone' ? page.getByRole('navigation', { name: 'メイン' }).last() : page.getByRole('navigation', { name: 'メイン' }).first()
+  await expect(nav.getByRole('link', { name: 'ネタ帳' })).toHaveCount(0)
+  await nav.getByRole('link', { name: 'ノート' }).click()
+  await expect(page).toHaveURL(/#\/clips$/)
+  const sw = page.getByRole('tablist', { name: 'ノート' })
+  await expect(sw.getByRole('tab', { name: /ネタ帳/ })).toHaveAttribute('aria-selected', 'true')
+  await sw.getByRole('tab', { name: /図鑑/ }).click()
+  await expect(page).toHaveURL(/#\/recipes$/)
+  await expect(page.getByRole('heading', { name: 'レシピ図鑑' })).toBeVisible()
+  await nav.getByRole('link', { name: 'ホーム' }).click()
+  await nav.getByRole('link', { name: 'ノート' }).click()
+  await expect(page).toHaveURL(/#\/recipes$/)
+  const planner = nav.getByRole('link', { name: /Planner/ })
+  await expect(planner).toHaveAttribute('href', 'https://planner-mu-lovat.vercel.app/')
+  await expect(planner).toHaveAttribute('target', '_blank')
+})
+
+test('home: the bottom has only 聞く and 今日を記録 as separate buttons, no greeting card', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  const ask = page.getByRole('button', { name: 'LaRa に聞く' })
+  const rec = page.getByRole('button', { name: '今日を記録' })
+  await expect(ask).toBeVisible({ timeout: 20_000 })
+  await expect(rec).toBeVisible()
+  await expect(page.getByText(/小物をタップすると/)).toHaveCount(0)
+  const a = (await ask.boundingBox())!, r = (await rec.boundingBox())!
+  expect(r.x).toBeGreaterThan(a.x + a.width)   // 別々のボタンで、聞くが左・記録が右
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-bottom.png` })
 })
