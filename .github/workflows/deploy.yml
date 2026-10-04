@@ -52,9 +52,12 @@ jobs:
       - name: Build for the smoke tests (stubbed Supabase)
         run: VITE_SUPABASE_URL=https://lara-smoke.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_smoke npx vite build --outDir dist-smoke
       - name: Serve and run the smoke tests
+        # --host 127.0.0.1: 既定の localhost は runner では IPv6（::1）だけに結び付くことがあり、Playwright の 127.0.0.1 に届かない
         run: |
-          npx vite preview --outDir dist-smoke --port 4173 --strictPort > preview.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/github.io/ > /dev/null && break; sleep 1; done
+          npx vite preview --outDir dist-smoke --host 127.0.0.1 --port 4173 --strictPort > preview.log 2>&1 &
+          up=0
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/github.io/ > /dev/null && up=1 && break; sleep 1; done
+          if [ "$up" != 1 ]; then echo "preview did not start"; cat preview.log; exit 1; fi
           npm run smoke
       - uses: actions/upload-artifact@v4
         if: failure()
