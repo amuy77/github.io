@@ -23,7 +23,7 @@ export function AppShell() {
   const isHome = loc.pathname === paths.home
   // 画面を切り替えたら一番上から（図鑑の一覧は自分で前の位置へ戻すので、そちらが後から上書きする）
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
-  // ホームは上部に「聞く」を置くので、浮かぶボタンは出さない
+  // ホームは下の案内カードに「聞く」を置くので、浮かぶボタンは出さない
   const showAsk = !isHome && !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
   return (
     <div className="min-h-full">

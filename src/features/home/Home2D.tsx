@@ -9,7 +9,6 @@ import { AskChip } from '@/features/ask/AskChip'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
-import { IconFire } from '@/components/ui/icons'
 import { paths } from '@/app/routes'
 import { formatMD, today } from '@/lib/dates'
 import type { HomeCounts } from './useCounts'
@@ -46,11 +45,8 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
             <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
           </div>
           <div className="flex items-center gap-2">
-            <AskChip />
-            <div className="flex items-center gap-1.5 rounded-chip border border-line bg-paper px-3 py-1.5 text-[13px] font-bold shadow-card">
-              <IconFire size={16} className={streak > 0 ? 'text-brick-500' : 'text-muted'} />
-              {streak > 0 ? `${streak}日連続` : '今日から記録'}
-            </div>
+            {/* お店（3D）の準備中に出る仮の画面では話しかけない（お店が出た瞬間に会話が消えてしまうので） */}
+            {!loading && !talking && <TalkButton onClick={() => { setTalking(true); talk.start() }} dot={answers > 0} />}
             <SettingsChip />
           </div>
         </div>
@@ -73,8 +69,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
               </>
             ) : says}
           </MascotSays></div>
-          {/* お店（3D）の準備中に出る仮の画面では話しかけない（お店が出た瞬間に会話が消えてしまうので） */}
-          {!loading && <TalkButton onClick={() => { setTalking(true); talk.start() }} dot={answers > 0} />}
+          <AskChip />
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
