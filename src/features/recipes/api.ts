@@ -1,6 +1,6 @@
 import { getSupabase } from '@/lib/supabase/client'
 import type { Database, RecipeRow } from '@/lib/supabase/database.types'
-import { deletePhotos } from '@/lib/images/upload'
+import { deleteUnusedPhotos } from '@/lib/images/upload'
 
 export type RecipeInsert = Database['public']['Tables']['recipes']['Insert']
 export type RecipeUpdate = Database['public']['Tables']['recipes']['Update']
@@ -42,5 +42,6 @@ export async function deleteRecipe(recipe: RecipeRow): Promise<void> {
   }
   const { error } = await sb.from('recipes').delete().eq('id', recipe.id)
   if (error) throw error
-  if (recipe.hero_image) await deletePhotos([recipe.hero_image])
+  // 同じ写真を他の版やネタが使っていることがある（AI が 1 枚から複数作る）ので、使われていないときだけ消す
+  if (recipe.hero_image) await deleteUnusedPhotos([recipe.hero_image])
 }

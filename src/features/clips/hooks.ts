@@ -37,14 +37,18 @@ export function useUpdateClip() {
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: qk.clips })
       const prev = qc.getQueryData<ClipRow[]>(qk.clips)
+      const prevOne = qc.getQueryData<ClipRow | null>(qk.clip(id))
       qc.setQueryData<ClipRow[]>(qk.clips, (old) => old?.map((c) => (c.id === id ? { ...c, ...patch } as ClipRow : c)))
       qc.setQueryData<ClipRow | null>(qk.clip(id), (old) => (old ? { ...old, ...patch } as ClipRow : old))
-      return { prev }
+      return { prev, prevOne }
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(qk.clips, ctx.prev) },
+    // 失敗したら一覧も詳細も元に戻す（詳細だけ失敗した変更が残らないように）
+    onError: (_e, { id }, ctx) => { if (ctx?.prev) qc.setQueryData(qk.clips, ctx.prev); if (ctx?.prevOne !== undefined) qc.setQueryData(qk.clip(id), ctx.prevOne) },
     onSuccess: (updated) => {
       qc.setQueryData<ClipRow[]>(qk.clips, (old) => old?.map((c) => (c.id === updated.id ? updated : c)))
       qc.setQueryData(qk.clip(updated.id), updated)
+      // 確認済みにするとトレイのバッジ（counts）が変わる
+      qc.invalidateQueries({ queryKey: qk.counts })
     },
   })
 }
@@ -57,6 +61,7 @@ export function useDeleteClip() {
       qc.setQueryData<ClipRow[]>(qk.clips, (old) => old?.filter((c) => c.id !== clip.id))
       qc.removeQueries({ queryKey: qk.clip(clip.id) })
       qc.invalidateQueries({ queryKey: qk.counts })
+      qc.invalidateQueries({ queryKey: ['activity-days'] })
     },
   })
 }

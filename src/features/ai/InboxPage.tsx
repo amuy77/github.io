@@ -19,7 +19,7 @@ import { paths } from '@/app/routes'
 import { useRecipes } from '@/features/recipes/hooks'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
-import { nextWorkerTime, WORKER_SCHEDULE_LABEL, type AutoResult } from './api'
+import { isStuck, nextWorkerTime, WORKER_SCHEDULE_LABEL, type AutoResult } from './api'
 import { useAiJobs, useJobActions } from './hooks'
 import { cx } from '@/lib/cx'
 
@@ -139,7 +139,9 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
   const payload = (job.payload ?? {}) as { image_paths?: string[]; text?: string; hint?: string; escalate?: string; escalate_reason?: string; instruction?: string }
   // 一次（Sonnet）が自信なしと判断して Opus の精読に回したもの
   const escalated = job.status === 'pending' && !!payload.escalate && job.kind !== 'redo'
-  const st = escalated ? { label: 'Opus で精読待ち', cls: 'bg-plum-400/15 text-plum-400' } : STATUS[job.status]
+  // 処理中のまま長く止まっている（定期処理が途中で落ちた）ものは、取り消しや再試行ができるように
+  const stuck = isStuck(job)
+  const st = escalated ? { label: 'Opus で精読待ち', cls: 'bg-plum-400/15 text-plum-400' } : stuck ? { label: '止まってるみたい', cls: 'bg-brick-500/15 text-brick-500' } : STATUS[job.status]
   const detail = payload.image_paths?.length ? `写真 ${payload.image_paths.length} 枚` : payload.text ? payload.text.slice(0, 40) : ''
   const result = (job.status === 'done' ? job.result ?? {} : {}) as AutoResult
   const link = result.clip_id ? { to: paths.clip(result.clip_id), label: '📌 ネタ帳に保存' } : result.recipe_ids?.[0] ? { to: paths.recipe(result.recipe_ids[0]), label: '📖 レシピの下書き' } : null
@@ -160,8 +162,8 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
         {answer && <p className="mt-2 whitespace-pre-wrap rounded-[10px] bg-oat-50 px-3 py-2 text-[13px] leading-relaxed text-espresso-900">{answer}</p>}
       </div>
       <Tag className={cx('border-0', st.cls)}>{st.label}</Tag>
-      {job.status === 'pending' && onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>取消</Button>}
-      {job.status === 'failed' && onRetry && <Button size="sm" variant="secondary" onClick={onRetry}>再試行</Button>}
+      {(job.status === 'pending' || stuck) && onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>取消</Button>}
+      {(job.status === 'failed' || stuck) && onRetry && <Button size="sm" variant="secondary" onClick={onRetry}>再試行</Button>}
     </Card>
   )
 }

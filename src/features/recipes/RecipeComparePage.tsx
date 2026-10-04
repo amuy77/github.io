@@ -6,7 +6,7 @@ import { RatingStars } from '@/components/ui/Rating'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import type { RecipeRow } from '@/lib/supabase/database.types'
 import { photoUrl } from '@/lib/images/upload'
-import { formatMD } from '@/lib/dates'
+import { dateOf, formatMD } from '@/lib/dates'
 import { paths } from '@/app/routes'
 import { AskLaraButton } from '@/features/ask/AskLaraButton'
 import { useRecipe, useRecipes } from './hooks'
@@ -113,7 +113,7 @@ function Head({ r, fam, latestId }: { r: RecipeRow; fam: RecipeRow[]; latestId: 
       <ImageThumb src={photoUrl(r.hero_image, 'thumb')} className="size-12 shrink-0 rounded-[8px]" emoji="🍽️" />
       <div className="min-w-0">
         <p className="truncate text-[13px] font-bold">{versionName(fam, r)}</p>
-        <p className="text-[11px] text-muted">{formatMD(r.created_at.slice(0, 10))}</p>
+        <p className="text-[11px] text-muted">{formatMD(dateOf(r.created_at))}</p>
         <div className="flex flex-wrap items-center gap-1">
           <RatingStars value={r.rating} max={3} size={11} />
           {r.id === latestId && <span className="whitespace-nowrap rounded-chip bg-brick-500 px-1.5 text-[10px] font-bold text-white">最新</span>}

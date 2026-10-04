@@ -11,6 +11,11 @@ export function today(): string {
   return isoDate(new Date())
 }
 
+/** created_at などのタイムスタンプ → その日の 'YYYY-MM-DD'（端末ローカル）。`slice(0, 10)` だと UTC の日付になって朝 9 時まで 1 日ずれる */
+export function dateOf(ts: string): string {
+  return isoDate(new Date(ts))
+}
+
 export function addDays(iso: string, days: number): string {
   const d = parseIso(iso)
   d.setDate(d.getDate() + days)

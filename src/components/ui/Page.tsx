@@ -4,12 +4,12 @@ import { IconArrowLeft } from './icons'
 import { IconButton } from './Button'
 import { cx } from '@/lib/cx'
 
-/** ページ共通ヘッダー。明朝の見出し + 右側にアクション */
-export function PageHeader({ title, sub, back, actions, className }: { title: ReactNode; sub?: ReactNode; back?: boolean | string; actions?: ReactNode; className?: string }) {
+/** ページ共通ヘッダー。明朝の見出し + 右側にアクション。onBack を渡すと戻るの動きを差し替えられる（未保存の確認など） */
+export function PageHeader({ title, sub, back, onBack, actions, className }: { title: ReactNode; sub?: ReactNode; back?: boolean | string; onBack?: () => void; actions?: ReactNode; className?: string }) {
   const nav = useNavigate()
   return (
     <header className={cx('sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-2 bg-oat-50/90 px-4 pb-2 pt-[calc(10px+var(--safe-top))] backdrop-blur', className)}>
-      {back && <IconButton label="戻る" className="-ml-2" onClick={() => (typeof back === 'string' ? nav(back) : nav(-1))}><IconArrowLeft /></IconButton>}
+      {(back || onBack) && <IconButton label="戻る" className="-ml-2" onClick={() => (onBack ? onBack() : typeof back === 'string' ? nav(back) : nav(-1))}><IconArrowLeft /></IconButton>}
       <div className="min-w-0 flex-1">
         <h1 className="font-display truncate text-[22px] font-extrabold leading-tight">{title}</h1>
         {sub && <p className="text-xs text-muted">{sub}</p>}
@@ -37,6 +37,14 @@ export function EmptyState({ emoji, title, body, action }: { emoji: string; titl
       {body && <p className="max-w-xs text-sm text-muted">{body}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
+  )
+}
+
+/** 読み込みに失敗したとき。「無い」と区別して、やり直せるようにする */
+export function LoadError({ onRetry, body }: { onRetry: () => void; body?: string }) {
+  return (
+    <EmptyState emoji="📡" title="読み込めませんでした" body={body ?? 'つながりが悪いのかも。もう一度試してみてね'}
+      action={<button type="button" onClick={onRetry} className="h-10 rounded-chip border border-line bg-paper px-4 text-sm font-bold">もう一度</button>} />
   )
 }
 

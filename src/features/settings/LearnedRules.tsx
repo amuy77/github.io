@@ -27,7 +27,7 @@ export function LearnedRules() {
       )}
       <div className="flex gap-2">
         <Input placeholder="自分でルールを足す（例: 価格は税込で書く）" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="ルールを追加" />
-        <Button variant="secondary" loading={add.isPending} onClick={async () => { const t = draft.trim(); if (!t) return; await add.mutateAsync(t); setDraft(''); toast('覚えました', 'success') }}>追加</Button>
+        <Button variant="secondary" loading={add.isPending} onClick={async () => { const t = draft.trim(); if (!t) return; try { await add.mutateAsync(t); setDraft(''); toast('覚えました', 'success') } catch { /* 失敗は global のトーストが知らせる。入力は残す */ } }}>追加</Button>
       </div>
     </Card>
   )
@@ -42,7 +42,7 @@ function Rule({ pref }: { pref: AiPreferenceRow }) {
       {editing ? (
         <div className="flex gap-2">
           <Input value={text} onChange={(e) => setText(e.target.value)} aria-label="ルールを編集" />
-          <Button size="sm" onClick={async () => { if (text.trim()) await update.mutateAsync({ id: pref.id, patch: { rule: text.trim() } }); setEditing(false) }}>保存</Button>
+          <Button size="sm" onClick={async () => { try { if (text.trim()) await update.mutateAsync({ id: pref.id, patch: { rule: text.trim() } }); setEditing(false) } catch { /* 失敗は global のトーストが知らせる。編集中のまま残す */ } }}>保存</Button>
         </div>
       ) : (
         <p className="text-[14px] font-bold leading-relaxed">{pref.rule}</p>

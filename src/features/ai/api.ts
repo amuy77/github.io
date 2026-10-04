@@ -41,13 +41,20 @@ export async function listJobs(): Promise<AiJobRow[]> {
   return data as AiJobRow[]
 }
 
+/** processing のまま、この時間（ms）たっても終わらないジョブは「止まった」とみなして取消・再試行できるようにする */
+export const STUCK_AFTER_MS = 30 * 60_000
+export function isStuck(job: AiJobRow, now = Date.now()): boolean {
+  return job.status === 'processing' && !!job.started_at && now - new Date(job.started_at).getTime() > STUCK_AFTER_MS
+}
+
 export async function cancelJob(id: string): Promise<void> {
-  const { error } = await getSupabase().from('ai_jobs').update({ status: 'cancelled' }).eq('id', id).eq('status', 'pending')
+  const { error } = await getSupabase().from('ai_jobs').update({ status: 'cancelled' }).eq('id', id).in('status', ['pending', 'processing'])
   if (error) throw error
 }
 
+/** もう一度順番待ちに戻す。worker は attempts < 3 しか拾わないので、attempts も 0 に戻す（戻さないと永遠に pending のまま） */
 export async function retryJob(id: string): Promise<void> {
-  const { error } = await getSupabase().from('ai_jobs').update({ status: 'pending', error: null }).eq('id', id).eq('status', 'failed')
+  const { error } = await getSupabase().from('ai_jobs').update({ status: 'pending', error: null, attempts: 0, started_at: null }).eq('id', id).in('status', ['failed', 'processing'])
   if (error) throw error
 }
 

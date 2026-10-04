@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
 
 // ビルド時に VITE_SUPABASE_URL=https://lara-smoke.supabase.co を渡している前提
 const REF = 'lara-smoke'
@@ -731,4 +731,158 @@ test('navigation: switching screens starts at the top', async ({ page }, info) =
   await nav.getByRole('link', { name: 'メニュー' }).click()
   await expect(page).toHaveURL(/#\/menu$/)
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
+})
+
+// ---- スプリント 1「壊れない」: 入力やデータが消えない・失敗に気づける ----
+
+test('safe: the Enter that confirms Japanese input does not save, a real Enter does', async ({ page }) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/clip_categories')) posts.push(r.postDataJSON()) })
+  await page.goto('#/clips')
+  await page.getByRole('button', { name: 'カテゴリを追加・編集' }).click()
+  await page.getByRole('dialog', { name: 'カテゴリの追加・編集' }).getByRole('button', { name: 'カテゴリを追加' }).click()
+  const name = page.getByRole('dialog', { name: 'カテゴリを追加' }).getByLabel('カテゴリ名')
+  await name.fill('すい')
+  // 変換を確定する Enter（isComposing）では保存しない
+  await name.evaluate((el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true })))
+  await page.waitForTimeout(300)
+  expect(posts).toHaveLength(0)
+  await name.fill('スイーツ')
+  await name.press('Enter')
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0]).toMatchObject({ name: 'スイーツ' })
+})
+
+test('safe: a failed load shows a retry, not an empty editor or "not found"', async ({ page }) => {
+  await stubSupabase(page)
+  let fail = true
+  const boom = (route: Route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' })
+  await page.route(`https://${REF}.supabase.co/rest/v1/menu_logs**`, (route) => (fail && route.request().method() === 'GET' ? boom(route) : route.fallback()))
+  await page.route(`https://${REF}.supabase.co/rest/v1/clips**`, (route) => (fail && route.request().method() === 'GET' ? boom(route) : route.fallback()))
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  await expect(page.getByText('読み込めませんでした')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: /記録する|更新する/ })).toHaveCount(0)
+  fail = false
+  await page.getByRole('button', { name: 'もう一度' }).click()
+  await expect(page.getByRole('button', { name: /記録する|更新する/ })).toBeVisible()
+  fail = true
+  await page.goto('#/clips/c1000000-0000-4000-8000-000000000001')
+  await expect(page.getByText('読み込めませんでした')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('見つかりませんでした')).toHaveCount(0)
+})
+
+test('safe: a failed save is announced and the star goes back', async ({ page }) => {
+  await stubSupabase(page)
+  await page.route(`https://${REF}.supabase.co/rest/v1/recipes**`, (route) => (route.request().method() === 'PATCH' ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' }) : route.fallback()))
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000002')
+  const fav = page.getByRole('button', { name: 'お気に入り' })
+  await expect(fav).not.toHaveClass(/text-mustard-400/)
+  await fav.click()
+  await expect(page.getByText('保存できませんでした')).toBeVisible()
+  await expect(fav).not.toHaveClass(/text-mustard-400/)
+})
+
+test('safe: closing the clip editor with typed text asks first, and Esc closes only the top sheet', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: 'ネタ帳に追加' })
+  await editor.getByLabel('タイトル').fill('書きかけ')
+  await editor.getByRole('button', { name: 'カテゴリを編集' }).click()
+  const manager = page.getByRole('dialog', { name: 'カテゴリの追加・編集' })
+  await expect(manager).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(manager).toBeHidden()
+  await expect(editor).toBeVisible()
+  await expect(editor.getByLabel('タイトル')).toHaveValue('書きかけ')
+  await page.keyboard.press('Escape')
+  const ask = page.getByRole('alertdialog', { name: '入力途中のものを捨てますか？' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'やめる' }).click()
+  await expect(ask).toBeHidden()
+  await expect(editor.getByLabel('タイトル')).toHaveValue('書きかけ')
+  await editor.getByRole('button', { name: 'やめる' }).click()
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: '捨てる' }).click()
+  await expect(editor).toBeHidden()
+})
+
+test('safe: leaving a half-typed menu record asks first', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  await page.getByRole('button', { name: 'エッグサラダ' }).click()
+  await page.getByRole('button', { name: '前の日' }).click()
+  const ask = page.getByRole('alertdialog', { name: '入力途中のものを捨てますか？' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'やめる' }).click()
+  await expect(page).toHaveURL(new RegExp(`#/menu/${iso(daysAgo(0))}$`))
+  await page.getByRole('button', { name: '前の日' }).click()
+  await ask.getByRole('button', { name: '捨てる' }).click()
+  await expect(page).toHaveURL(new RegExp(`#/menu/${iso(daysAgo(1))}$`))
+})
+
+test('safe: retrying a failed job resets attempts, and a stuck job can be retried', async ({ page }) => {
+  await stubSupabase(page)
+  const patches: { url: string; body: unknown }[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/ai_jobs')) patches.push({ url: r.url(), body: r.postDataJSON() }) })
+  const stuck = { id: 'e1000000-0000-4000-8000-000000000003', user_id: USER_ID, kind: 'auto_from_image', status: 'processing', payload: { image_paths: ['x/c.jpg'] }, result: null, error: null, attempts: 1, started_at: new Date(Date.now() - 40 * 60_000).toISOString(), finished_at: null, created_at: ts(0) }
+  await page.route(`https://${REF}.supabase.co/rest/v1/ai_jobs**`, (route) => route.request().method() === 'GET'
+    ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-2/3', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify([...fixtures.ai_jobs, stuck]) })
+    : route.fallback())
+  await page.goto('#/inbox')
+  await expect(page.getByText('止まってるみたい')).toBeVisible()
+  const retries = page.getByRole('button', { name: '再試行' })
+  await expect(retries).toHaveCount(2)
+  await retries.first().click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0].body).toMatchObject({ status: 'pending', attempts: 0 })
+  expect(patches[0].url).toContain('status=in.')
+})
+
+test('safe: deleting a recipe keeps a photo that another recipe still uses', async ({ page }) => {
+  await stubSupabase(page)
+  const hero = { path: `${USER_ID}/shared.jpg`, thumb_path: `${USER_ID}/shared_t.jpg`, w: 10, h: 10, bytes: 1 }
+  const rows = (fixtures.recipes as { id: string }[]).map((r) => (r.id.endsWith('02') || r.id.endsWith('03') ? { ...r, hero_image: hero } : r))
+  const storage: string[] = []
+  const deletes: string[] = []
+  const checks: string[] = []
+  page.on('request', (r) => {
+    if (r.url().includes('/storage/v1/')) storage.push(`${r.method()} ${r.url()}`)
+    if (r.method() === 'DELETE' && r.url().includes('/rest/v1/recipes')) deletes.push(r.url())
+    if (r.url().includes('hero_image-%3E%3Epath') || r.url().includes('hero_image->>path')) checks.push(r.url())
+  })
+  await page.route(`https://${REF}.supabase.co/rest/v1/recipes**`, (route) => {
+    const req = route.request()
+    if (req.method() === 'DELETE') return route.fulfill({ status: 204, body: '' })
+    if (req.method() !== 'GET' && req.method() !== 'HEAD') return route.fallback()
+    const url = new URL(req.url())
+    const id = url.searchParams.get('id')
+    const heroPath = url.searchParams.get('hero_image->>path')
+    const out = heroPath ? rows.filter((r) => (r as { hero_image?: { path: string } }).hero_image?.path === heroPath.slice(3)) : id ? rows.filter((r) => r.id === id.slice(3)) : rows
+    const single = (req.headers()['accept'] ?? '').includes('object')
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': `0-${Math.max(out.length - 1, 0)}/${out.length}`, 'access-control-expose-headers': 'content-range' }, body: req.method() === 'HEAD' ? '' : JSON.stringify(single ? out[0] ?? null : out) })
+  })
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000002')
+  await page.getByRole('button', { name: '削除' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: '削除する' }).click()
+  await expect(page).toHaveURL(/#\/recipes$/)
+  await expect.poll(() => deletes.length).toBe(1)
+  // 消す前に「他にこの写真を使っている行があるか」を見に行く。残りのレシピ（…03）が使っているので Storage からは消さない
+  await expect.poll(() => checks.length).toBeGreaterThan(0)
+  await page.waitForTimeout(500)
+  expect(storage.filter((s) => s.startsWith('DELETE'))).toHaveLength(0)
+})
+
+test.describe('safe: dates follow Japan time', () => {
+  test.use({ timezoneId: 'Asia/Tokyo' })
+  test('a clip saved at 23:30 UTC shows the next day', async ({ page }) => {
+    await stubSupabase(page)
+    const at = new Date(); at.setUTCDate(at.getUTCDate() - 10); at.setUTCHours(23, 30, 0, 0)
+    const clip = { ...fixtures.clips[0], id: 'c1000000-0000-4000-8000-000000000009', created_at: at.toISOString() }
+    await page.route(`https://${REF}.supabase.co/rest/v1/clips**`, (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-0/1', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify((route.request().headers()['accept'] ?? '').includes('object') ? clip : [clip]) }))
+    await page.goto('#/clips/c1000000-0000-4000-8000-000000000009')
+    const jst = new Date(at.getTime() + 9 * 3600_000)
+    await expect(page.getByText(`${jst.getUTCMonth() + 1}/${jst.getUTCDate()}（`)).toBeVisible()
+  })
 })

@@ -41,11 +41,13 @@ export function useUpdateRecipe() {
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: qk.recipes })
       const prev = qc.getQueryData<RecipeRow[]>(qk.recipes)
+      const prevOne = qc.getQueryData<RecipeRow | null>(qk.recipe(id))
       qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.map((r) => (r.id === id ? { ...r, ...patch } as RecipeRow : r)))
       qc.setQueryData<RecipeRow | null>(qk.recipe(id), (old) => (old ? { ...old, ...patch } as RecipeRow : old))
-      return { prev }
+      return { prev, prevOne }
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(qk.recipes, ctx.prev) },
+    // 失敗したら一覧も詳細も元に戻す
+    onError: (_e, { id }, ctx) => { if (ctx?.prev) qc.setQueryData(qk.recipes, ctx.prev); if (ctx?.prevOne !== undefined) qc.setQueryData(qk.recipe(id), ctx.prevOne) },
     onSuccess: (updated) => {
       qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.map((r) => (r.id === updated.id ? updated : r)))
       qc.setQueryData(qk.recipe(updated.id), updated)

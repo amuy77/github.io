@@ -9,7 +9,10 @@ import { useToast } from '@/components/ui/Toast'
 import { IconX } from '@/components/ui/icons'
 import { RatingInput } from '@/components/ui/Rating'
 import type { ClipCategory, ClipPurpose, ClipRow, ClipType, ImageRef, LinkPreview } from '@/lib/supabase/database.types'
-import { uploadPhoto, photoUrl, deletePhotos } from '@/lib/images/upload'
+import { uploadPhoto, photoUrl, deleteUnusedPhotos } from '@/lib/images/upload'
+import { useDiscardGuard } from '@/components/ui/useDiscardGuard'
+import { friendlyError } from '@/lib/errors'
+import { isEnter } from '@/lib/keys'
 import { useSession } from '@/features/auth/useSession'
 import { celebrateFrom } from '@/features/game/celebrate'
 import { SUGGESTED_TAGS } from './categories'
@@ -52,16 +55,22 @@ function guessCategory(text: string): ClipCategory | null {
   return null
 }
 
-/** 開くたびにフォームを作り直す（key で初期化） */
+/** 開くたびにフォームを作り直す（key で初期化）。入力途中で閉じようとしたら確認する */
 export function ClipEditorSheet({ open, onClose, clip, draft, onSaved }: Props) {
+  const [dirty, setDirty] = useState(false)
+  const { requestLeave, dialog } = useDiscardGuard(dirty)
+  const requestClose = () => requestLeave(onClose)
   return (
-    <Sheet open={open} onClose={onClose} title={clip ? 'ネタを編集' : 'ネタ帳に追加'} tall footer={<div id="clip-editor-footer" />}>
-      {open && <ClipForm key={`${clip?.id ?? 'new'}-${draft ? 'd' : 'n'}`} clip={clip} draft={draft} onClose={onClose} onSaved={onSaved} />}
-    </Sheet>
+    <>
+      <Sheet open={open} onClose={requestClose} title={clip ? 'ネタを編集' : 'ネタ帳に追加'} tall>
+        {open && <ClipForm key={`${clip?.id ?? 'new'}-${draft ? 'd' : 'n'}`} clip={clip} draft={draft} onClose={onClose} onCancel={requestClose} onSaved={onSaved} onDirtyChange={setDirty} />}
+      </Sheet>
+      {dialog}
+    </>
   )
 }
 
-function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
+function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Omit<Props, 'open'> & { onCancel: () => void; onDirtyChange: (dirty: boolean) => void }) {
   const toast = useToast()
   const { userId } = useSession()
   const create = useCreateClip()
@@ -84,6 +93,12 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
   const [favorite, setFavorite] = useState(clip?.favorite ?? false)
   const [saving, setSaving] = useState(false)
   const saveBtn = useRef<HTMLButtonElement>(null)
+
+  // 開いたときから何か変えたら「入力途中」として親に知らせる（閉じるときの確認に使う）
+  const snapshot = JSON.stringify({ title, note, url, category, tags, shop, isIdea, images, rating, purpose, favorite, pending: pending.length })
+  const initial = useRef(snapshot)
+  useEffect(() => { onDirtyChange(snapshot !== initial.current) }, [snapshot, onDirtyChange])
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
 
   // URL が入ったらプレビュー取得（500ms デバウンス）
   useEffect(() => {
@@ -131,7 +146,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
       if (clip) {
         saved = await update.mutateAsync({ id: clip.id, patch: row })
         const removed = (clip.images ?? []).filter((im) => !allImages.some((a) => a.path === im.path))
-        if (removed.length) void deletePhotos(removed)
+        if (removed.length) void deleteUnusedPhotos(removed)
         toast('更新しました', 'success')
       } else {
         saved = await create.mutateAsync(row)
@@ -142,7 +157,7 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
       onSaved?.(saved)
       onClose()
     } catch (e) {
-      toast(e instanceof Error ? e.message : '保存できませんでした', 'error')
+      toast(friendlyError(e), 'error')
     } finally {
       setSaving(false)
     }
@@ -207,14 +222,14 @@ function ClipForm({ clip, draft, onClose, onSaved }: Omit<Props, 'open'>) {
         <span className="text-[13px] font-bold text-espresso-700">タグ</span>
         {tags.length > 0 && <div className="flex flex-wrap gap-1.5">{tags.map((t) => <button key={t} type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="inline-flex items-center gap-1 rounded-chip bg-green-600 px-2.5 py-1 text-[12px] font-bold text-white">{t} <IconX size={12} /></button>)}</div>}
         <div className="flex gap-2">
-          <Input placeholder="タグを追加" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput) } }} />
+          <Input placeholder="タグを追加" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); if (isEnter(e)) addTag(tagInput) }} />
           <Button variant="secondary" onClick={() => addTag(tagInput)}>追加</Button>
         </div>
         <div className="flex flex-wrap gap-1.5">{SUGGESTED_TAGS.filter((t) => !tags.includes(t)).map((t) => <button key={t} type="button" onClick={() => addTag(t)}><Tag className="hover:bg-oat-100">+ {t}</Tag></button>)}</div>
       </div>
 
       <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-paper px-4 pb-[calc(12px+var(--safe-bottom))] pt-3 md:pb-3">
-        <Button variant="secondary" onClick={onClose} disabled={saving}>やめる</Button>
+        <Button variant="secondary" onClick={onCancel} disabled={saving}>やめる</Button>
         <Button ref={saveBtn} full loading={saving} onClick={save}>{clip ? '更新する' : '保存する'}</Button>
       </div>
     </div>

@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { PageHeader, Skeleton, SectionTitle, EmptyState } from '@/components/ui/Page'
+import { PageHeader, Skeleton, SectionTitle, EmptyState, LoadError } from '@/components/ui/Page'
+import { useDiscardGuard } from '@/components/ui/useDiscardGuard'
+import { friendlyError } from '@/lib/errors'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Textarea } from '@/components/ui/Field'
@@ -20,6 +22,8 @@ export function MenuDayPage() {
   const { date = today() } = useParams()
   const log = useMenuLog(date)
   if (log.isLoading) return <><PageHeader title={formatMD(date)} back={paths.menu} /><Skeleton className="h-40" /></>
+  // 読めなかったときに空の編集画面を出すと、保存でその日の本物の記録を上書きしてしまうので、編集に入らせない
+  if (log.isError) return <><PageHeader title={formatMD(date)} back={paths.menu} /><LoadError onRetry={() => void log.refetch()} /></>
   return <DayEditor key={`${date}-${log.data?.id ?? 'new'}`} date={date} initial={log.data ?? null} />
 }
 
@@ -48,6 +52,9 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
     for (const [k, v] of items) if (!before.has(k) || before.get(k) !== v) return true
     return false
   }, [items, note, initial])
+  // 前の日・次の日・戻るで、入力途中の記録を黙って捨てない
+  const { requestLeave, dialog: discardDialog } = useDiscardGuard(dirty && !save.isPending)
+  const go = (to: string) => requestLeave(() => nav(to, { replace: true }))
 
   // 選べるのはお店のメニューだけ（参考レシピは出さない）。記録済みのものは参考でも残す
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published' && (r.purpose === 'menu' || items.has(r.id))), [recipes.data, items])
@@ -68,17 +75,18 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
       if (!initial) celebrate('small')
       toast(initial ? '更新しました' : '記録しました！', 'success')
       nav(paths.menu, { replace: true })
-    } catch (e) { toast(e instanceof Error ? e.message : '保存できませんでした', 'error') }
+    } catch (e) { toast(friendlyError(e), 'error') }
   }
 
   const isToday = date === today()
   return (
     <>
-      <PageHeader title={`${formatMD(date)}${isToday ? ' ・ 今日' : ''}`} sub={`${items.size} 品を提供`} back={paths.menu}
+      <PageHeader title={`${formatMD(date)}${isToday ? ' ・ 今日' : ''}`} sub={`${items.size} 品を提供`} onBack={() => requestLeave(() => nav(paths.menu))}
         actions={<>
-          <IconButton label="前の日" onClick={() => nav(paths.menuDay(addDays(date, -1)), { replace: true })}><IconChevronLeft /></IconButton>
-          <IconButton label="次の日" onClick={() => nav(paths.menuDay(addDays(date, 1)), { replace: true })} disabled={date >= today()} className={date >= today() ? 'opacity-30' : ''}><IconChevronRight /></IconButton>
+          <IconButton label="前の日" onClick={() => go(paths.menuDay(addDays(date, -1)))}><IconChevronLeft /></IconButton>
+          <IconButton label="次の日" onClick={() => go(paths.menuDay(addDays(date, 1)))} disabled={date >= today()} className={date >= today() ? 'opacity-30' : ''}><IconChevronRight /></IconButton>
         </>} />
+      {discardDialog}
       <div className="flex flex-col gap-4">
         {recipes.isLoading ? <Skeleton className="h-40" /> : published.length === 0 ? (
           <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="図鑑で「お店のメニュー」にしたレシピが、ここでチェックするだけで記録できます。参考レシピは出てきません。" action={<Button onClick={() => nav(paths.recipes)}>レシピ図鑑へ</Button>} />

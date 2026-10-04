@@ -5,6 +5,7 @@ import { Chip } from '@/components/ui/Chip'
 import { Input } from '@/components/ui/Field'
 import { Confirm, Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
+import { isEnter } from '@/lib/keys'
 import { IconChevronLeft, IconChevronRight, IconEdit, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
 import { autoEmoji, GENRE_EMOJI_CHOICES, genreEmoji } from './api'
@@ -94,7 +95,7 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
       <div className="flex items-end gap-3">
         <span className="grid size-14 shrink-0 place-items-center rounded-card text-3xl" style={{ background: hexOf(color) }} aria-hidden>{shown}</span>
         <div className="min-w-0 flex-1">
-          <Input label="ジャンル名" placeholder="例: デザート / ホットサンド" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save() }} />
+          <Input label="ジャンル名" placeholder="例: デザート / ホットサンド" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (isEnter(e)) void save() }} />
         </div>
       </div>
 

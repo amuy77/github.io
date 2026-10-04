@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
   const sb = user.supabase
   const since = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
   const [rs, cs, gs, logs] = await Promise.all([
-    sb.from('recipes').select('id,title,genre_id,ingredients,steps,notes,rating,family_id,variant_label,is_main,status,created_at').order('created_at').limit(400),
+    sb.from('recipes').select('id,title,genre_id,ingredients,steps,notes,rating,family_id,variant_label,is_main,status,created_at').order('created_at', { ascending: false }).limit(400),
     sb.from('clips').select('id,type,title,note,shop_name,category,tags,rating,created_at').order('created_at', { ascending: false }).limit(300),
     sb.from('genres').select('id,name'),
     sb.from('menu_log_items').select('recipe_id, menu_logs!inner(log_date)').gte('menu_logs.log_date', since).limit(3000),

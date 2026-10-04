@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/Page'
+import { PageHeader, EmptyState, LoadError, Skeleton } from '@/components/ui/Page'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Tag } from '@/components/ui/Chip'
@@ -9,7 +9,7 @@ import { Confirm } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
 import { IconEdit, IconLink, IconStar, IconTrash } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
-import { formatMD } from '@/lib/dates'
+import { dateOf, formatMD } from '@/lib/dates'
 import { paths } from '@/app/routes'
 import { TYPE_LABEL } from './categories'
 import { useCategoryOf } from './categoryHooks'
@@ -38,12 +38,14 @@ export function ClipDetailPage() {
 
   if (clip.isLoading) return <><PageHeader title="ネタ" back={paths.clips} /><Skeleton className="aspect-[4/3]" /></>
   const c = clip.data
+  // 通信の失敗と「本当に無い」は分ける
+  if (clip.isError) return <><PageHeader title="ネタ" back={paths.clips} /><LoadError onRetry={() => void clip.refetch()} /></>
   if (!c) return <><PageHeader title="ネタ" back={paths.clips} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
   const cat = categoryOf(c.category)
 
   return (
     <>
-      <PageHeader title={clipTitle(c)} sub={`${TYPE_LABEL[c.type].emoji} ${TYPE_LABEL[c.type].label} ・ ${formatMD(c.created_at.slice(0, 10))}`} back={paths.clips}
+      <PageHeader title={clipTitle(c)} sub={`${TYPE_LABEL[c.type].emoji} ${TYPE_LABEL[c.type].label} ・ ${formatMD(dateOf(c.created_at))}`} back={paths.clips}
         actions={<>
           <IconButton label="お気に入り" onClick={() => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })} className={c.favorite ? 'text-mustard-400' : ''}><IconStar filled={c.favorite} /></IconButton>
           <IconButton label="編集" onClick={() => setEdit(true)}><IconEdit /></IconButton>

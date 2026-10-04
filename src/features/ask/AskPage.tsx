@@ -7,6 +7,7 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { RatingStars } from '@/components/ui/Rating'
 import { Mascot, MascotSays } from '@/components/mascot/Mascot'
 import { useToast } from '@/components/ui/Toast'
+import { friendlyError } from '@/lib/errors'
 import { IconSearch, IconSparkles, IconX } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
@@ -62,15 +63,17 @@ export function AskPage() {
       setMsgs([...next, { role: 'assistant', content: reply.text, refs: reply.refs }])
     } catch (e) {
       if (e instanceof FunctionError && e.code === 'NO_API_KEY') { setNoKey(q); setMsgs(msgs) }
-      else { toast(e instanceof Error ? e.message : 'LaRa に届きませんでした', 'error'); setMsgs(msgs); setInput(q) }
+      else { toast(friendlyError(e, 'LaRa に届きませんでした'), 'error'); setMsgs(msgs); setInput(q) }
     } finally { setBusy(false) }
   }
 
   async function queueConsult() {
     if (!noKey) return
-    await enqueue.mutateAsync({ kind: 'consult', payload: { question: noKey, recipe_id: recipeId ?? null, compare_with_id: vsId ?? null } })
-    toast(`預かったよ。${nextWorkerTime()} ごろ、受信トレイに返事が届くね`, 'success')
-    setNoKey(null)
+    try {
+      await enqueue.mutateAsync({ kind: 'consult', payload: { question: noKey, recipe_id: recipeId ?? null, compare_with_id: vsId ?? null } })
+      toast(`預かったよ。${nextWorkerTime()} ごろ、受信トレイに返事が届くね`, 'success')
+      setNoKey(null)
+    } catch { /* 失敗は global のトーストが知らせる。質問は残す */ }
   }
 
   const clearFocus = () => { params.delete('recipe'); params.delete('vs'); setParams(params, { replace: true }) }

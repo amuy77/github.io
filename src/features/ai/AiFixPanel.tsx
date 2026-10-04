@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { useToast } from '@/components/ui/Toast'
+import { friendlyError } from '@/lib/errors'
 import { IconSparkles } from '@/components/ui/icons'
 import type { ImageRef } from '@/lib/supabase/database.types'
 import { useEnqueueJob } from './hooks'
@@ -50,7 +51,7 @@ export function AiFixPanel({ target, onSent, compact, collapsible }: { target: T
       setText('')
       onSent?.()
     } catch (e) {
-      toast(e instanceof Error ? e.message : '送れませんでした', 'error')
+      toast(friendlyError(e, '送れませんでした'), 'error')
     }
   }
 
