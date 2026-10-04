@@ -648,7 +648,7 @@ const friendState = (page: Page) => page.evaluate(() => (window as unknown as Fr
 
 test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', async ({ page }, info) => {
   // 描画の遅いテスト環境では歩くのもゆっくりになる（1 フレームの進みに上限がある）ので、長めに待つ
-  test.setTimeout(150_000)
+  test.setTimeout(240_000)
   await stubSupabase(page)
   await page.goto('#/')
   await page.waitForFunction(() => (window as unknown as FriendW).__lara?.debugState().figure, null, { timeout: 20_000 })
@@ -657,7 +657,8 @@ test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', a
   const luruSays = page.getByRole('status', { name: 'LuRu のセリフ' })
   await expect(luruSays).toBeVisible()
   // LaRa のそばまで忍び寄って「わっ！」→ 遊びはじめる
-  await expect.poll(async () => (await friendState(page))?.phase, { timeout: 50_000 }).toBe('play')
+  // お店が広くなって玄関から LaRa のところまで遠いので、長めに待つ
+  await expect.poll(async () => (await friendState(page))?.phase, { timeout: 110_000 }).toBe('play')
   await page.screenshot({ path: `screenshots/${info.project.name}-home-luru.png` })
   // タップすると宮崎弁でひとこと
   await page.waitForTimeout(6000)
@@ -666,7 +667,7 @@ test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', a
   await expect(luruSays).toBeVisible()
   // 帰ってもらうと、郵便受けまで歩いていなくなる
   await page.evaluate(() => (window as unknown as FriendW).__lara!.sendFriendHome())
-  await expect.poll(() => friendState(page), { timeout: 60_000 }).toBeNull()
+  await expect.poll(() => friendState(page), { timeout: 100_000 }).toBeNull()
 })
 
 test('friends: settings lists LuRu and 今すぐ呼ぶ brings him to the shop', async ({ page }, info) => {
@@ -690,8 +691,10 @@ test('lists: clips and recipes can switch between cards and a list, and remember
   await page.goto('#/clips')
   await expect(page.getByRole('radio', { name: 'カード表示' })).toHaveAttribute('aria-checked', 'true')
   await page.getByRole('radio', { name: 'リスト表示' }).click()
-  await expect(page.getByTestId('clip-list')).toBeVisible()
-  await expect(page.getByTestId('clip-list').getByRole('link').first()).toBeVisible()
+  await expect(page.getByTestId('clip-list').first()).toBeVisible()
+  // 「すべて」ではカテゴリごとの見出しで区切る
+  await expect(page.getByRole('heading', { name: '🥪 サンド' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '🍷 ワイン' })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-list.png`, fullPage: true })
   await page.goto('#/recipes')
   await page.getByRole('radio', { name: 'リスト表示' }).click()
@@ -702,4 +705,16 @@ test('lists: clips and recipes can switch between cards and a list, and remember
   await page.reload()
   await expect(page.getByRole('radio', { name: 'リスト表示' })).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByTestId('recipe-list').first()).toBeVisible()
+})
+
+test('navigation: switching screens starts at the top', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/settings')
+  await expect(page.getByText('使い方')).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(200)
+  const nav = info.project.name === 'phone' ? page.getByRole('navigation', { name: 'メイン' }).last() : page.getByRole('navigation', { name: 'メイン' }).first()
+  await nav.getByRole('link', { name: 'メニュー' }).click()
+  await expect(page).toHaveURL(/#\/menu$/)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
 })

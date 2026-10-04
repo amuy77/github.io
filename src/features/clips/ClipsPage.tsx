@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { PageHeader, EmptyState, Skeleton } from '@/components/ui/Page'
+import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
@@ -50,6 +50,15 @@ export function ClipsPage() {
   const purposeCount = (p: ClipPurpose) => (clips.data ?? []).filter((c) => c.purpose === p).length
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
+  // カテゴリが「すべて」のときは、図鑑と同じようにカテゴリごとの見出しで区切る（0 件のカテゴリは出さない）
+  const sections = useMemo(() => {
+    if (cat !== 'all') return [{ key: 'one', title: null as string | null, items: list }]
+    const known = new Set(categories.map((c) => c.value))
+    const out = categories.map((c) => ({ key: c.value, title: `${c.emoji} ${c.label}` as string | null, items: list.filter((x) => x.category === c.value) }))
+    const rest = list.filter((x) => !known.has(x.category))
+    if (rest.length) out.push({ key: 'rest', title: '🏷️ そのほか', items: rest })
+    return out.filter((s) => s.items.length > 0)
+  }, [cat, categories, list])
   const [layout, setLayout] = useListLayout('lara.clips.layout')
 
   return (
@@ -97,15 +106,20 @@ export function ClipsPage() {
             ? <EmptyState emoji="📌" title="まだネタがありません" body="気になったお店のメニュー写真、SNS の投稿、ワインやビールのメモをここに集めよう。" action={<Button onClick={() => setEditorOpen(true)} icon={<IconPlus size={16} />}>最初のネタを追加</Button>} />
             : <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
         ) : (
-          layout === 'list' ? (
-            <div className="flex flex-col gap-1.5" data-testid="clip-list">
-              {list.map((c) => <ClipListRow key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
-            </div>
-          ) : (
-            <div className={cx('grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4')}>
-              {list.map((c) => <ClipCard key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
-            </div>
-          )
+          sections.map((s) => (
+            <section key={s.key} className="flex flex-col gap-2">
+              {s.title && <SectionTitle count={`${s.items.length}件`}>{s.title}</SectionTitle>}
+              {layout === 'list' ? (
+                <div className="flex flex-col gap-1.5" data-testid="clip-list">
+                  {s.items.map((c) => <ClipListRow key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
+                </div>
+              ) : (
+                <div className={cx('grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4')}>
+                  {s.items.map((c) => <ClipCard key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
+                </div>
+              )}
+            </section>
+          ))
         )}
       </div>
       <ClipEditorSheet open={editorOpen} onClose={() => setEditorOpen(false)} />
