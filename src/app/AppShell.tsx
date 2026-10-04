@@ -89,6 +89,8 @@ function useScrollMemory() {
   const navType = useNavigationType()
   const saved = useRef(new Map<string, number>())
   const key = loc.key
+  // ブラウザ自身の復元（同じページ内の # 移動でも働く）とぶつからないよう、位置はこちらで全部面倒を見る
+  useEffect(() => { if ('scrollRestoration' in history) history.scrollRestoration = 'manual' }, [])
   useEffect(() => {
     const onScroll = () => saved.current.set(key, window.scrollY)
     window.addEventListener('scroll', onScroll, { passive: true })

@@ -881,7 +881,7 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
   await page.getByRole('button', { name: '戻る' }).click()
   await expect(page).toHaveURL(/#\/clips$/)
   // 元の位置（ページが縮んでいたら、その中でいちばん下）まで戻る
-  await expect.poll(() => page.evaluate(() => { const max = document.documentElement.scrollHeight - window.innerHeight; return window.scrollY >= Math.min(260, max) - 20 }), { timeout: 10_000 }).toBe(true)
+  await expect.poll(() => page.evaluate(() => { const max = document.documentElement.scrollHeight - window.innerHeight; return window.scrollY >= Math.min(260, max) - 20 ? 'ok' : `scrollY=${window.scrollY} max=${max} hash=${location.hash}` }), { timeout: 10_000 }).toBe('ok')
   expect(y).toBeGreaterThan(200)
   await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: '図鑑' }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
