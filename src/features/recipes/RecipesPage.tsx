@@ -11,6 +11,7 @@ import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { useRecipes, useUpdateRecipe } from './hooks'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
+import { SortSelect, sortRows } from '@/components/ui/SortSelect'
 import { RecipeCard, RecipeListRow } from './RecipeCard'
 import { familyKey, representativeOf } from './family'
 import { PURPOSES } from './purpose'
@@ -29,6 +30,7 @@ export function RecipesPage() {
   const [minRating, setMinRating] = useListViewState('minRating') // -1 = 保留だけ
   const [managing, setManaging] = useState(false)
   const [purposePick, setPurposePick] = useListViewState('purpose') // null = まだ選んでいない（メニューがあればメニュー）
+  const [sort, setSort] = useListViewState('sort')
 
   const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published'), [recipes.data])
   // 同じ料理の版は 1 枚にまとめる（代表 = 採用中 → 最新）。版数を覚えておく
@@ -39,14 +41,14 @@ export function RecipesPage() {
   const reps = useMemo(() => (purpose === 'all' ? allReps : allReps.filter((r) => r.purpose === purpose)), [allReps, purpose])
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return reps.filter((r) => {
+    return sortRows(reps.filter((r) => {
       if (minRating === -1 ? r.rating !== null : minRating > 0 && (r.rating ?? 0) < minRating) return false
       if (genreId === 'none' ? r.genre_id !== null : genreId !== 'all' && r.genre_id !== genreId) return false
       if (favOnly && !r.favorite) return false
       if (!needle) return true
       return `${r.title} ${r.notes} ${r.ingredients.map((i) => i.name).join(' ')}`.toLowerCase().includes(needle)
-    })
-  }, [reps, q, genreId, favOnly, minRating])
+    }), sort, (r) => r.title)
+  }, [reps, q, genreId, favOnly, minRating, sort])
 
   const sections = useMemo(() => {
     const gs = genres.data ?? []
@@ -90,6 +92,7 @@ export function RecipesPage() {
             <IconSearch size={18} className="text-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
           </label>
+          <SortSelect value={sort} onChange={setSort} />
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">

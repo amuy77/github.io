@@ -3,9 +3,11 @@ import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { ClipRow } from '@/lib/supabase/database.types'
 import { deleteClip, getClip, insertClip, listClips, updateClip, type ClipInsert, type ClipUpdate } from './api'
+import { useHidePendingDeletes } from '@/lib/undoDelete'
 
 export function useClips(enabled = true) {
-  return useQuery({ queryKey: qk.clips, queryFn: listClips, enabled: isSupabaseConfigured && enabled })
+  const hide = useHidePendingDeletes<ClipRow>()
+  return useQuery({ queryKey: qk.clips, queryFn: listClips, enabled: isSupabaseConfigured && enabled, select: hide })
 }
 
 export function useClip(id: string | undefined) {

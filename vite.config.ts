@@ -43,12 +43,14 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com',
             handler: 'CacheFirst',
-            options: { cacheName: 'lara-fonts', expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 } },
+            // フォントは別ドメイン（opaque）なので statuses に 0 が要る。無いと何もキャッシュされない
+            options: { cacheName: 'lara-fonts', cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 } },
           },
           {
             urlPattern: ({ url }) => url.pathname.includes('/storage/v1/object/public/'),
             handler: 'CacheFirst',
-            options: { cacheName: 'lara-photos', expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 } },
+            // <img> の写真は別ドメインで opaque になることがある
+            options: { cacheName: 'lara-photos', cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 } },
           },
         ],
       },

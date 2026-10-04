@@ -9,6 +9,7 @@ import { CategoryManager } from '@/features/clips/CategoryManager'
 import { LearnedRules } from './LearnedRules'
 import { FoldSection } from './FoldSection'
 import { FriendsCard } from './FriendsCard'
+import { BackupCard } from './BackupCard'
 import { Chip } from '@/components/ui/Chip'
 import { OUTFITS, outfitFor, outfitInfo, type OutfitPref } from '@/features/home/shop3d/outfit'
 
@@ -62,6 +63,7 @@ export function SettingsPage() {
           </div>
           <Button variant="secondary" size="sm" icon={<IconLogout size={16} />} onClick={() => signOut()}>ログアウト</Button>
         </Card>
+        <BackupCard />
 
         <SectionTitle>使い方</SectionTitle>
         <Card className="flex flex-col gap-2 text-sm leading-relaxed">

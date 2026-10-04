@@ -6,6 +6,10 @@ import { Card } from '@/components/ui/Card'
 import { Tag } from '@/components/ui/Chip'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Confirm } from '@/components/ui/Sheet'
+import { useUndoableDelete } from '@/lib/useUndoableDelete'
+import { useQueryClient } from '@tanstack/react-query'
+import type { ClipRow } from '@/lib/supabase/database.types'
+import { qk } from '@/lib/supabase/queryKeys'
 import { useToast } from '@/components/ui/Toast'
 import { IconEdit, IconLink, IconStar, IconTrash } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
@@ -30,6 +34,8 @@ export function ClipDetailPage() {
   const clip = useClip(id)
   const update = useUpdateClip()
   const del = useDeleteClip()
+  const qc = useQueryClient()
+  const undoable = useUndoableDelete()
   const [edit, setEdit] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
@@ -94,8 +100,16 @@ export function ClipDetailPage() {
       </div>
       <ClipEditorSheet open={edit} onClose={() => setEdit(false)} clip={c} />
       <ClipReviewSheet clip={review ? c : null} onClose={() => setReview(false)} />
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title="このネタを削除しますか？" body="写真も一緒に消えます。元に戻せません。" confirmLabel="削除する" danger
-        onConfirm={async () => { try { await del.mutateAsync(c); toast('削除しました'); nav(paths.clips, { replace: true }) } catch { toast('削除できませんでした', 'error') } }} />
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title="このネタを削除しますか？" body="写真も一緒に消えます。数秒のあいだは「元に戻す」で戻せます。" confirmLabel="削除する" danger
+        onConfirm={() => {
+          const row = c
+          undoable('ネタ', {
+            key: row.id,
+            hide: () => { qc.setQueryData<ClipRow[]>(qk.clips, (old) => old?.filter((x) => x.id !== row.id)); nav(paths.clips, { replace: true }) },
+            restore: () => { qc.setQueryData<ClipRow[]>(qk.clips, (old) => (old && !old.some((x) => x.id === row.id) ? [row, ...old].sort((a, b) => b.created_at.localeCompare(a.created_at)) : old)); qc.invalidateQueries({ queryKey: qk.clips }) },
+            run: () => del.mutateAsync(row),
+          })
+        }} />
       {lightbox && (
         <button type="button" className="fixed inset-0 z-[80] grid place-items-center bg-espresso-900/90 p-4" onClick={() => setLightbox(null)} aria-label="閉じる">
           <img src={lightbox} alt="" className="max-h-full max-w-full rounded-card object-contain" />

@@ -7,6 +7,9 @@ import { Button, IconButton } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Textarea } from '@/components/ui/Field'
 import { Confirm } from '@/components/ui/Sheet'
+import { useUndoableDelete } from '@/lib/useUndoableDelete'
+import { useQueryClient } from '@tanstack/react-query'
+import { qk } from '@/lib/supabase/queryKeys'
 import { useToast } from '@/components/ui/Toast'
 import { IconCheck, IconChevronLeft, IconChevronRight, IconTrash } from '@/components/ui/icons'
 import { addDays, formatMD, today } from '@/lib/dates'
@@ -37,6 +40,8 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
   const genres = useGenres()
   const save = useSaveMenuLog()
   const del = useDeleteMenuLog()
+  const qc = useQueryClient()
+  const undoable = useUndoableDelete()
   const [items, setItems] = useState<Items>(() => {
     const m: Items = new Map((initial?.menu_log_items ?? []).map((i) => [i.recipe_id, i.sold_count]))
     const add = params.get('add')
@@ -128,7 +133,16 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
           <Button full size="lg" loading={save.isPending} onClick={onSave} disabled={!dirty && !!initial}>{initial ? '更新する' : '記録する'}</Button>
         </div>
       </div>
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消しますか？" confirmLabel="消す" danger onConfirm={async () => { if (!initial) return; await del.mutateAsync({ id: initial.id, date }); toast('消しました'); nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true }) }} />
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消しますか？" confirmLabel="消す" danger onConfirm={() => {
+        if (!initial) return
+        const row = initial
+        undoable('この日の記録', {
+          key: row.id,
+          hide: () => { qc.setQueryData(qk.menuLog(date), null); qc.invalidateQueries({ queryKey: ['menu-logs'] }); nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true }) },
+          restore: () => { qc.setQueryData(qk.menuLog(date), row); qc.invalidateQueries({ queryKey: ['menu-logs'] }) },
+          run: () => del.mutateAsync({ id: row.id, date }),
+        })
+      }} />
     </>
   )
 }

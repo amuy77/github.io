@@ -829,9 +829,10 @@ test('safe: deleting a recipe keeps a photo that another recipe still uses', asy
   await page.getByRole('button', { name: '削除' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: '削除する' }).click()
   await expect(page).toHaveURL(/#\/recipes$/)
-  await expect.poll(() => deletes.length).toBe(1)
+  // 「元に戻す」の猶予（5 秒）が過ぎてから本当に消える
+  await expect.poll(() => deletes.length, { timeout: 12_000 }).toBe(1)
   // 消す前に「他にこの写真を使っている行があるか」を見に行く。残りのレシピ（…03）が使っているので Storage からは消さない
-  await expect.poll(() => checks.length).toBeGreaterThan(0)
+  await expect.poll(() => checks.length, { timeout: 10_000 }).toBeGreaterThan(0)
   await page.waitForTimeout(500)
   expect(storage.filter((s) => s.startsWith('DELETE'))).toHaveLength(0)
 })
@@ -1010,4 +1011,90 @@ test('atomic: when the DB functions are not there yet, saving falls back to the 
   expect(posts[0]).toBe('rpc/save_menu_log')
   expect(posts.indexOf('menu_logs')).toBeGreaterThan(0)
   expect(posts.indexOf('menu_log_items')).toBeGreaterThan(posts.indexOf('menu_logs'))
+})
+
+// ---- スプリント 6「機能の穴」: 元に戻す・バックアップ・記録の検索・並び順・圏外で見る ----
+
+test('gaps: a deleted clip can be brought back for a few seconds, otherwise it is really deleted', async ({ page }) => {
+  await stubSupabase(page)
+  const deletes: string[] = []
+  page.on('request', (r) => { if ((r.method() === 'DELETE' && r.url().includes('/rest/v1/clips')) || (r.method() === 'POST' && r.url().includes('/rest/v1/rpc/delete_'))) deletes.push(r.url()) })
+  await page.goto('#/clips/c1000000-0000-4000-8000-000000000004')
+  await page.getByRole('button', { name: '削除' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: '削除する' }).click()
+  await expect(page).toHaveURL(/#\/clips$/)
+  await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toHaveCount(0)
+  await page.getByRole('button', { name: '元に戻す' }).click()
+  await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toBeVisible()
+  await page.waitForTimeout(5500)
+  expect(deletes).toHaveLength(0)
+  // 戻さなければ、少し待ってから本当に消える
+  await page.goto('#/clips/c1000000-0000-4000-8000-000000000004')
+  await page.getByRole('button', { name: '削除' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: '削除する' }).click()
+  await expect(page).toHaveURL(/#\/clips$/)
+  await expect.poll(() => deletes.length, { timeout: 10_000 }).toBe(1)
+})
+
+test('gaps: settings can export a backup file with everything in it', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/settings')
+  const dl = page.waitForEvent('download')
+  await page.getByRole('button', { name: '書き出す' }).click()
+  const file = await dl
+  expect(file.suggestedFilename()).toMatch(/^lara-backup-\d{4}-\d{2}-\d{2}\.json$/)
+  const text = await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8')
+  const data = JSON.parse(text) as { clips: unknown[]; recipes: unknown[]; menu_logs: unknown[]; genres: unknown[]; photo_base_url: string }
+  expect(data.clips).toHaveLength(5)
+  expect(data.recipes).toHaveLength(5)
+  expect(data.genres).toHaveLength(4)
+  expect(data.menu_logs.length).toBeGreaterThan(0)
+  expect(data.photo_base_url).toContain('/storage/v1/object/public/photos/')
+})
+
+test('gaps: menu records can be searched by note or menu name', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/menu')
+  await page.getByRole('textbox', { name: '記録を探す' }).fill('売り切れ')
+  const hits = page.getByTestId('log-search-hits')
+  await expect(hits.getByRole('button')).toHaveCount(1)
+  await expect(hits.getByText(/雨。BLT 早めに売り切れ/)).toBeVisible()
+  await page.getByRole('textbox', { name: '記録を探す' }).fill('エッグ')
+  await expect.poll(() => hits.getByRole('button').count()).toBeGreaterThan(1)
+  await hits.getByRole('button').first().click()
+  await expect(page).toHaveURL(/#\/menu\/\d{4}-\d{2}-\d{2}$/)
+})
+
+test('gaps: the clip list can be sorted by name or rating, and remembers it', async ({ page }) => {
+  await stubSupabase(page)
+  const mk = (id: string, title: string, rating: number, n: number) => ({ ...base, id: `c2000000-0000-4000-8000-00000000000${id}`, purpose: 'reference', type: 'note', title, note: '', url: null, images: [], preview: null, category: 'wine', tags: [], shop_name: null, favorite: false, rating, needs_review: false, created_at: ts(n), updated_at: ts(n) })
+  const rows = [mk('1', 'ぶどう', 1, 0), mk('2', 'あか', 5, 1), mk('3', 'しろ', 3, 2)]
+  await page.route(`https://${REF}.supabase.co/rest/v1/clips**`, (route) => route.request().method() === 'GET'
+    ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-2/3', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(rows) })
+    : route.fallback())
+  await page.goto('#/clips')
+  const names = async () => (await page.locator('main a[href*="#/clips/"] p').allTextContents()).filter((t) => ['ぶどう', 'あか', 'しろ'].includes(t))
+  await expect.poll(names).toEqual(['ぶどう', 'あか', 'しろ'])
+  await page.getByRole('combobox', { name: '並び順' }).selectOption('name')
+  await expect.poll(names).toEqual(['あか', 'しろ', 'ぶどう'])
+  await page.getByRole('combobox', { name: '並び順' }).selectOption('rating')
+  await expect.poll(names).toEqual(['あか', 'しろ', 'ぶどう'])
+  await page.getByRole('combobox', { name: '並び順' }).selectOption('name')
+  await page.goto('#/recipes')
+  await page.goto('#/clips')
+  await expect(page.getByRole('combobox', { name: '並び順' })).toHaveValue('name')
+})
+
+test('gaps: when the network is gone, the last-read lists still open from the device', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+  await page.goto('#/recipes')
+  await expect(page.getByText('エッグサラダ')).toBeVisible()
+  await page.waitForTimeout(2500)   // 端末への書き出しは 2 秒おき
+  await page.route(`https://${REF}.supabase.co/rest/v1/**`, (route) => route.abort('internetdisconnected'))
+  await page.reload()
+  await expect(page.getByText('エッグサラダ')).toBeVisible()
+  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: 'ネタ帳' }).click()
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
 })

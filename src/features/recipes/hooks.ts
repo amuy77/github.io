@@ -3,10 +3,12 @@ import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { RecipeRow } from '@/lib/supabase/database.types'
 import { deleteRecipe, getRecipe, insertRecipe, listRecipes, setMainRecipe, updateRecipe, type RecipeInsert, type RecipeUpdate } from './api'
+import { useHidePendingDeletes } from '@/lib/undoDelete'
 
 /** 全レシピ（draft 込み）。図鑑では published だけを見せる */
 export function useRecipes(enabled = true) {
-  return useQuery({ queryKey: qk.recipes, queryFn: listRecipes, enabled: isSupabaseConfigured && enabled })
+  const hide = useHidePendingDeletes<RecipeRow>()
+  return useQuery({ queryKey: qk.recipes, queryFn: listRecipes, enabled: isSupabaseConfigured && enabled, select: hide })
 }
 
 export function useRecipe(id: string | undefined) {
