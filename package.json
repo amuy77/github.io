@@ -2,14 +2,14 @@
   "name": "lara-notes",
   "version": "0.1.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "smoke": "playwright test -c playwright.config.ts",
     "gen:icons": "node scripts/gen-icons.mjs"
   },
@@ -24,7 +24,7 @@
     "url": "https://github.com/amuy77/github.io/issues"
   },
   "homepage": "https://github.com/amuy77/github.io#readme",
-  "private": "true",
+  "private": true,
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
@@ -56,6 +56,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.1",
-    "vite-plugin-pwa": "^1.3.0"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^5.0.3"
   }
 }

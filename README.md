@@ -16,10 +16,19 @@ npm ci
 npm run dev        # http://localhost:5173/github.io/
 npm run typecheck
 npm run lint
-npm run build && npm run preview   # http://127.0.0.1:4173/github.io/
-npm run smoke      # preview を起動した状態で（Supabase はスタブ）
+npm test           # 単体テスト（日付・連続記録・服・セリフ・レシピの読み取り・集計）。数秒
 npm run gen:icons  # public/brand/lara.png から PWA アイコンを生成
 ```
+
+画面のスモークテスト（Playwright。Supabase は route でスタブするので、**スタブ用の URL でビルドする**こと）:
+
+```bash
+VITE_SUPABASE_URL=https://lara-smoke.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_smoke npm run build
+npm run preview    # http://127.0.0.1:4173/github.io/ を別ターミナルで
+npm run smoke      # phone / desktop の 2 プロジェクトで全部走る（10 分弱）。-g '<テスト名>' で絞れる
+```
+
+CI（`.github/workflows/deploy.yml`）は push のたびに typecheck・lint・単体テスト・ビルドと、スモークテストを並行して走らせ、全部通ったときだけ `main` を公開する。
 
 ## 構成
 

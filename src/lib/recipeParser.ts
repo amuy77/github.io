@@ -31,11 +31,11 @@ function normalize(s: string): string {
 export function parseIngredientLine(line: string): Ingredient | null {
   const l = normalize(line)
   if (!l) return null
-  const m = l.match(AMOUNT_RE)
-  if (m && m[1].trim()) return { name: m[1].replace(/[:：…・‥\-–—=＝\s]+$/, '').trim(), amount: `${m[2].trim()}${m[3] ? ` ${m[3].trim()}` : ''}` }
-  // 「200g 砂糖」のように量が先
+  // 「200g 砂糖」のように量が先（先に見ないと、下の正規表現が「2」を名前にしてしまう）
   const parts = l.split(/\s+/)
   if (parts.length >= 2 && AMOUNT_ONLY_RE.test(parts[0])) return { name: parts.slice(1).join(' '), amount: parts[0] }
+  const m = l.match(AMOUNT_RE)
+  if (m && m[1].trim()) return { name: m[1].replace(/[:：…・‥\-–—=＝\s]+$/, '').trim(), amount: `${m[2].trim()}${m[3] ? ` ${m[3].trim()}` : ''}` }
   return null
 }
 

@@ -6,7 +6,9 @@ export default defineConfig({
   testDir: './scripts',
   testMatch: /smoke\.spec\.ts/,
   timeout: 60_000,
-  retries: 0,
+  // CI（GitHub Actions）では 1 回だけやり直す（ソフトウェア描画の 3D は、たまに時間切れになる）
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : undefined,
   reporter: [['list']],
   use: {
     baseURL: process.env.SMOKE_BASE_URL ?? 'http://127.0.0.1:4173/github.io/',

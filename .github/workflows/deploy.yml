@@ -17,6 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 型・lint・単体テスト・ビルド（公開するもの）
   build:
     runs-on: ubuntu-latest
     steps:
@@ -27,16 +28,48 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
+  # 画面のスモークテスト（Supabase はスタブ。build と並行して走り、落ちたら公開しない）
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build for the smoke tests (stubbed Supabase)
+        run: VITE_SUPABASE_URL=https://lara-smoke.supabase.co VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_smoke npx vite build --outDir dist-smoke
+      - name: Serve and run the smoke tests
+        run: |
+          npx vite preview --outDir dist-smoke --port 4173 --strictPort > preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/github.io/ > /dev/null && break; sleep 1; done
+          npm run smoke
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: smoke-results
+          path: |
+            test-results
+            screenshots
+            preview.log
+          retention-days: 7
+
   deploy:
     # github-pages 環境は既定で main からのデプロイだけを許可している
     if: github.ref == 'refs/heads/main'
-    needs: build
+    needs: [build, smoke]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
