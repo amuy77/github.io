@@ -97,10 +97,11 @@ function useScrollMemory() {
   useEffect(() => {
     const y = navType === 'POP' ? saved.current.get(key) ?? 0 : 0
     if (y <= 0) { window.scrollTo(0, 0); return }
+    // 一覧の読み込みや画像で高さが足りるまで待つ（最長 2 秒ほど。遅い端末や CI では 30 フレームでは足りなかった）
     let tries = 0, raf = 0
     const tryRestore = () => {
       const canReach = document.documentElement.scrollHeight - window.innerHeight >= y - 1
-      if (canReach || tries++ > 30) { window.scrollTo(0, y); return }
+      if (canReach || tries++ > 120) { window.scrollTo(0, y); return }
       raf = requestAnimationFrame(tryRestore)
     }
     raf = requestAnimationFrame(tryRestore)

@@ -878,7 +878,7 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await page.getByRole('button', { name: '戻る' }).click()
   await expect(page).toHaveURL(/#\/clips$/)
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(y - 20)
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThanOrEqual(y - 20)
   await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: '図鑑' }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
 })
