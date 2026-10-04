@@ -4,7 +4,7 @@ import { TalkBar, TalkBubbleBody, TalkButton } from './chat/LaraTalk'
 import { useLaraTalk } from './chat/useLaraTalk'
 import { useUnseenAnswers } from './chat/unseenAnswers'
 import { chatLine } from './chat/chatVoice'
-import { tileLine } from './shop3d/laraVoice'
+import { tileLine, voicePart } from './shop3d/laraVoice'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
@@ -24,13 +24,13 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
   ]
   const nav = useNavigate()
   const [talking, setTalking] = useState(false)
-  const talk = useLaraTalk({ counts, streak })
+  const talk = useLaraTalk({ counts, streak, active: talking })
   const stopTalk = () => { setTalking(false); talk.stop() }
   const answers = useUnseenAnswers().length
   // LaRa のひとことは、お店の LaRa と同じセリフ集から。状況（準備中・答えが届いた・記録まだ・時間帯）が変わったときだけ選び直す
   const kind = loading ? 'loading' : answers > 0 ? 'answers' : worried ? 'worried' : 'greet'
   const hour = new Date().getHours()
-  const part = hour < 6 || hour >= 20 ? 'late' : hour < 10 ? 'morning' : hour < 17 ? 'day' : 'evening'
+  const part = voicePart(hour)
   const agenda = useAgendaLine()
   const says = useMemo(() => (kind === 'loading' ? chatLine('home2dLoading') : tileLine(kind, hour)), [kind, part]) // eslint-disable-line react-hooks/exhaustive-deps
   // ホームは画面の端まで使う 3D 版に合わせて外側の余白が無いので、タイル版は自分で左右と下（タブバーの分）の余白を取る

@@ -15,6 +15,8 @@ export interface ShopSceneOptions {
   onSay?: (event: ResidentEvent) => void
   /** 遊びに来た友達（LuRu など）に何か起きたとき。吹き出しでセリフを言わせるのに使う */
   onFriend?: (event: FriendEvent) => void
+  /** WebGL を取り上げられて戻ってこなかったとき（タイル版へ退避する） */
+  onContextLost?: () => void
   /** ブランド素材（無ければ文字看板だけ） */
   assets?: { wordmark?: string; poster?: string }
 }
@@ -309,13 +311,29 @@ export class ShopScene {
   private ro: ResizeObserver
   private el: HTMLCanvasElement
 
+  // 電池のため: 何も動いていないときはフレームを間引き（lively でないとき 24fps、省エネ設定なら 10fps）、
+  // 影は毎フレームではなく、動きがあるときと 0.5 秒ごと、部屋や服が変わったとき（shadowDirty）だけ描き直す
+  private lively = true
+  private lastFrameAt = 0
+  private shadowDirty = true
+  private lastShadowAt = -1
+  private lostTimer = 0
+
   constructor(private container: HTMLElement, private opts: ShopSceneOptions) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'default' })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75))
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.shadowMap.autoUpdate = false
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.el = this.renderer.domElement
+    // iOS はバックグラウンドやメモリ不足で WebGL を取り上げる。戻してもらえたら描き直し、2 秒待っても戻らなければ呼び出し側に知らせる（タイル版へ）
+    this.el.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault()
+      window.clearTimeout(this.lostTimer)
+      this.lostTimer = window.setTimeout(() => { if (!this.disposed) this.opts.onContextLost?.() }, 2000)
+    })
+    this.el.addEventListener('webglcontextrestored', () => { window.clearTimeout(this.lostTimer); this.invalidate() })
     this.el.style.display = 'block'
     this.el.style.width = '100%'
     this.el.style.height = '100%'
@@ -348,7 +366,7 @@ export class ShopScene {
     this.chalkLines.forEach((o, i) => { o.visible = i < this.counts.chalk })
     if (this.opts.badgeEl) { this.opts.badgeEl.textContent = String(this.counts.inbox); this.opts.badgeEl.style.display = this.counts.inbox > 0 ? 'block' : 'none' }
     this.updateResidentState()
-    this.needsRender = true
+    this.invalidate()
   }
 
   setMode(m: DayPart) {
@@ -363,7 +381,7 @@ export class ShopScene {
     this.drawSea(m, this.lastT)
     this.renderer.toneMappingExposure = d.exp
     this.updateResidentState()
-    this.needsRender = true
+    this.invalidate()
   }
 
   /** LaRa の 3D フィギュアをお店に住まわせる。false で撤去 */
@@ -382,11 +400,11 @@ export class ShopScene {
     this.resident = g; this.figure = fig
     this.residentState = 'counter'
     this.updateResidentState(true)
-    this.needsRender = true
+    this.invalidate()
   }
 
   /** 住人の気分（連続記録が途切れそうなときは心配顔） */
-  setResidentMood(m: ResidentMood) { this.residentMood = m; this.updateResidentState(); this.needsRender = true }
+  setResidentMood(m: ResidentMood) { this.residentMood = m; this.updateResidentState(); this.invalidate() }
 
   /** 今の行動（吹き出しのセリフを選ぶのに使う） */
   residentActivity(): ResidentActivity { return this.residentState }
@@ -402,7 +420,7 @@ export class ShopScene {
     const spot = SPOTS[this.residentState], arrived = this.arrivedAt >= 0
     if (on) { this.gesture = null; this.react = null; this.setResidentProp('none'); this.showEmote('!') }
     else { if (arrived) this.setResidentProp(this.phase2 && spot.then?.prop ? spot.then.prop : spot.prop ?? 'none'); this.holdResident(4) }
-    this.needsRender = true
+    this.invalidate()
   }
   /** 返事をするときの小さな仕草（話しかけられている間だけ） */
   residentReply(kind: 'nod' | 'wave' | 'think' | 'happy') {
@@ -412,7 +430,7 @@ export class ShopScene {
     else if (kind === 'happy') { this.react = { pose: 'hop', until: t + 1.2 }; this.showEmote('♪') }
     else if (kind === 'think') { this.react = { pose: 'lookaround', until: t + 60 }; this.showEmote('…') }
     else { this.react = { pose: 'stand', until: t + 0.1 }; this.showEmote('♡') }
-    this.needsRender = true
+    this.invalidate()
   }
   /** しゃべっている間など、しばらく次の場所へ歩き出さない */
   holdResident(sec: number) {
@@ -434,7 +452,7 @@ export class ShopScene {
   }
 
   /** 住人の服（一覧は outfit.ts）。日替わりの判定は呼ぶ側 */
-  setResidentOutfit(o: LaraOutfit) { this.residentOutfit = o; this.figure?.setOutfit(o); this.needsRender = true }
+  setResidentOutfit(o: LaraOutfit) { this.residentOutfit = o; this.figure?.setOutfit(o); this.invalidate() }
 
   private residentExpression(t: number) {
     if (!this.figure) return
@@ -450,7 +468,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, radius: this.radius, roomBox: [this.roomBox.min.toArray(), this.roomBox.max.toArray()], friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null } }
+  debugState() { return { lively: this.lively, resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, radius: this.radius, roomBox: [this.roomBox.min.toArray(), this.roomBox.max.toArray()], friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null } }
   /** デバッグ用: 時刻を固定する（null で今の時刻に戻す） */
   debugSetHour(h: number | null) { this.hourOverride = h; this.updateResidentState(); this.drawSea(this.mode, this.lastT) }
   /** デバッグ用: 今の場所での時間を飛ばして、次の行動を選ばせる（優先の行動があるときは何もしない） */
@@ -497,7 +515,7 @@ export class ShopScene {
     const t = this.lastT
     this.friend = { kind, group: g, fig, phase: 'enter', path: [], nodes: [], at: FRIEND_DOOR, pose: 'hop', face: 'camera', until: t + 1.2, leaveAt: t + stay, scale: 0, blinkAt: t + 2, blinkUntil: 0, react: null, play: null }
     this.opts.onFriend?.('arrive')
-    this.needsRender = true
+    this.invalidate()
   }
   /** 友達に帰ってもらう（郵便受けまで歩いて消える） */
   sendFriendHome() { if (this.friend && this.friend.phase !== 'leave') this.friendLeave() }
@@ -623,7 +641,7 @@ export class ShopScene {
       walking, facing, reduced: !!this.opts.reducedMotion, pose: walking ? undefined : f.react?.pose ?? f.pose ?? 'stand',
       skip: walking && f.phase === 'enter', sleepSide: 1, waving: !walking && f.phase === 'leave', brewing: false, sleeping: false, worried: false,
     })
-    this.needsRender = true
+    this.invalidate()
   }
 
   residentScreenPos(): { x: number; y: number } | null {
@@ -638,17 +656,21 @@ export class ShopScene {
   dispose() {
     this.disposed = true
     cancelAnimationFrame(this.raf)
+    window.clearTimeout(this.lostTimer)
     this.ro.disconnect()
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh
       if (m.geometry) m.geometry.dispose()
-      if (m.material && !Array.isArray(m.material)) { const mm = m.material as THREE.MeshStandardMaterial; mm.map?.dispose(); mm.dispose() }
+      // 看板など、面ごとに違うマテリアルのものも忘れずに
+      for (const mat of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) { const mm = mat as THREE.MeshStandardMaterial; mm.map?.dispose(); mm.dispose() }
     })
     this.mats.forEach((m) => m.dispose())
     this.seaTex.dispose(); this.festoonMat.dispose(); this.pendantMat.dispose(); this.emoteTex.dispose()
     this.figure?.dispose()
     this.friend?.fig.dispose()
     this.renderer.dispose()
+    // GL の文脈をすぐ返す（返さないと、画面を行き来するたびに文脈が溜まって古いものから消される）
+    this.renderer.forceContextLoss()
     this.el.remove()
   }
 
@@ -1226,7 +1248,7 @@ export class ShopScene {
       g.strokeStyle = '#6FB7B0'; g.lineWidth = 6; g.strokeRect(14, 14, 484, 132)
       g.fillStyle = '#3B2A20'; g.textAlign = 'center'; g.textBaseline = 'middle'
       g.font = '800 92px "Shippori Mincho B1", "Hiragino Mincho ProN", serif'; g.fillText('LaRa', 256, 84)
-      tex.needsUpdate = true; this.needsRender = true
+      tex.needsUpdate = true; this.invalidate()
     }
     const frame = this.M(C.whiteWood)
     const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 })
@@ -1243,9 +1265,9 @@ export class ShopScene {
         const img = wm.image as HTMLImageElement
         const scale = Math.min(400 / img.width, 110 / img.height)
         g.drawImage(img, 256 - (img.width * scale) / 2, 80 - (img.height * scale) / 2, img.width * scale, img.height * scale)
-        tex.needsUpdate = true; this.needsRender = true
+        tex.needsUpdate = true; this.invalidate()
       })
-    } else if (document.fonts?.load) document.fonts.load('800 92px "Shippori Mincho B1"').then(draw).catch(() => {})
+    } else if (document.fonts?.load) document.fonts.load('800 92px "Shippori Mincho B1"').then(() => { if (!this.disposed) draw() }).catch(() => {})
 
     // 左の壁のポスター: ロゴ全体
     if (poster) {
@@ -1259,7 +1281,7 @@ export class ShopScene {
         const plane = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshStandardMaterial({ map: pt, roughness: 0.9 }))
         plane.position.set(-3.155, 1.85, 0.55); plane.rotation.y = Math.PI / 2; plane.receiveShadow = true
         room.add(plane)
-        this.needsRender = true
+        this.invalidate()
       })
     }
   }
@@ -1321,7 +1343,7 @@ export class ShopScene {
     }
     this.residentPath = this.residentNodes.map((n) => new THREE.Vector3(...NODES[n]))
     this.residentTarget.copy(this.residentPath[0])
-    this.needsRender = true
+    this.invalidate()
   }
   /** ふらふら散歩の行き先: 今いる点以外から気まぐれに */
   private wanderNode() {
@@ -1471,7 +1493,7 @@ export class ShopScene {
     }
     this.renderer.setSize(w, h, false)
     this.updateCamera()
-    this.needsRender = true
+    this.invalidate()
   }
   private updateCamera() {
     const { target: t, radius: r, pitch, yaw } = this
@@ -1501,10 +1523,10 @@ export class ShopScene {
         const dx = e.clientX - this.lastX; this.lastX = e.clientX; this.moved += Math.abs(dx)
         // 右へ回すとほぼ正面（-0.15）まで、左へは基本の向きから 0.55 まで
         this.yaw = THREE.MathUtils.clamp(this.yaw - dx * 0.004, -0.15, this.yawBase + 0.55)
-        this.updateCamera(); this.needsRender = true
+        this.updateCamera(); this.invalidate()
       } else if (e.pointerType === 'mouse') {
         const h = this.pick(e)
-        if (h !== this.hovered) { this.hovered = h; el.style.cursor = h ? 'pointer' : 'grab'; this.opts.onHover?.(h ? (h.userData.hot as Hotspot) : null); this.needsRender = true }
+        if (h !== this.hovered) { this.hovered = h; el.style.cursor = h ? 'pointer' : 'grab'; this.opts.onHover?.(h ? (h.userData.hot as Hotspot) : null); this.invalidate() }
       }
     })
     el.addEventListener('pointerup', () => {
@@ -1518,7 +1540,7 @@ export class ShopScene {
     if (g === this.resident) this.reactTap()
     else if (this.friend && g === this.friend.group) this.reactFriendTap()
     else this.bounces.push({ g, t: 0 })
-    this.needsRender = true
+    this.invalidate()
     try { navigator.vibrate?.(10) } catch { /* noop */ }
     this.opts.onTap(g.userData.hot as Hotspot)
   }
@@ -1536,6 +1558,11 @@ export class ShopScene {
     if (this.disposed) return
     this.raf = requestAnimationFrame(this.loop)
     if (document.hidden) return
+    // フレームの間引き（動きがあるときは画面のままの速さ、静かなときは 24fps、省エネ設定は 10fps）
+    const now = performance.now()
+    const fps = this.opts.reducedMotion ? 10 : this.lively ? 60 : 24
+    if (now - this.lastFrameAt < 1000 / fps - 2) return
+    this.lastFrameAt = now
     const dt = Math.min(this.clock.getDelta(), 0.05)
     const t = this.clock.elapsedTime
 
@@ -1549,7 +1576,7 @@ export class ShopScene {
       }
       // 窓の外: 1 秒に 8 回ほど描き直して、雲・波・光を動かす。ときどきカモメ（夜は流れ星）
       if (t > this.nextFly) { this.flyAt = t; this.flyWaved = false; this.nextFly = t + 20 + Math.random() * 30 }
-      if (t - this.seaDrawnAt > 0.12) { this.seaDrawnAt = t; this.drawSea(this.mode, t) }
+      if (t - this.seaDrawnAt > (this.lively ? 0.12 : 0.25)) { this.seaDrawnAt = t; this.drawSea(this.mode, t) }
       this.needsRender = true
     }
     // 住人: 通り道に沿って歩く（曲がり角でときどき立ち止まる）→ 着いたら場所ごとの仕草と、合間の小さな仕草 → しばらくしたら次の行動へ
@@ -1651,6 +1678,16 @@ export class ShopScene {
       const want = g === this.hovered ? 1.04 : 1
       if (!this.bounces.some((b) => b.g === g) && Math.abs(g.scale.x - want) > 0.001) { g.scale.setScalar(want); this.needsRender = true }
     }
-    if (this.needsRender) { this.renderer.render(this.scene, this.camera); this.placeBadge(); this.needsRender = false }
+    // 次のフレームの速さを決める「動きがあるか」: 歩いている・友達がいる・ドラッグ中・はねている小物・仕草や反応の最中・吹き出しの絵文字・話しかけ中
+    this.lively = (!!this.resident && this.arrivedAt < 0) || !!this.friend || this.dragging || this.bounces.length > 0 || !!this.react || !!this.gesture || this.emoteT < 3 || this.listening
+    if (this.needsRender) {
+      if (this.shadowDirty || this.lively || t - this.lastShadowAt > 0.5) { this.renderer.shadowMap.needsUpdate = true; this.shadowDirty = false; this.lastShadowAt = t }
+      this.renderer.render(this.scene, this.camera); this.placeBadge(); this.needsRender = false
+    }
   }
+
+  /** 描き直す（部屋・服・照明・小物が変わったとき。影も描き直す） */
+  private invalidate() { this.needsRender = true; this.shadowDirty = true }
+  /** テスト用: WebGL を取り上げられたふりをする */
+  debugLoseContext() { this.renderer.getContext().getExtension('WEBGL_lose_context')?.loseContext() }
 }

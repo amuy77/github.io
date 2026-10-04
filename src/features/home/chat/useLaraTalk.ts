@@ -34,16 +34,19 @@ const answerLine = (a: UnseenAnswer, more: number): TalkLine => ({
   text: `${chatLine('answerHead', { q: a.question.slice(0, 30) + (a.question.length > 30 ? '…' : '') })}\n\n${a.answer}`, more, mood: 'happy',
 })
 
-/** ホームで LaRa に話しかけるときのやりとり。その場で返せるものはアプリのデータから、じっくりした相談は預かって毎時の Routine が答える */
-export function useLaraTalk({ counts, streak }: { counts: HomeCounts; streak: number }) {
+/**
+ * ホームで LaRa に話しかけるときのやりとり。その場で返せるものはアプリのデータから、じっくりした相談は預かって毎時の Routine が答える。
+ * 返事に使うデータ（レシピ・ネタ・60 日分の記録・予定）は話しかけている間（active）だけ読む。ホームを開くたびに全部読まない
+ */
+export function useLaraTalk({ counts, streak, active = true }: { counts: HomeCounts; streak: number; active?: boolean }) {
   const toast = useToast()
-  const recipes = useRecipes()
-  const clips = useClips()
-  const logs = useMenuLogs(addDays(today(), -60), today())
+  const recipes = useRecipes(active)
+  const clips = useClips(active)
+  const logs = useMenuLogs(addDays(today(), -60), today(), active)
   const enqueue = useEnqueueJob()
   const unseen = useUnseenAnswers()
-  const planToday = usePlannerAgenda('today')
-  const planTomorrow = usePlannerAgenda('tomorrow')
+  const planToday = usePlannerAgenda('today', active)
+  const planTomorrow = usePlannerAgenda('tomorrow', active)
   const [line, setLine] = useState<TalkLine | null>(null)
   const [thinking, setThinking] = useState(false)
   const queue = useRef<UnseenAnswer[]>([])
@@ -68,8 +71,11 @@ export function useLaraTalk({ counts, streak }: { counts: HomeCounts; streak: nu
   const send = async (raw: string) => {
     const q = raw.trim()
     if (!q || thinking) return
-    const rs = recipes.data ?? [], ls = logs.data ?? []
-    const reply = localReply(q, { hour: new Date().getHours(), counts, streak, todayLogged: ls.some((l) => l.log_date === today()), recipes: rs, clips: clips.data ?? [], notServed: notServedRecently(ls, rs).map((x) => x.recipe), planner: { today: planToday.data, tomorrow: planTomorrow.data } })
+    // 話しかけ始めてすぐだと、まだ読み終わっていないことがある。無ければ待つ（あればキャッシュからすぐ）
+    const rs = recipes.data ?? (await recipes.refetch()).data ?? []
+    const cs = clips.data ?? (await clips.refetch()).data ?? []
+    const ls = logs.data ?? (await logs.refetch()).data ?? []
+    const reply = localReply(q, { hour: new Date().getHours(), counts, streak, todayLogged: ls.some((l) => l.log_date === today()), recipes: rs, clips: cs, notServed: notServedRecently(ls, rs).map((x) => x.recipe), planner: { today: planToday.data, tomorrow: planTomorrow.data } })
     // じっくり相談: API キーがあれば即答、無ければ預かる
     if (reply.consult && !noKey.current) {
       setThinking(true)

@@ -5,8 +5,8 @@ import type { RecipeRow } from '@/lib/supabase/database.types'
 import { deleteRecipe, getRecipe, insertRecipe, listRecipes, updateRecipe, type RecipeInsert, type RecipeUpdate } from './api'
 
 /** 全レシピ（draft 込み）。図鑑では published だけを見せる */
-export function useRecipes() {
-  return useQuery({ queryKey: qk.recipes, queryFn: listRecipes, enabled: isSupabaseConfigured })
+export function useRecipes(enabled = true) {
+  return useQuery({ queryKey: qk.recipes, queryFn: listRecipes, enabled: isSupabaseConfigured && enabled })
 }
 
 export function useRecipe(id: string | undefined) {

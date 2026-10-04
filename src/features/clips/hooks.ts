@@ -4,8 +4,8 @@ import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { ClipRow } from '@/lib/supabase/database.types'
 import { deleteClip, getClip, insertClip, listClips, updateClip, type ClipInsert, type ClipUpdate } from './api'
 
-export function useClips() {
-  return useQuery({ queryKey: qk.clips, queryFn: listClips, enabled: isSupabaseConfigured })
+export function useClips(enabled = true) {
+  return useQuery({ queryKey: qk.clips, queryFn: listClips, enabled: isSupabaseConfigured && enabled })
 }
 
 export function useClip(id: string | undefined) {

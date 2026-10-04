@@ -16,7 +16,7 @@ import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 import { useMenuLogs } from '@/features/menu/hooks'
 import { PLANNER_URL, openExternal, useAgendaLine } from '@/features/planner/api'
-import { FRIENDS, VISIT_CHANCE, getCharacter, takeFriendCall, type CharacterDef, type CharacterId } from '@/characters'
+import { FRIENDS, VISIT_CHANCE, getCharacter, markVisited, planVisit, takeFriendCall, type CharacterDef, type CharacterId } from '@/characters'
 
 type Place = Exclude<Hotspot, 'resident' | 'friend'>
 const HOT: Record<Place, { em: string; name: string; sub: string; to: string }> = {
@@ -40,8 +40,10 @@ const friendHours = (h: number) => h >= 10 && h < 20
 const readSeen = () => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0 } catch { return 0 } }
 const writeSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())) } catch { /* private mode */ } }
 
-export function ShopHome({ counts, streak, worried = false }: { counts: HomeCounts; streak: number; worried?: boolean }) {
+export function ShopHome({ counts, streak, worried = false, onContextLost }: { counts: HomeCounts; streak: number; worried?: boolean; onContextLost?: () => void }) {
   const nav = useNavigate()
+  const onContextLostRef = useRef(onContextLost)
+  onContextLostRef.current = onContextLost
   const reduced = useReducedMotion()
   const ref = useRef<HTMLDivElement>(null)
   const badgeRef = useRef<HTMLDivElement>(null)
@@ -56,7 +58,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   // 話しかけている間: LaRa はこっちを向いて立ち止まり、頭の上の吹き出しで答える
   const [talking, setTalking] = useState(false)
   const [head, setHead] = useState<{ x: number; y: number; w: number; hx: number } | null>(null)
-  const talk = useLaraTalk({ counts, streak })
+  const talk = useLaraTalk({ counts, streak, active: talking })
   const talkingRef = useRef(talking)
   talkingRef.current = talking
   const answers = useUnseenAnswers().length
@@ -114,6 +116,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
         setPicked(h)
       },
       onFriend: (e) => friendRefs.current.onEvent(scene, e),
+      onContextLost: () => onContextLostRef.current?.(),
       // くしゃみ・つまずく・寝落ちから起きる・本を見つけた・カモメ・流れ星 などの直後に、ときどきひとこと
       onSay: (e) => {
         if (talkingRef.current || pickedRef.current || bubbleRef.current || Math.random() > 0.8) return
@@ -124,9 +127,17 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     scene.setMode(partRef.current)
     scene.setResidentOutfit(outfitRef.current)
     scene.setResident(true)
+    // 省エネ設定の切り替えで作り直したときも、本・葉っぱ・心配顔は今の値のまま。友達は作り直したシーンにはいないので忘れる
+    const d = dataRef.current
+    scene.setCounts({ books: Math.min(24, d.counts.recipes), cards: Math.min(12, d.counts.clips), leaves: Math.min(14, d.streak), chalk: Math.min(30, d.counts.menuLogs), inbox: d.counts.inbox })
+    scene.setResidentMood(worriedRef.current ? 'worried' : 'idle')
+    friendRef.current = null
+    for (const id of friendTimers.current) window.clearTimeout(id)
+    friendTimers.current = []
     sceneRef.current = scene
-    ;(window as unknown as { __lara?: ShopScene }).__lara = scene   // デバッグ用
-    return () => { scene.dispose(); sceneRef.current = null }
+    const w = window as unknown as { __lara?: ShopScene }
+    w.__lara = scene   // デバッグ用
+    return () => { scene.dispose(); sceneRef.current = null; if (w.__lara === scene) delete w.__lara }
   }, [reduced])
 
   /** セリフを選ぶための今の様子（シーンの様子 + 心配・服・日付・数） */
@@ -206,6 +217,7 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     friendRef.current = c
     scene.visitFriend(c.figure)
     if (!scene.friendStatus()) friendRef.current = null
+    else markVisited(id, today())
   }
 
   function startTalk() {
@@ -265,12 +277,12 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
     id = window.setTimeout(speak, 2500 + Math.random() * 1500)
     return () => window.clearTimeout(id)
   }, [reduced])
-  // 友達が遊びに来る: 設定画面の「今すぐ呼ぶ」ならすぐ。そうでなければ昼間に、設定の頻度でときどき（開いてから 15〜45 秒後）
+  // 友達が遊びに来る: 設定画面の「今すぐ呼ぶ」ならすぐ。そうでなければ昼間に、設定の頻度で日に 1 回だけ抽選（来る日は開いてから 15〜45 秒後）
   useEffect(() => {
     const called = takeFriendCall()
     if (called) { const id = window.setTimeout(() => visit(called), 1500); return () => window.clearTimeout(id) }
     if (reduced || !friendHours(new Date().getHours())) return
-    const c = FRIENDS.find((f) => Math.random() < VISIT_CHANCE[friendPrefs[f.id] ?? 'sometimes'])
+    const c = FRIENDS.find((f) => planVisit(f.id, VISIT_CHANCE[friendPrefs[f.id] ?? 'sometimes'], today()))
     if (!c) return
     const id = window.setTimeout(() => visit(c.id), 15_000 + Math.random() * 30_000)
     return () => window.clearTimeout(id)
@@ -278,8 +290,12 @@ export function ShopHome({ counts, streak, worried = false }: { counts: HomeCoun
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useEffect(() => () => { for (const id of friendTimers.current) window.clearTimeout(id) }, [])
-  // デバッグ・確認用: window.__laraVisit('luru')
-  useEffect(() => { (window as unknown as { __laraVisit?: (id: CharacterId) => void }).__laraVisit = visit })
+  // デバッグ・確認用: window.__laraVisit('luru')。画面を離れたら消す
+  useEffect(() => {
+    const w = window as unknown as { __laraVisit?: (id: CharacterId) => void }
+    w.__laraVisit = visit
+    return () => { delete w.__laraVisit }
+  })
 
   // 開いている間は「最後に見た時刻」を更新（次に開いたときのあいさつ用）
   useEffect(() => {

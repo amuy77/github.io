@@ -1,6 +1,7 @@
 import type { LifePart, ResidentActivity, ResidentEvent } from './shopScene'
 import type { LaraOutfit } from './outfit'
 import { VOICE_LINES } from './voiceLines'
+import { dayPartOfHour } from '@/lib/dates'
 
 /**
  * LaRa のしゃべる言葉を選ぶ。セリフそのものは voiceLines.ts（場面ごとの key → 吹き出しの並びの一覧）。
@@ -126,7 +127,7 @@ export function greetLine(ctx: VoiceCtx, away: 'long' | 'soon' | 'normal'): Say 
  * （黒板・チョークの話は除く。「聞く」ボタンはタイル版にもあるので、その話は残す）。吹き出しは 1 つにつなげる
  */
 export function tileLine(kind: 'answers' | 'worried' | 'greet', hour: number): string {
-  const part = hour < 6 || hour >= 20 ? 'late' : hour < 10 ? 'morning' : hour < 17 ? 'day' : 'evening'
+  const part = voicePart(hour)
   const pool = kind === 'answers' ? lines('data.answers')
     : kind === 'worried' ? lines('worried').filter((s) => /メニュー|今日のこと|今日は何出した/.test(s.join('')))
     : lines(`greet.${part}`)
@@ -140,3 +141,9 @@ export function eventLine(e: ResidentEvent): Say | null {
 
 /** 確認用: 場面ごとのセリフの数 */
 export const voiceStats = () => Object.fromEntries(Object.entries(VOICE_LINES).map(([k, v]) => [k, v.length]))
+
+/** セリフ用の時間帯。照明の「夜」（dayPart）と同じ境目で、夜は late のセリフ */
+export function voicePart(hour: number): 'morning' | 'day' | 'evening' | 'late' {
+  const p = dayPartOfHour(hour)
+  return p === 'night' ? 'late' : p
+}
