@@ -8,13 +8,14 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { RatingInput } from '@/components/ui/Rating'
 import { useToast } from '@/components/ui/Toast'
 import { IconCheck, IconChevronRight, IconX } from '@/components/ui/icons'
-import type { ClipCategory, ClipPurpose, ClipRow, RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
+import type { ClipPurpose, ClipRow, RecipePurpose, RecipeRow } from '@/lib/supabase/database.types'
 import { FavoriteToggle } from '@/components/ui/FavoriteToggle'
 import { ClipPurposePicker } from '@/features/clips/purpose'
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
 import { celebrate } from '@/features/game/celebrate'
-import { CategoryPicker } from '@/features/clips/CategoryManager'
+import { guessGenreId } from '@/features/clips/guessGenre'
+import { useGenres } from '@/features/genres/hooks'
 import { useDeleteClip, useUpdateClip } from '@/features/clips/hooks'
 import { useDeleteRecipe, useRecipes, useUpdateRecipe } from '@/features/recipes/hooks'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from '@/features/recipes/family'
@@ -48,14 +49,16 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
   const [title, setTitle] = useState(clip.title)
   const [note, setNote] = useState(clip.note)
   const [shop, setShop] = useState(clip.shop_name ?? '')
-  const [category, setCategory] = useState<ClipCategory>(clip.category)
+  const genres = useGenres()
+  // AI が作ったネタはジャンルが空なので、書いてある言葉から同じ名前のジャンルを選んでおく
+  const [genreId, setGenreId] = useState<string | null>(() => clip.genre_id ?? guessGenreId(`${clip.title} ${clip.note} ${clip.tags.join(' ')}`, genres.data ?? []))
   const [tags, setTags] = useState(clip.tags)
   const [rating, setRating] = useState<number | null>(clip.rating)
   const [purpose, setPurpose] = useState<ClipPurpose>(clip.purpose)
   const [favorite, setFavorite] = useState(clip.favorite)
   const [busy, setBusy] = useState(false)
 
-  const patch = () => ({ title: title.trim(), note: note.trim(), shop_name: shop.trim() || null, category, tags, rating, purpose, favorite })
+  const patch = () => ({ title: title.trim(), note: note.trim(), shop_name: shop.trim() || null, genre_id: genreId, tags, rating, purpose, favorite })
   const ok = async () => {
     setBusy(true)
     try { await update.mutateAsync({ id: clip.id, patch: { ...patch(), needs_review: false } }); if ((rating ?? 0) >= 4) celebrate('small'); toast('ネタ帳に確定しました', 'success'); onClose() }
@@ -77,7 +80,7 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
       <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
       <Input label="名前" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="クロックムッシュ ¥980" />
       <Input label="お店" value={shop} onChange={(e) => setShop(e.target.value)} placeholder="コーヒースタンド Y" />
-      <CategoryPicker value={category} onChange={setCategory} />
+      <GenrePicker value={genreId} onChange={setGenreId} />
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">{tags.map((t) => <button key={t} type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="inline-flex items-center gap-1 rounded-chip bg-green-600 px-2.5 py-1 text-[12px] font-bold text-white">{t} <IconX size={12} /></button>)}</div>
       )}

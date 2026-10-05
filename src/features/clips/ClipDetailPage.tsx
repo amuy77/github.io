@@ -16,7 +16,7 @@ import { photoUrl } from '@/lib/images/upload'
 import { dateOf, formatMD } from '@/lib/dates'
 import { paths } from '@/app/routes'
 import { TYPE_LABEL } from './categories'
-import { useCategoryOf } from './categoryHooks'
+import { useGenreOf } from '@/features/genres/hooks'
 import { ClipPurposeBadge, ClipPurposePicker } from './purpose'
 import { clipTitle } from './ClipCard'
 import { ClipEditorSheet } from './ClipEditorSheet'
@@ -40,14 +40,14 @@ export function ClipDetailPage() {
   const [confirm, setConfirm] = useState(false)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [review, setReview] = useState(false)
-  const categoryOf = useCategoryOf()
+  const genreOf = useGenreOf()
 
   if (clip.isLoading) return <><PageHeader title="ネタ" back={paths.clips} /><Skeleton className="aspect-[4/3]" /></>
   const c = clip.data
   // 通信の失敗と「本当に無い」は分ける
   if (clip.isError) return <><PageHeader title="ネタ" back={paths.clips} /><LoadError onRetry={() => void clip.refetch()} /></>
   if (!c) return <><PageHeader title="ネタ" back={paths.clips} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
-  const cat = categoryOf(c.category)
+  const cat = genreOf(c.genre_id)
 
   return (
     <>
@@ -81,7 +81,7 @@ export function ClipDetailPage() {
           <div className="rounded-[6px] border border-mustard-300 bg-[#FFF2C2] p-5 text-[15px] font-bold leading-relaxed whitespace-pre-wrap">{c.note}</div>
         ) : (
           <Card className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2"><ClipPurposeBadge value={c.purpose} className="px-2.5 py-1 text-[12px]" /><Tag>{cat.emoji} {cat.label}</Tag>{c.tags.map((t) => <Tag key={t}>{t}</Tag>)}</div>
+            <div className="flex flex-wrap items-center gap-2"><ClipPurposeBadge value={c.purpose} className="px-2.5 py-1 text-[12px]" />{cat.id && <Tag>{cat.emoji} {cat.label}</Tag>}{c.tags.map((t) => <Tag key={t}>{t}</Tag>)}</div>
             {c.shop_name && <p className="text-sm"><span className="text-muted">お店:</span> <b>{c.shop_name}</b></p>}
             {c.note && <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{c.note}</p>}
             {c.url && (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { SettingsChip } from '@/features/settings/SettingsChip'
+import { HomeModeChip } from '@/features/settings/HomeModeChip'
 import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -345,7 +346,7 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
       <div ref={ref} className="absolute inset-0" />
       <div ref={badgeRef} className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-1/2 rounded-chip bg-brick-500 px-1.5 text-center text-[12px] font-bold leading-[22px] text-white shadow-card" style={{ minWidth: 22, height: 22 }} />
 
-      {/* 上部: ブランド + 日付 + 設定 */}
+      {/* 上部: ブランド + 日付 + 3D/2D の切り替え + 設定 */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-[calc(10px+var(--safe-top))]">
         {/* 夜はお店の背景が暗いので、店名と日付を明るい色に */}
         <div>
@@ -353,6 +354,7 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
           <div className={cx('mt-1 text-[11px] font-bold tracking-widest', part === 'night' ? 'text-oat-200/80' : 'text-muted')}>{formatMD(today())}</div>
         </div>
         <div className="flex items-center gap-2">
+          <HomeModeChip showing="3d" />
           <SettingsChip />
         </div>
       </div>

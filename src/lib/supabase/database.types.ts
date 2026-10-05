@@ -38,6 +38,8 @@ export type ClipRow = Timestamps & {
   needs_review: boolean
   /** アイデアか参考か */
   purpose: ClipPurpose
+  /** ジャンル（図鑑と共通）。null はジャンルなし */
+  genre_id: string | null
 }
 export type RecipeRow = Timestamps & {
   id: string; user_id: string; title: string; genre_id: string | null; hero_image: ImageRef | null

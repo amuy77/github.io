@@ -18,6 +18,8 @@ import { PURPOSES } from './purpose'
 import { useListViewState, writeListView } from './listView'
 import { cx } from '@/lib/cx'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
+import { useNotesGenre } from '@/features/notes/notes'
+import { GenreChips } from '@/features/notes/GenreChips'
 
 export function RecipesPage() {
   const nav = useNavigate()
@@ -26,7 +28,7 @@ export function RecipesPage() {
   const update = useUpdateRecipe()
   // タブ・ジャンル・★・検索は覚えておく（レシピを開いて戻っても、仕分けの続きからできるように）
   const [q, setQ] = useListViewState('q')
-  const [genreId, setGenreId] = useListViewState('genreId') // 'all' | 'none' | ジャンル id
+  const [genreId, setGenreId] = useNotesGenre() // 'all' | 'none' | ジャンル id（ネタ帳と共通）
   const [favOnly, setFavOnly] = useListViewState('favOnly')
   const [minRating, setMinRating] = useListViewState('minRating') // -1 = 保留だけ
   const [managing, setManaging] = useState(false)
@@ -98,8 +100,7 @@ export function RecipesPage() {
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <Chip active={genreId === 'all'} onClick={() => setGenreId('all')} count={total}>すべて</Chip>
-          {(genres.data ?? []).map((g) => <Chip key={g.id} active={genreId === g.id} onClick={() => setGenreId(g.id)} count={reps.filter((r) => r.genre_id === g.id).length}>{genreEmoji(g)} {g.name}</Chip>)}
+          <GenreChips value={genreId} onChange={setGenreId} count={(id) => (id === 'all' ? total : reps.filter((r) => (id === 'none' ? r.genre_id === null : r.genre_id === id)).length)} />
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
           <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★★★</Chip>
           <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★★以上</Chip>

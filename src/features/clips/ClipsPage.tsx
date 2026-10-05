@@ -3,10 +3,11 @@ import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
-import type { ClipCategory, ClipPurpose, ClipRow } from '@/lib/supabase/database.types'
+import type { ClipPurpose, ClipRow } from '@/lib/supabase/database.types'
 import { CLIP_PURPOSES } from './purpose'
-import { useCategoryList } from './categoryHooks'
-import { CategoryManagerSheet } from './CategoryManager'
+import { useGenres } from '@/features/genres/hooks'
+import { genreEmoji } from '@/features/genres/api'
+import { GenreManagerSheet } from '@/features/genres/GenreManager'
 import { useClips, useUpdateClip } from './hooks'
 import { ClipCard, ClipListRow, clipTitle } from './ClipCard'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
@@ -14,6 +15,8 @@ import { SortSelect, sortRows, type SortKey } from '@/components/ui/SortSelect'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
+import { useNotesGenre } from '@/features/notes/notes'
+import { GenreChips } from '@/features/notes/GenreChips'
 
 const VIEW_KEY = 'lara.clips.view'
 function readView(): Record<string, unknown> { try { return JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? '{}') } catch { return {} } }
@@ -27,41 +30,43 @@ function useRemembered<T>(key: string, initial: T): [T, (v: T) => void] {
 export function ClipsPage() {
   const clips = useClips()
   const update = useUpdateClip()
-  // タブ・カテゴリ・★・検索は覚えておく（ネタを開いて戻っても、同じところから続けられるように）
+  // タブ・ジャンル・★・検索は覚えておく（ネタを開いて戻っても、同じところから続けられるように）
   const [q, setQ] = useRemembered('q', '')
-  const [cat, setCat] = useRemembered<ClipCategory | 'all'>('cat', 'all')
+  const [genreId, setGenreId] = useNotesGenre() // 'all' | 'none' | ジャンル id（図鑑と共通）
   const [favOnly, setFavOnly] = useRemembered('favOnly', false)
   const [minRating, setMinRating] = useRemembered<0 | 4 | -1>('minRating', 0)
   const [purpose, setPurpose] = useRemembered<ClipPurpose | 'all'>('purpose', 'all')
   const [sort, setSort] = useRemembered<SortKey>('sort', 'new')
   const [editorOpen, setEditorOpen] = useState(false)
   const [managing, setManaging] = useState(false)
-  const categories = useCategoryList()
+  const genres = useGenres()
 
   const list = useMemo(() => {
     const all = (clips.data ?? []).filter((c) => purpose === 'all' || c.purpose === purpose)
     const needle = q.trim().toLowerCase()
     return sortRows(all.filter((c) => {
-      if (cat !== 'all' && c.category !== cat) return false
+      if (genreId === 'none' ? (c.genre_id ?? null) !== null : genreId !== 'all' && c.genre_id !== genreId) return false
       if (favOnly && !c.favorite) return false
       if (minRating === -1 ? c.type === 'idea' || c.rating !== null : minRating > 0 && (c.rating ?? 0) < minRating) return false
       if (!needle) return true
       const hay = `${clipTitle(c)} ${c.note} ${c.shop_name ?? ''} ${c.tags.join(' ')} ${c.preview?.title ?? ''}`.toLowerCase()
       return hay.includes(needle)
     }), sort, clipTitle)
-  }, [clips.data, q, cat, favOnly, minRating, purpose, sort])
+  }, [clips.data, q, genreId, favOnly, minRating, purpose, sort])
   const purposeCount = (p: ClipPurpose) => (clips.data ?? []).filter((c) => c.purpose === p).length
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
-  // カテゴリが「すべて」のときは、図鑑と同じようにカテゴリごとの見出しで区切る（0 件のカテゴリは出さない）
+  // ジャンルが「すべて」のときは、図鑑と同じようにジャンルごとの見出しで区切る（0 件のジャンルは出さない）
   const sections = useMemo(() => {
-    if (cat !== 'all') return [{ key: 'one', title: null as string | null, items: list }]
-    const known = new Set(categories.map((c) => c.value))
-    const out = categories.map((c) => ({ key: c.value, title: `${c.emoji} ${c.label}` as string | null, items: list.filter((x) => x.category === c.value) }))
-    const rest = list.filter((x) => !known.has(x.category))
-    if (rest.length) out.push({ key: 'rest', title: '🏷️ そのほか', items: rest })
+    if (genreId !== 'all') return [{ key: 'one', title: null as string | null, items: list }]
+    const gs = genres.data ?? []
+    const out = gs.map((g) => ({ key: g.id, title: `${genreEmoji(g)} ${g.name}` as string | null, items: list.filter((x) => x.genre_id === g.id) }))
+    const rest = list.filter((x) => !gs.some((g) => g.id === x.genre_id))
+    if (rest.length) out.push({ key: 'none', title: '🏷️ ジャンルなし', items: rest })
     return out.filter((s) => s.items.length > 0)
-  }, [cat, categories, list])
+  }, [genreId, genres.data, list])
+  // チップの件数は、タブ（アイデア・参考）で絞った中で数える
+  const inTab = useMemo(() => (clips.data ?? []).filter((c) => purpose === 'all' || c.purpose === purpose), [clips.data, purpose])
   const [layout, setLayout] = useListLayout('lara.clips.layout')
 
   return (
@@ -93,14 +98,13 @@ export function ClipsPage() {
           <LayoutToggle value={layout} onChange={setLayout} />
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <Chip active={cat === 'all'} onClick={() => setCat('all')}>すべて</Chip>
-          {categories.map((c) => <Chip key={c.value} active={cat === c.value} onClick={() => setCat(c.value)}>{c.emoji} {c.label}</Chip>)}
+          <GenreChips value={genreId} onChange={setGenreId} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
           <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
           <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>
           <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
-          <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>カテゴリを追加・編集</Chip>
+          <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
-        <CategoryManagerSheet open={managing} onClose={() => setManaging(false)} />
+        <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />
 
         {clips.isLoading ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[4/5]" />)}</div>

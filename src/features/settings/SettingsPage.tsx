@@ -5,7 +5,6 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { updateSettings, useSettings } from './useSettings'
 import { IconLogout } from '@/components/ui/icons'
 import { GenreManager } from '@/features/genres/GenreManager'
-import { CategoryManager } from '@/features/clips/CategoryManager'
 import { LearnedRules } from './LearnedRules'
 import { FoldSection } from './FoldSection'
 import { FriendsCard } from './FriendsCard'
@@ -52,8 +51,7 @@ export function SettingsPage() {
         <FriendsCard />
 
         {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
-        <FoldSection id="genres" title="レシピのジャンル"><GenreManager /></FoldSection>
-        <FoldSection id="categories" title="ネタ帳のカテゴリ"><CategoryManager /></FoldSection>
+        <FoldSection id="genres" title="ジャンル（ネタ帳・図鑑 共通）"><GenreManager /></FoldSection>
 
         <SectionTitle>アカウント</SectionTitle>
         <Card className="flex items-center gap-3">

@@ -1,16 +1,29 @@
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { GenreColor, GenreRow } from '@/lib/supabase/database.types'
-import { createGenre, deleteGenre, listGenres, reorderGenres, updateGenre } from './api'
+import { createGenre, deleteGenre, genreEmoji, listGenres, reorderGenres, updateGenre } from './api'
 
 export function useGenres() {
   return useQuery({ queryKey: qk.genres, queryFn: listGenres, enabled: isSupabaseConfigured, staleTime: 5 * 60_000 })
 }
 
+export type GenreInfo = { id: string | null; label: string; emoji: string }
+export const NO_GENRE: GenreInfo = { id: null, label: 'ジャンルなし', emoji: '🏷️' }
+
+/** ジャンル id → 表示名と絵文字。null や消えたジャンルは「ジャンルなし」 */
+export function useGenreOf() {
+  const genres = useGenres().data
+  return useCallback((id: string | null | undefined): GenreInfo => {
+    const g = id ? genres?.find((x) => x.id === id) : undefined
+    return g ? { id: g.id, label: g.name, emoji: genreEmoji(g) } : NO_GENRE
+  }, [genres])
+}
+
 export function useGenreMutations() {
   const qc = useQueryClient()
-  const invalidate = () => { qc.invalidateQueries({ queryKey: qk.genres }); qc.invalidateQueries({ queryKey: qk.recipes }) }
+  const invalidate = () => { qc.invalidateQueries({ queryKey: qk.genres }); qc.invalidateQueries({ queryKey: qk.recipes }); qc.invalidateQueries({ queryKey: qk.clips }) }
   const create = useMutation({ mutationFn: ({ name, color, sort_order, emoji }: { name: string; color: GenreColor; sort_order: number; emoji?: string }) => createGenre(name, color, sort_order, emoji), onSuccess: invalidate })
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Pick<GenreRow, 'name' | 'color' | 'sort_order' | 'emoji'>> }) => updateGenre(id, patch),

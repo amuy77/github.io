@@ -1,10 +1,11 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { cx } from '@/lib/cx'
 
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean
   icon?: ReactNode
   count?: number
+  ref?: Ref<HTMLButtonElement>
 }
 
 export function Chip({ active, icon, count, className, children, ...rest }: ChipProps) {
