@@ -918,7 +918,8 @@ test('safe: deleting a recipe keeps a photo that another recipe still uses', asy
   await page.goto('#/recipes/d1000000-0000-4000-8000-000000000002')
   await page.getByRole('button', { name: '削除' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: '削除する' }).click()
-  await expect(page).toHaveURL(/#\/recipes$/)
+  // お店のメニューのレシピなので、消したあとはノートの「メニュー」に戻る
+  await expect(page).toHaveURL(/#\/shop-menu$/)
   // 「元に戻す」の猶予（5 秒）が過ぎてから本当に消える
   await expect.poll(() => deletes.length, { timeout: 12_000 }).toBe(1)
   // 消す前に「他にこの写真を使っている行があるか」を見に行く。残りのレシピ（…03）が使っているので Storage からは消さない
