@@ -118,13 +118,13 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
       {genre && (
         <Button variant="ghost" className="text-brick-500" icon={<IconTrash size={16} />} onClick={() => setConfirm(true)}>このジャンルを削除</Button>
       )}
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${genre?.name}」を削除しますか？`} body="このジャンルのレシピは「ジャンルなし」になります（レシピ自体は消えません）。" confirmLabel="削除する" danger
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${genre?.name}」を削除しますか？`} body="このジャンルのネタとレシピは「ジャンルなし」になります（ネタやレシピ自体は消えません）。" confirmLabel="削除する" danger
         onConfirm={() => { if (genre) remove.mutate(genre.id, { onSuccess: () => { toast('削除しました'); onClose() } }) }} />
     </div>
   )
 }
 
-/** 図鑑やレシピ編集から開く「ジャンルの追加・編集」シート */
+/** ネタ帳・図鑑やその編集から開く「ジャンルの追加・編集」シート */
 export function GenreManagerSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Sheet open={open} onClose={onClose} title="ジャンルの追加・編集">

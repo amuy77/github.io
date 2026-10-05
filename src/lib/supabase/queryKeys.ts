@@ -1,6 +1,5 @@
 export const qk = {
   genres: ['genres'] as const,
-  clipCategories: ['clip-categories'] as const,
   clips: ['clips'] as const,
   clip: (id: string) => ['clip', id] as const,
   recipes: ['recipes'] as const,

@@ -98,6 +98,13 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 追加（2026-10-06）: ネタ帳のカテゴリを「ジャンル」に統一
+
+- マイグレーション `20261006000000_clip_genres.sql` を **SQL エディタで実行する**（アプリの更新より先に）。
+  ネタに `genre_id` が付き、今までのネタ帳のカテゴリ（その他を除く）がジャンルに移る（同じ名前はまとめる）。各ネタも同じ名前のジャンルに付け替わる。
+  `clip_categories` と `clips.category` は消さずに残してある（使わなくなるだけ）。何度流しても同じ結果。
+- Edge Function `lara-chat` も更新あり（ネタのジャンル名を読む）: SQL を流した **あとで** `supabase functions deploy lara-chat`（任意。しなくても今まで通り動く）
+
 ## 追加（2026-10-05）: 書き込みを DB 関数に・他人の行を指せないように
 
 - マイグレーション `20261005000000_atomic_writes.sql` を **SQL エディタで実行する**。

@@ -6,6 +6,7 @@ import { useUnseenAnswers } from './chat/unseenAnswers'
 import { chatLine } from './chat/chatVoice'
 import { tileLine, voicePart } from './shop3d/laraVoice'
 import { SettingsChip } from '@/features/settings/SettingsChip'
+import { HomeModeChip } from '@/features/settings/HomeModeChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { paths } from '@/app/routes'
@@ -44,6 +45,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
             <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
           </div>
           <div className="flex items-center gap-2">
+            <HomeModeChip showing="2d" />
             <SettingsChip />
           </div>
         </div>

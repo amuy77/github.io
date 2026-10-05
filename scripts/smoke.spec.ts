@@ -28,11 +28,11 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: G.bev, name: 'ベバレッジ', color: 'green', emoji: '', sort_order: 4 },
   ],
   clips: [
-    { ...base, id: 'c1000000-0000-4000-8000-000000000001', purpose: 'reference', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, rating: 4, needs_review: false, created_at: ts(1), updated_at: ts(1) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000002', purpose: 'reference', type: 'link', title: '', note: '断面の見せ方が良い', url: 'https://www.instagram.com/p/xxxx/', images: [], preview: { title: '', instagram_blocked: true }, category: 'sandwich', tags: ['Instagram', '見せ方'], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(2), updated_at: ts(2) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000003', purpose: 'idea', type: 'idea', title: '秋メニュー案', note: '栗とマスカルポーネのクロワッサン。はちみつ少し。', url: null, images: [], preview: null, category: 'other', tags: [], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(4), updated_at: ts(4) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000004', purpose: 'reference', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, rating: 3, needs_review: false, created_at: ts(6), updated_at: ts(6) },
-    { ...base, id: 'c1000000-0000-4000-8000-000000000005', purpose: 'unsorted', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000001', genre_id: G.american, purpose: 'reference', type: 'photo', title: 'クロックムッシュ ¥980', note: 'ベシャメル多め。パンは厚切り', url: null, images: [], preview: null, category: 'sandwich', tags: ['価格メモ', '真似したい'], shop_name: 'コーヒースタンド Y', favorite: true, rating: 4, needs_review: false, created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000002', genre_id: G.american, purpose: 'reference', type: 'link', title: '', note: '断面の見せ方が良い', url: 'https://www.instagram.com/p/xxxx/', images: [], preview: { title: '', instagram_blocked: true }, category: 'sandwich', tags: ['Instagram', '見せ方'], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(2), updated_at: ts(2) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000003', genre_id: null, purpose: 'idea', type: 'idea', title: '秋メニュー案', note: '栗とマスカルポーネのクロワッサン。はちみつ少し。', url: null, images: [], preview: null, category: 'other', tags: [], shop_name: null, favorite: false, rating: null, needs_review: false, created_at: ts(4), updated_at: ts(4) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000004', genre_id: null, purpose: 'reference', type: 'note', title: 'ヴィーニョ・ヴェルデ 2024', note: '軽くて昼向き。BLT と合いそう', url: null, images: [], preview: null, category: 'wine', tags: ['仕入れ候補'], shop_name: null, favorite: false, rating: 3, needs_review: false, created_at: ts(6), updated_at: ts(6) },
+    { ...base, id: 'c1000000-0000-4000-8000-000000000005', genre_id: G.bev, purpose: 'unsorted', type: 'photo', title: 'ピスタチオラテ ¥720', note: 'AI が読み取ったメモ（要確認）\nピスタチオペースト入り。上にクラッシュナッツ', url: null, images: [], preview: null, category: 'drink', tags: ['ラテ', '季節'], shop_name: 'カフェ Z', favorite: false, rating: null, needs_review: true, created_at: ts(0), updated_at: ts(0) },
   ],
   clip_categories: [
     { ...base, id: 'k1000000-0000-4000-8000-000000000001', key: 'sandwich', name: 'サンド', emoji: '🥪', sort_order: 1 },
@@ -248,6 +248,25 @@ test('home: settings button opens settings', async ({ page }) => {
   await expect(page.getByText('LaRa の服', { exact: true })).toBeVisible()
 })
 
+test('home: the 2D / 3D button next to settings switches the home', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: '2D のホームにする' }).click()
+  await expect(page.locator('canvas')).toHaveCount(0)
+  const to3d = page.getByRole('button', { name: '3D のホームにする' })
+  await expect(to3d).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-mode-2d.png` })
+  await to3d.click()
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: '2D のホームにする' })).toBeVisible()
+  // 設定画面のスイッチも同じ値
+  await page.goto('#/settings')
+  await expect(page.getByRole('checkbox')).toBeChecked()
+  await expect(page.getByText('ネタ帳のカテゴリ')).toHaveCount(0)
+  await expect(page.getByText('ジャンル（ネタ帳・図鑑 共通）')).toBeVisible()
+})
+
 test('home: only settings at the top, 聞く in the bottom card answers in a bubble and links to the ask page', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/')
@@ -429,26 +448,61 @@ test('recipes: the list keeps its tab after opening a recipe, and the detail pag
   await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ })).toHaveAttribute('aria-selected', 'true')
 })
 
-test('clip categories: add from the clip list, and その他 cannot be deleted', async ({ page }, info) => {
+test('clip genres: the clip list shares the genres with 図鑑, and the editor saves genre_id', async ({ page }, info) => {
   await stubSupabase(page)
-  const posts: unknown[] = []
-  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/clip_categories')) posts.push(r.postDataJSON()) })
+  const genrePosts: unknown[] = []
+  const clipPosts: unknown[] = []
+  page.on('request', (r) => {
+    if (r.method() !== 'POST') return
+    if (r.url().includes('/rest/v1/genres')) genrePosts.push(r.postDataJSON())
+    if (r.url().includes('/rest/v1/clips')) clipPosts.push(r.postDataJSON())
+  })
   await page.goto('#/clips')
-  await page.getByRole('button', { name: 'カテゴリを追加・編集' }).click()
-  const manager = page.getByRole('dialog', { name: 'カテゴリの追加・編集' })
-  await expect(manager.getByText('ワイン')).toBeVisible()
-  await manager.getByRole('button', { name: 'その他 を編集' }).click()
-  await expect(page.getByRole('dialog', { name: 'カテゴリを編集' }).getByText('消せません', { exact: false })).toBeVisible()
-  await page.getByRole('dialog', { name: 'カテゴリを編集' }).getByRole('button', { name: '閉じる' }).click()
-  await manager.getByRole('button', { name: 'カテゴリを追加' }).click()
-  const add = page.getByRole('dialog', { name: 'カテゴリを追加' })
-  await add.getByLabel('カテゴリ名').fill('スイーツ')
+  await expect(page.getByRole('button', { name: 'カテゴリを追加・編集' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).click()
+  const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
+  await expect(manager.getByText('クロワッサンサンド')).toBeVisible()
+  await manager.getByRole('button', { name: 'ジャンルを追加' }).click()
+  const add = page.getByRole('dialog', { name: 'ジャンルを追加' })
+  await add.getByLabel('ジャンル名').fill('スイーツ')
   await add.getByRole('radio', { name: '🍰' }).click()
   await page.screenshot({ path: `screenshots/${info.project.name}-category-add.png` })
   await add.getByRole('button', { name: '追加する' }).click()
-  await expect.poll(() => posts.length).toBe(1)
-  expect(posts[0]).toMatchObject({ name: 'スイーツ', emoji: '🍰' })
-  expect((posts[0] as { key: string }).key).toMatch(/^c_[a-z0-9]{10}$/)
+  await expect.poll(() => genrePosts.length).toBe(1)
+  expect(genrePosts[0]).toMatchObject({ name: 'スイーツ', emoji: '🍰' })
+  await expect(add).toBeHidden()
+  await manager.getByRole('button', { name: '閉じる' }).click()
+  await expect(manager).toBeHidden()
+
+  // 新しいネタ: 書いた言葉から同じ名前のジャンルを選んでおく（エスプレッソ → コーヒー）。選び直して保存すると genre_id が入る
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: 'ネタ帳に追加' })
+  await editor.getByLabel('タイトル').fill('エスプレッソトニック')
+  await editor.getByRole('button', { name: /ベバレッジ/ }).click()
+  await expect(editor.getByRole('button', { name: /ベバレッジ/ })).toHaveAttribute('aria-pressed', 'true')
+  await editor.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => clipPosts.length).toBe(1)
+  expect(clipPosts[0]).toMatchObject({ title: 'エスプレッソトニック', genre_id: G.bev })
+})
+
+test('notes: the genre you pick stays picked when you switch between ネタ帳 and 図鑑', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/recipes')
+  await page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ }).click()
+  await page.getByRole('button', { name: /アメリカンサンド/ }).first().click()
+  await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
+  await expect(page).toHaveURL(/#\/clips$/)
+  // ネタ帳でもアメリカンサンドが選ばれていて、そのネタだけ
+  await expect(page.getByRole('button', { name: /アメリカンサンド/ }).first()).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+  await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-notes-genre.png` })
+  // ネタ帳で変えると、図鑑に戻っても同じ
+  await page.getByRole('button', { name: /ベバレッジ/ }).first().click()
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /図鑑/ }).click()
+  await expect(page.getByRole('button', { name: /ベバレッジ/ }).first()).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('BLT サンド')).toHaveCount(0)
 })
 
 test('clips: idea / reference tabs, and the review sheet sets purpose and favourite', async ({ page }, info) => {
@@ -666,9 +720,9 @@ test('lists: clips and recipes can switch between cards and a list, and remember
   await expect(page.getByRole('radio', { name: 'カード表示' })).toHaveAttribute('aria-checked', 'true')
   await page.getByRole('radio', { name: 'リスト表示' }).click()
   await expect(page.getByTestId('clip-list').first()).toBeVisible()
-  // 「すべて」ではカテゴリごとの見出しで区切る
-  await expect(page.getByRole('heading', { name: '🥪 サンド' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '🍷 ワイン' })).toBeVisible()
+  // 「すべて」ではジャンルごとの見出しで区切る（図鑑と同じジャンル）
+  await expect(page.getByRole('heading', { name: /アメリカンサンド/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /ジャンルなし/ })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-list.png`, fullPage: true })
   await page.goto('#/recipes')
   await page.getByRole('radio', { name: 'リスト表示' }).click()
@@ -698,11 +752,11 @@ test('navigation: switching screens starts at the top', async ({ page }, info) =
 test('safe: the Enter that confirms Japanese input does not save, a real Enter does', async ({ page }) => {
   await stubSupabase(page)
   const posts: unknown[] = []
-  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/clip_categories')) posts.push(r.postDataJSON()) })
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/genres')) posts.push(r.postDataJSON()) })
   await page.goto('#/clips')
-  await page.getByRole('button', { name: 'カテゴリを追加・編集' }).click()
-  await page.getByRole('dialog', { name: 'カテゴリの追加・編集' }).getByRole('button', { name: 'カテゴリを追加' }).click()
-  const name = page.getByRole('dialog', { name: 'カテゴリを追加' }).getByLabel('カテゴリ名')
+  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).click()
+  await page.getByRole('dialog', { name: 'ジャンルの追加・編集' }).getByRole('button', { name: 'ジャンルを追加' }).click()
+  const name = page.getByRole('dialog', { name: 'ジャンルを追加' }).getByLabel('ジャンル名')
   await name.fill('すい')
   // 変換を確定する Enter（isComposing）では保存しない
   await name.evaluate((el) => el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true })))
@@ -749,8 +803,8 @@ test('safe: closing the clip editor with typed text asks first, and Esc closes o
   await page.getByRole('button', { name: '追加', exact: true }).click()
   const editor = page.getByRole('dialog', { name: 'ネタ帳に追加' })
   await editor.getByLabel('タイトル').fill('書きかけ')
-  await editor.getByRole('button', { name: 'カテゴリを編集' }).click()
-  const manager = page.getByRole('dialog', { name: 'カテゴリの追加・編集' })
+  await editor.getByRole('button', { name: 'ジャンルを編集' }).click()
+  const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
   await expect(manager).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(manager).toBeHidden()
@@ -1072,7 +1126,7 @@ test('gaps: menu records can be searched by note or menu name', async ({ page })
 
 test('gaps: the clip list can be sorted by name or rating, and remembers it', async ({ page }) => {
   await stubSupabase(page)
-  const mk = (id: string, title: string, rating: number, n: number) => ({ ...base, id: `c2000000-0000-4000-8000-00000000000${id}`, purpose: 'reference', type: 'note', title, note: '', url: null, images: [], preview: null, category: 'wine', tags: [], shop_name: null, favorite: false, rating, needs_review: false, created_at: ts(n), updated_at: ts(n) })
+  const mk = (id: string, title: string, rating: number, n: number) => ({ ...base, id: `c2000000-0000-4000-8000-00000000000${id}`, purpose: 'reference', type: 'note', title, note: '', url: null, images: [], preview: null, category: 'wine', genre_id: null, tags: [], shop_name: null, favorite: false, rating, needs_review: false, created_at: ts(n), updated_at: ts(n) })
   const rows = [mk('1', 'ぶどう', 1, 0), mk('2', 'あか', 5, 1), mk('3', 'しろ', 3, 2)]
   await page.route(`https://${REF}.supabase.co/rest/v1/clips**`, (route) => route.request().method() === 'GET'
     ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '0-2/3', 'access-control-expose-headers': 'content-range' }, body: JSON.stringify(rows) })

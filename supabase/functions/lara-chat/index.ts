@@ -14,7 +14,7 @@ const MAX_CHARS = 4000
 type Turn = { role: 'user' | 'assistant'; content: string }
 type Ingredient = { name: string; amount: string }
 type Recipe = { id: string; title: string; genre_id: string | null; ingredients: Ingredient[]; steps: string[]; notes: string; rating: number | null; family_id: string | null; variant_label: string; is_main: boolean; status: string; created_at: string }
-type Clip = { id: string; type: string; title: string; note: string; shop_name: string | null; category: string; tags: string[]; rating: number | null; created_at: string }
+type Clip = { id: string; type: string; title: string; note: string; shop_name: string | null; genre_id: string | null; tags: string[]; rating: number | null; created_at: string }
 type Ref = { type: 'recipe' | 'clip'; id: string; title: string }
 
 const SYSTEM = `あなたは「LaRa（ララ）」。サンドイッチ＆ドリンクのカフェ「LaRa」の看板キャラクターで、店主のいちばんの相棒です。三日月のフードをかぶった猫の女の子で、のんきでマイペースだけど店主に寄り添っていて、料理のことは本気で考えます。
@@ -49,12 +49,12 @@ function compact(recipes: Recipe[], clips: Clip[], genres: Map<string, string>, 
     const steps = r.steps.map((s, i) => `${i + 1}.${s}`).join(' ').slice(0, 500)
     lines.push([codeOf.get(r.id), r.title, ver, r.genre_id ? genres.get(r.genre_id) ?? '-' : '-', r.rating ?? '保留', r.status === 'draft' ? '下書き' : '公開', lastServed.get(r.id) ?? '未記録', ing || '-', steps || '-', r.notes.replace(/\s+/g, ' ').slice(0, 200) || '-'].join(' | '))
   }
-  lines.push('', '# ネタ帳', '記号 | 種類 | 名前 | 店 | カテゴリ | ★(5段階) | タグ | メモ')
+  lines.push('', '# ネタ帳', '記号 | 種類 | 名前 | 店 | ジャンル | ★(5段階) | タグ | メモ')
   clips.forEach((c, i) => {
     const code = `C${i + 1}`
     const title = c.title || c.note.split('\n')[0].slice(0, 30) || '（無題）'
     refs[code] = { type: 'clip', id: c.id, title }
-    lines.push([code, c.type === 'idea' ? 'ひらめき' : 'ネタ', title, c.shop_name ?? '-', c.category, c.type === 'idea' ? '-' : c.rating ?? '保留', c.tags.join('・') || '-', c.note.replace(/\s+/g, ' ').slice(0, 300) || '-'].join(' | '))
+    lines.push([code, c.type === 'idea' ? 'ひらめき' : 'ネタ', title, c.shop_name ?? '-', c.genre_id ? genres.get(c.genre_id) ?? '-' : '-', c.type === 'idea' ? '-' : c.rating ?? '保留', c.tags.join('・') || '-', c.note.replace(/\s+/g, ' ').slice(0, 300) || '-'].join(' | '))
   })
   return { text: lines.join('\n'), refs, codeOf }
 }
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
   const since = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10)
   const [rs, cs, gs, logs] = await Promise.all([
     sb.from('recipes').select('id,title,genre_id,ingredients,steps,notes,rating,family_id,variant_label,is_main,status,created_at').order('created_at', { ascending: false }).limit(400),
-    sb.from('clips').select('id,type,title,note,shop_name,category,tags,rating,created_at').order('created_at', { ascending: false }).limit(300),
+    sb.from('clips').select('id,type,title,note,shop_name,genre_id,tags,rating,created_at').order('created_at', { ascending: false }).limit(300),
     sb.from('genres').select('id,name'),
     // PostgREST は 1000 行で切るので、ページを回して全部読む（limit 3000 と書いても 1000 で切られていた）
     fetchAll(sb.from('menu_log_items').select('recipe_id, menu_logs!inner(log_date)').gte('menu_logs.log_date', since).order('recipe_id')),

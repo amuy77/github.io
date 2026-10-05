@@ -3,22 +3,10 @@ import { useCounts, useStreak } from './useCounts'
 import { Home2D } from './Home2D'
 import { useSettings } from '@/features/settings/useSettings'
 import { today } from '@/lib/dates'
+import { webglAvailable } from './webgl'
 
 const ShopHome = lazy(() => import('./shop3d/ShopHome'))
 
-// 3D が使えるかは 1 回だけ確かめて覚えておく。描き直しのたびに確かめると、そのたびに WebGL の文脈が増えて
-// （ブラウザは数に上限があり、古いものから消す）、お店の 3D が消えたり、途中でタイル版に切り替わって話しかけ中の会話が閉じたりする
-let webgl: boolean | undefined
-function webglAvailable(): boolean {
-  if (webgl !== undefined) return webgl
-  try {
-    const c = document.createElement('canvas')
-    const gl = c.getContext('webgl2') || c.getContext('webgl')
-    webgl = !!gl
-    gl?.getExtension('WEBGL_lose_context')?.loseContext()
-  } catch { webgl = false }
-  return webgl
-}
 // iOS はバックグラウンドやメモリ不足で WebGL を取り上げることがあり、戻ってこないとお店が真っ黒のまま。
 // そのときはしばらくタイル版で過ごして、少したってから 3D をもう一度試す
 let lostUntil = 0
