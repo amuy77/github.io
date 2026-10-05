@@ -1,3 +1,5 @@
+import { addDays, formatMD } from '@/lib/dates'
+
 /** Planner（予定・ToDo のアプリ）から届くその日のまとめ。Planner の GET /api/v1/agenda の形 */
 export interface AgendaEvent { title: string; all_day: boolean; start: string | null; end: string | null; location: string | null; calendar: string }
 /** planned_for は Planner の「明日」ボタンで入れた、やる日（古い Planner は返さない） */
@@ -6,10 +8,18 @@ export interface Agenda { date: string; today: string; events: AgendaEvent[]; ta
 
 const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length)]
 const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+/** 「今日」「明日」「明後日」、それ以外は「10/16（金）」。基準は Planner の今日（a.today） */
+export function dayLabel(date: string, todayIso: string): string {
+  if (date === todayIso) return '今日'
+  if (date === addDays(todayIso, 1)) return '明日'
+  if (date === addDays(todayIso, 2)) return '明後日'
+  return formatMD(date)
+}
+
 /** 「明日」ボタンの印: その日の分は「今日やる／明日やる」、前の日から残っているものは「持ち越し」 */
-function plannedTag(x: AgendaTask, date: string, which: 'today' | 'tomorrow') {
+function plannedTag(x: AgendaTask, a: Agenda) {
   if (!x.planned_for) return ''
-  return x.planned_for < date ? '（持ち越し）' : which === 'today' ? '（今日やる）' : '（明日やる）'
+  return x.planned_for < a.date ? '（持ち越し）' : `（${dayLabel(x.planned_for, a.today)}やる）`
 }
 
 /** 「09:30」→「9:30」 */
@@ -53,9 +63,10 @@ export function agendaLine(today: Agenda | undefined, tomorrow: Agenda | undefin
   return null
 }
 
-/** 話しかけられたときの返事: その日の予定と ToDo を並べる */
-export function agendaReply(a: Agenda, which: 'today' | 'tomorrow', part: 'all' | 'events' | 'tasks' = 'all'): string {
-  const day = which === 'today' ? '今日' : '明日'
+/** 話しかけられたときの返事: その日の予定と ToDo を並べる。日付は a.date（今日・明日以外は「10/16（金）」と言う） */
+export function agendaReply(a: Agenda, part: 'all' | 'events' | 'tasks' = 'all'): string {
+  const day = dayLabel(a.date, a.today)
+  const isToday = a.date === a.today
   const lines: string[] = []
   if (part !== 'tasks') {
     if (a.events.length) {
@@ -67,10 +78,10 @@ export function agendaReply(a: Agenda, which: 'today' | 'tomorrow', part: 'all' 
     const ts = a.tasks
     if (ts.length) {
       if (lines.length) lines.push('')
-      lines.push(`${which === 'today' ? '' : '明日までの'}ToDo は ${ts.length} 件。`)
-      for (const x of ts.slice(0, 8)) lines.push(`・${x.title}${plannedTag(x, a.date, which)}${x.starred ? '（進行中）' : ''}${x.due_time ? `（${t(x.due_time)}）` : ''}${x.overdue ? '（期限すぎ）' : ''}`)
+      lines.push(`${isToday ? '' : `${day}までの`}ToDo は ${ts.length} 件。`)
+      for (const x of ts.slice(0, 8)) lines.push(`・${x.title}${plannedTag(x, a)}${x.starred ? '（進行中）' : ''}${x.due_time ? `（${t(x.due_time)}）` : ''}${x.overdue ? '（期限すぎ）' : ''}`)
       if (ts.length > 8) lines.push(`…ほか ${ts.length - 8} 件`)
-    } else lines.push(`ToDo は${which === 'today' ? '' : '明日まで'}ぜんぶ片付いてる！`)
+    } else lines.push(`ToDo は${isToday ? '' : `${day}まで`}ぜんぶ片付いてる！`)
   }
   return lines.join('\n')
 }

@@ -7,6 +7,7 @@ import { dayPartOfHour, today } from '@/lib/dates'
 import { chatLine } from './chatVoice'
 import { agendaReply, type Agenda } from '@/features/planner/agendaLine'
 import { PLANNER_URL } from '@/features/planner/api'
+import { parseAgendaDate } from '@/features/planner/parseDate'
 
 /** LaRa の返事 1 つ。links はタップで開ける画面、consult は「預ける」ボタンを出す */
 export interface LaraReply { text: string; links?: { label: string; to: string }[]; consult?: boolean }
@@ -20,13 +21,27 @@ export interface LaraContext {
   clips: ClipRow[]
   /** しばらく出していないお店のメニュー（古い順） */
   notServed: RecipeRow[]
-  /** Planner の今日・明日の予定と ToDo（届かなければ null / undefined） */
-  planner?: { today?: Agenda | null; tomorrow?: Agenda | null }
+  /** 聞かれた日の Planner の予定と ToDo（plannerDateOf の日）。読めなければ agenda は null で、error にわけ */
+  planner?: { date: string; agenda: Agenda | null; error?: 'login' | 'network' }
   /** 乱数（テストで固定できるように） */
   random?: () => number
 }
 
 const has = (t: string, ...words: string[]) => words.some((w) => t.includes(w))
+const PLAN_WORDS = ['予定', 'スケジュール', 'todo', 'ｔｏｄｏ', 'タスク', 'やることリスト']
+const TASK_WORDS = ['todo', 'ｔｏｄｏ', 'タスク', 'やることリスト']
+
+/**
+ * Planner の予定を聞かれているなら、その日（'YYYY-MM-DD'）。違えば null。
+ * 「10/16 の予定は？」「来週の金曜のスケジュール」のほか、日付つきの「明日なにかある？」「16日って空いてる？」も
+ */
+export function plannerDateOf(input: string, todayIso: string): string | null {
+  const t = input.trim().toLowerCase()
+  const date = parseAgendaDate(t, todayIso)
+  if (has(t, ...PLAN_WORDS)) return date ?? todayIso
+  if (date && date !== todayIso && has(t, '何がある', 'なにがある', '何かある', 'なにかある', '何ある', 'なにある', '空いて', 'あいて', '空き')) return date
+  return null
+}
 const pick = <T>(a: T[], r: () => number) => a[Math.floor(r() * a.length)]
 /** 夜（お店が暗くなるのと同じ境目）は、日なたや雲など昼の景色を言わない */
 const isNight = (h: number) => dayPartOfHour(h) === 'night'
@@ -51,14 +66,22 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
   if (has(t, 'おやすみ')) return { text: say('oyasumi') }
 
   // --- 予定・ToDo（Planner）
-  if (has(t, '予定', 'スケジュール', 'todo', 'ｔｏｄｏ', 'タスク', 'やることリスト')) {
-    const which = has(t, '明日', 'あした', 'あす') ? 'tomorrow' : 'today'
-    const a = ctx.planner?.[which]
+  const planDate = plannerDateOf(input, today())
+  if (planDate) {
+    const p = ctx.planner?.date === planDate ? ctx.planner : undefined
     const link = [{ label: 'Planner を開く', to: PLANNER_URL }]
-    if (!a) return { text: 'Planner の予定が読めなかったみたい。LaRa と同じアカウントで Planner にログインしてるか見てみてね', links: link }
-    const part = has(t, 'todo', 'ｔｏｄｏ', 'タスク', 'やることリスト') && !has(t, '予定', 'スケジュール') ? 'tasks' : has(t, '予定', 'スケジュール') && !has(t, 'todo', 'ｔｏｄｏ', 'タスク') ? 'events' : 'all'
+    if (!p?.agenda) {
+      return {
+        text: p?.error === 'network'
+          ? 'Planner につながらなかったみたい。電波のいい所で、もう一回聞いてみてね'
+          : 'Planner の予定が読めなかったみたい。LaRa と同じアカウントで Planner にログインしてるか見てみてね',
+        links: link,
+      }
+    }
+    const a = p.agenda
+    const part = has(t, ...TASK_WORDS) && !has(t, '予定', 'スケジュール') ? 'tasks' : has(t, '予定', 'スケジュール', '空いて', 'あいて', '空き') && !has(t, ...TASK_WORDS) ? 'events' : 'all'
     // 「今日の予定は？」には ToDo も一緒に
-    return { text: agendaReply(a, which, part === 'events' && which === 'today' ? 'all' : part), links: link }
+    return { text: agendaReply(a, part === 'events' && a.date === a.today ? 'all' : part), links: link }
   }
 
   // --- 今の状況
