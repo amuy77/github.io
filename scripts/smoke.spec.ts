@@ -48,6 +48,7 @@ const fixtures: Record<string, object[]> = {
     { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, purpose: 'menu', created_at: ts(1), updated_at: ts(1) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000002', title: 'エッグサラダ', genre_id: G.american, hero_image: null, ingredients: [{ name: '卵', amount: '2個' }, { name: 'マヨ', amount: '大さじ2' }], steps: ['ゆで卵を作る', '刻んで和える'], notes: 'ディル少々', source_clip_id: null, source_kind: 'text_paste', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'menu', created_at: ts(12), updated_at: ts(12) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'unsorted', created_at: ts(20), updated_at: ts(20) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000006', title: '栗のカフェラテ 試作', genre_id: G.coffee, hero_image: null, ingredients: [{ name: 'エスプレッソ', amount: '30ml' }, { name: '栗ペースト', amount: '20g' }], steps: ['栗ペーストをミルクで伸ばす', 'エスプレッソを注ぐ'], notes: '甘さ控えめ', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'idea', created_at: ts(3), updated_at: ts(3) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000004', title: 'ハムチーズクロワッサン', genre_id: G.croissant, hero_image: null, ingredients: [{ name: 'クロワッサン', amount: '1個' }], steps: ['温める'], notes: '', source_clip_id: null, source_kind: 'ai_image', source_job_id: null, status: 'draft', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'reference', created_at: ts(0), updated_at: ts(0) },
   ],
   ai_jobs: [
@@ -132,7 +133,7 @@ async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean
   })
 }
 
-const routes = ['/', '/clips', '/clips/c1000000-0000-4000-8000-000000000001', '/add', '/recipes', '/recipes/d1000000-0000-4000-8000-000000000001', '/recipes/new', '/menu', `/menu/${iso(daysAgo(0))}`, '/menu/stats', '/inbox', '/settings', '/ask', '/recipes/d1000000-0000-4000-8000-000000000005/compare']
+const routes = ['/', '/clips', '/clips/c1000000-0000-4000-8000-000000000001', '/add', '/recipes', '/shop-menu', '/recipes/d1000000-0000-4000-8000-000000000001', '/recipes/new', '/menu', `/menu/${iso(daysAgo(0))}`, '/menu/stats', '/inbox', '/settings', '/ask', '/recipes/d1000000-0000-4000-8000-000000000005/compare']
 
 for (const r of routes) {
   test(`renders ${r}`, async ({ page }, info) => {
@@ -367,7 +368,7 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
 })
 
-test('recipes: menu and reference recipes are split, and a recipe can switch sides', async ({ page }, info) => {
+test('recipes: お店のメニュー lives in its own ノート tab, 図鑑 is アイデア / 参考 / 未分類, and a recipe can switch sides', async ({ page }, info) => {
   await stubSupabase(page)
   const patches: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/recipes')) patches.push(r.postDataJSON()) })
@@ -376,24 +377,60 @@ test('recipes: menu and reference recipes are split, and a recipe can switch sid
   await expect(page.getByRole('button', { name: 'エッグサラダ' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'ハンドドリップ 深煎り' })).toHaveCount(0)
 
+  // ノートの「メニュー」: お店のメニューだけ。種類の段は無い
   await page.goto('#/recipes')
-  const tabs = page.getByRole('tablist', { name: 'レシピの種類' })
-  // メニューがあるので最初はメニュー。参考のハンドドリップは出ない
-  await expect(tabs.getByRole('tab', { name: /メニュー/ })).toHaveAttribute('aria-selected', 'true')
+  const notes = page.getByRole('tablist', { name: 'ノート' })
+  await expect(notes.getByRole('tab')).toHaveText(['📌 ネタ帳', '📖 図鑑', '🍽️ メニュー'])
+  await notes.getByRole('tab', { name: /メニュー/ }).click()
+  await expect(page).toHaveURL(/#\/shop-menu$/)
+  await expect(page.getByRole('heading', { name: 'お店のメニュー', level: 1 })).toBeVisible()
   await expect(page.getByText('エッグサラダ')).toBeVisible()
+  await expect(page.getByText('BLT サンド').first()).toBeVisible()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
+  await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-shop-menu.png`, fullPage: true })
+
+  // 図鑑: アイデア／参考／未分類／すべて。アイデアがあるので最初はアイデア。お店のメニューは出ない
+  await notes.getByRole('tab', { name: /図鑑/ }).click()
+  const tabs = page.getByRole('tablist', { name: 'レシピの種類' })
+  await expect(tabs.getByRole('tab')).toHaveText([/💡 アイデア/, /📚 参考/, /❔ 未分類/, /すべて/])
+  await expect(tabs.getByRole('tab', { name: /アイデア/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
+  await expect(page.getByText('エッグサラダ')).toHaveCount(0)
+  await tabs.getByRole('tab', { name: /すべて/ }).click()
+  await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
+  await expect(page.getByText('BLT サンド')).toHaveCount(0)
   await tabs.getByRole('tab', { name: /参考/ }).click()
   await expect(page.getByText('参考レシピはまだありません')).toBeVisible()
   await tabs.getByRole('tab', { name: /未分類/ }).click()
   await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
-  await expect(page.getByText('エッグサラダ')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-recipes-reference.png`, fullPage: true })
 
   await page.getByText('ハンドドリップ 深煎り').click()
+  await expect(page.getByRole('radiogroup', { name: 'レシピの種類' }).getByRole('radio')).toHaveCount(3)
   await page.getByRole('radio', { name: /お店のメニュー/ }).click()
   await expect.poll(() => patches.length).toBe(1)
   expect(patches[0]).toMatchObject({ purpose: 'menu' })
+  await page.getByRole('radio', { name: /アイデア/ }).click()
+  await expect.poll(() => patches.length).toBe(2)
+  expect(patches[1]).toMatchObject({ purpose: 'idea' })
+})
 
+test('recipes: 作る starts as お店のメニュー from メニュー, and as アイデア from 図鑑', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/shop-menu')
+  await page.getByRole('button', { name: '作る' }).click()
+  await expect(page.getByRole('radio', { name: /お店のメニュー/ })).toHaveAttribute('aria-checked', 'true')
+  await page.goto('#/recipes')
+  await page.getByRole('button', { name: '作る' }).click()
+  await expect(page.getByRole('radio', { name: /アイデア/ })).toHaveAttribute('aria-checked', 'true')
+  // ノートのタブは、最後に見たものを開く
+  await page.goto('#/shop-menu')
+  await page.goto('#/settings')
+  const nav = page.getByRole('navigation', { name: 'メイン' })
+  await nav.getByRole('link', { name: 'ノート' }).filter({ visible: true }).first().click()
+  await expect(page).toHaveURL(/#\/shop-menu$/)
+  await expect(page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /メニュー/ })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('genres: add and edit from the recipe list and the recipe editor', async ({ page }, info) => {
@@ -437,15 +474,16 @@ test('recipes: the list keeps its tab after opening a recipe, and the detail pag
   // 戻っても未分類のまま
   await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /未分類/ })).toHaveAttribute('aria-selected', 'true')
 
-  await page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ }).click()
+  // お店のメニューから開くと、その並びで「次へ」
+  await page.goto('#/shop-menu')
   await page.locator('main a[href*="#/recipes/"]').first().click()
-  await expect(page.getByText(/「すべて」の 1 \/ 3/)).toBeVisible()
+  await expect(page.getByText(/「お店のメニュー」の 1 \/ \d/)).toBeVisible()
   const first = await page.locator('h1').first().textContent()
   await page.getByRole('button', { name: '次へ →' }).click()
-  await expect(page.getByText(/「すべて」の 2 \/ 3/)).toBeVisible()
+  await expect(page.getByText(/「お店のメニュー」の 2 \/ \d/)).toBeVisible()
   await expect(page.locator('h1').first()).not.toHaveText(first ?? '')
   await page.getByRole('button', { name: '戻る' }).first().click()
-  await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ })).toHaveAttribute('aria-selected', 'true')
+  await expect(page).toHaveURL(/#\/shop-menu$/)
 })
 
 test('clip genres: the clip list shares the genres with 図鑑, and the editor saves genre_id', async ({ page }, info) => {
@@ -724,7 +762,7 @@ test('lists: clips and recipes can switch between cards and a list, and remember
   await expect(page.getByRole('heading', { name: /アメリカンサンド/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: /ジャンルなし/ })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-list.png`, fullPage: true })
-  await page.goto('#/recipes')
+  await page.goto('#/shop-menu')
   await page.getByRole('radio', { name: 'リスト表示' }).click()
   await expect(page.getByTestId('recipe-list').first()).toBeVisible()
   await expect(page.getByTestId('recipe-list').first().getByText('BLT サンド').first()).toBeVisible()
@@ -944,7 +982,7 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
 
 test('comfy: back from 聞く goes to the recipe it was opened from', async ({ page }) => {
   await stubSupabase(page)
-  await page.goto('#/recipes')
+  await page.goto('#/shop-menu')
   await page.getByText('エッグサラダ').click()
   await expect(page).toHaveURL(/#\/recipes\/d1000000-0000-4000-8000-000000000002$/)
   await page.getByRole('button', { name: 'LaRa に相談' }).click()
@@ -1105,7 +1143,7 @@ test('gaps: settings can export a backup file with everything in it', async ({ p
   const text = await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8')
   const data = JSON.parse(text) as { clips: unknown[]; recipes: unknown[]; menu_logs: unknown[]; genres: unknown[]; photo_base_url: string }
   expect(data.clips).toHaveLength(5)
-  expect(data.recipes).toHaveLength(5)
+  expect(data.recipes).toHaveLength(6)
   expect(data.genres).toHaveLength(4)
   expect(data.menu_logs.length).toBeGreaterThan(0)
   expect(data.photo_base_url).toContain('/storage/v1/object/public/photos/')
@@ -1148,7 +1186,7 @@ test('gaps: when the network is gone, the last-read lists still open from the de
   await stubSupabase(page)
   await page.goto('#/clips')
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
-  await page.goto('#/recipes')
+  await page.goto('#/shop-menu')
   await expect(page.getByText('エッグサラダ')).toBeVisible()
   await page.waitForTimeout(2500)   // 端末への書き出しは 2 秒おき
   await page.route(`https://${REF}.supabase.co/rest/v1/**`, (route) => route.abort('internetdisconnected'))

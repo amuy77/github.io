@@ -97,7 +97,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
       {discardDialog}
       <div className="flex flex-col gap-4">
         {recipes.isLoading ? <Skeleton className="h-40" /> : published.length === 0 ? (
-          <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="図鑑で「お店のメニュー」にしたレシピが、ここでチェックするだけで記録できます。参考レシピは出てきません。" action={<Button onClick={() => nav(paths.recipes)}>レシピ図鑑へ</Button>} />
+          <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="ノートの「メニュー」にあるお店のメニューが、ここでチェックするだけで記録できます。アイデアや参考レシピは出てきません。" action={<Button onClick={() => nav(paths.shopMenu)}>お店のメニューへ</Button>} />
         ) : (
           sections.map((s) => (
             <section key={s.key} className="flex flex-col gap-2">

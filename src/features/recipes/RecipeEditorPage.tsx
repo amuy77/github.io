@@ -41,7 +41,10 @@ export function RecipeEditorPage() {
   if (id && existing.isError) return <><PageHeader title="レシピを編集" back /><LoadError onRetry={() => void existing.refetch()} /></>
   if (id && !existing.data) return <><PageHeader title="レシピを編集" back /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
   const initialTab = (params.get('tab') as Tab | null) ?? 'manual'
-  return <Editor key={id ?? fromId ?? 'new'} recipe={existing.data ?? null} from={fromId ? from.data ?? null : null} initialTab={id || fromId ? 'manual' : initialTab} />
+  // ノートの「メニュー」から作るとお店のメニュー、図鑑から作るとアイデアで始める
+  const p = params.get('purpose')
+  const newPurpose: RecipePurpose = p === 'idea' || p === 'reference' || p === 'menu' ? p : 'menu'
+  return <Editor key={id ?? fromId ?? 'new'} recipe={existing.data ?? null} from={fromId ? from.data ?? null : null} initialTab={id || fromId ? 'manual' : initialTab} newPurpose={newPurpose} />
 }
 
 // 材料・手順の行には並び替え・削除で崩れない key を付ける（index を key にすると、途中の行を消したとき入力中の IME やフォーカスが隣の行へ移る）
@@ -54,7 +57,7 @@ const stepRows = (list: string[]): StepRow[] => (list.length ? list : ['']).map(
 
 interface FormState { title: string; genreId: string | null; ingredients: IngRow[]; steps: StepRow[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string; purpose: RecipePurpose }
 
-function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: RecipeRow | null; initialTab: Tab }) {
+function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | null; from: RecipeRow | null; initialTab: Tab; newPurpose: RecipePurpose }) {
   const nav = useNavigate()
   const toast = useToast()
   const { userId } = useSession()
@@ -70,8 +73,8 @@ function Editor({ recipe, from, initialTab }: { recipe: RecipeRow | null; from: 
       title: src?.title ?? '', genreId: src?.genre_id ?? null, ingredients: ingRows(src?.ingredients ?? []),
       steps: stepRows(src?.steps ?? []), notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
       rating: recipe?.rating ?? null,
-      // 手で作るレシピはお店のメニューが基本。試作は元の版に合わせる
-      purpose: recipe?.purpose ?? from?.purpose ?? 'menu',
+      // 新しいレシピは開いた場所（メニュー／図鑑）に合わせる。試作は元の版に合わせる
+      purpose: recipe?.purpose ?? from?.purpose ?? newPurpose,
       familyId: recipe ? recipe.family_id : from ? familyKey(from) : null,
       label: recipe ? recipe.variant_label : from ? nextTrialLabel(familyOf(allRecipes.data ?? [from], from)) : '',
     }

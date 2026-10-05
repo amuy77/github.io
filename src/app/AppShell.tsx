@@ -13,11 +13,11 @@ import { Mascot } from '@/components/mascot/Mascot'
 import { isNotesPath, notesPath } from '@/features/notes/notes'
 import { PLANNER_URL } from '@/features/planner/api'
 
-// 下のタブ: ホーム / ノート（ネタ帳＋図鑑。最後に見た方を開く）/ ＋ / メニュー / Planner（別アプリ）
+// 下のタブ: ホーム / ノート（ネタ帳・図鑑・メニュー。最後に見たものを開く）/ ＋ / メニュー / Planner（別アプリ）
 type TabDef = { key: string; label: string; Icon: typeof IconHome; to: (pathname: string) => string; active: (pathname: string) => boolean; external?: boolean }
 const tabs: TabDef[] = [
   { key: 'home', label: 'ホーム', Icon: IconHome, to: () => paths.home, active: (p) => p === paths.home },
-  { key: 'notes', label: 'ノート', Icon: IconNote, to: (p) => notesPath(p.startsWith(paths.recipes) ? 'recipes' : p.startsWith(paths.clips) ? 'clips' : undefined), active: isNotesPath },
+  { key: 'notes', label: 'ノート', Icon: IconNote, to: () => notesPath(), active: isNotesPath },
   { key: 'menu', label: 'メニュー', Icon: IconCalendar, to: () => paths.menu, active: (p) => p.startsWith(paths.menu) },
   { key: 'planner', label: 'Planner', Icon: IconPlanner, to: () => PLANNER_URL, active: () => false, external: true },
 ]

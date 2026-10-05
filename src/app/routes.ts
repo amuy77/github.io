@@ -9,6 +9,8 @@ export const paths = {
   recipe: (id: string) => `/recipes/${id}`,
   recipeEdit: (id: string) => `/recipes/${id}/edit`,
   recipeCompare: (id: string) => `/recipes/${id}/compare`,
+  /** ノートの「メニュー」: お店のメニュー（確定して出しているレシピ）。下のタブの /menu（日々の記録）とは別 */
+  shopMenu: '/shop-menu',
   ask: '/ask',
   menu: '/menu',
   menuDay: (date: string) => `/menu/${date}`,

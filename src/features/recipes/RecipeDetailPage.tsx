@@ -27,7 +27,7 @@ import { useDeleteRecipe, useRecipe, useRecipes, useSetMain, useUpdateRecipe } f
 import { familyOf, latestOf, versionName } from './family'
 import { cx } from '@/lib/cx'
 import { PurposeBadge, PurposePicker } from './purpose'
-import { PURPOSE_TAB_LABEL, readListView } from './listView'
+import { PURPOSE_NAME, PURPOSE_TAB_LABEL, readListView } from './listView'
 
 const SOURCE_LABEL = { manual: '手入力', ai_image: 'AI（写真から）', ai_text: 'AI（テキストから）', text_paste: 'テキスト貼り付け' } as const
 
@@ -57,7 +57,7 @@ export function RecipeDetailPage() {
     const i = r ? view.order.indexOf(r.id) : -1
     if (i < 0) return null
     const exists = (id: string | undefined) => !!id && (all.data ?? []).some((x) => x.id === id)
-    return { index: i, total: view.order.length, tab: PURPOSE_TAB_LABEL[view.purpose ?? 'all'], prev: exists(view.order[i - 1]) ? view.order[i - 1] : null, next: exists(view.order[i + 1]) ? view.order[i + 1] : null }
+    return { index: i, total: view.order.length, tab: view.orderLabel || PURPOSE_TAB_LABEL[view.purpose ?? 'all'], prev: exists(view.order[i - 1]) ? view.order[i - 1] : null, next: exists(view.order[i + 1]) ? view.order[i + 1] : null }
   }, [r, all.data])
 
   if (recipe.isLoading) return <><PageHeader title="レシピ" back={paths.recipes} /><Skeleton className="aspect-[4/3]" /></>
@@ -70,7 +70,7 @@ export function RecipeDetailPage() {
 
   return (
     <>
-      <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(dateOf(r.created_at))}`} back={paths.recipes}
+      <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(dateOf(r.created_at))}`} back={r.purpose === 'menu' ? paths.shopMenu : paths.recipes}
         actions={<>
           <IconButton label="お気に入り" onClick={() => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })} className={r.favorite ? 'text-mustard-400' : ''}><IconStar filled={r.favorite} /></IconButton>
           <IconButton label="編集" onClick={() => nav(paths.recipeEdit(r.id))}><IconEdit /></IconButton>
@@ -123,7 +123,7 @@ export function RecipeDetailPage() {
           <button type="button" onClick={() => setLightbox(true)} className="overflow-hidden rounded-card border border-line"><ImageThumb src={photoUrl(r.hero_image, 'full')} className="aspect-[4/3]" /></button>
         )}
         <Card className="flex flex-col gap-4">
-          <PurposePicker value={r.purpose} onChange={(v) => v !== r.purpose && update.mutate({ id: r.id, patch: { purpose: v } }, { onSuccess: () => toast(v === 'menu' ? 'お店のメニューにしました' : '参考レシピにしました', 'success') })} />
+          <PurposePicker value={r.purpose} onChange={(v) => v !== r.purpose && update.mutate({ id: r.id, patch: { purpose: v } }, { onSuccess: () => toast(`${PURPOSE_NAME[v]}にしました`, 'success') })} />
           <RatingInput label="評価" max={3} value={r.rating} onChange={(v) => update.mutate({ id: r.id, patch: { rating: v } })} />
         </Card>
         <Card className="flex flex-col gap-3">
@@ -179,7 +179,7 @@ export function RecipeDetailPage() {
           const row = r
           undoable('レシピ', {
             key: row.id,
-            hide: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.filter((x) => x.id !== row.id)); nav(paths.recipes, { replace: true }) },
+            hide: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.filter((x) => x.id !== row.id)); nav(row.purpose === 'menu' ? paths.shopMenu : paths.recipes, { replace: true }) },
             restore: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => (old && !old.some((x) => x.id === row.id) ? [row, ...old].sort((a, b) => b.created_at.localeCompare(a.created_at)) : old)); qc.invalidateQueries({ queryKey: qk.recipes }) },
             run: () => del.mutateAsync(row),
           })

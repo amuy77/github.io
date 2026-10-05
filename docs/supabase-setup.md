@@ -98,6 +98,12 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 追加（2026-10-07）: レシピの種類に「アイデア」
+
+- マイグレーション `20261007000000_recipe_purpose_idea.sql` を **SQL エディタで実行する**（アプリの更新より先に）。
+  `recipes.purpose` に `'idea'` を足すだけ（データは変えない）。お店のメニューはノートの「メニュー」タブに、図鑑は アイデア／参考／未分類 になる。
+  当てる前に「アイデア」で保存すると「SQL の実行がまだみたい」と出る。
+
 ## 追加（2026-10-06）: ネタ帳のカテゴリを「ジャンル」に統一
 
 - マイグレーション `20261006000000_clip_genres.sql` を **SQL エディタで実行する**（アプリの更新より先に）。
