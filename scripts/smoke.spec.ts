@@ -677,36 +677,42 @@ test('home talk: finished consult answers are told first, one by one', async ({ 
   await expect(bubble.getByText(/」の相談/)).toHaveCount(0)
 })
 
-test('planner: LaRa tells today\'s schedule on the home and answers 今日の予定は？', async ({ page }, info) => {
-  const todayIso = iso(daysAgo(0))
-  const authz: string[] = []
-  page.on('request', (r) => { if (r.url().includes('/api/v1/agenda')) authz.push(r.headers()['authorization'] ?? '') })
-  await stubSupabase(page, { agenda: (date) => date === todayIso
-    ? { ...emptyAgenda(date), events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '廃業届出', due_date: null, due_time: null, overdue: false, starred: false, list: '四谷旅館業', planned_for: date }, { title: 'ゴミシール購入', due_date: null, due_time: null, overdue: false, starred: false, list: 'マイタスク', planned_for: iso(daysAgo(1)) }, { title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
-    : emptyAgenda(date) })
-  await page.goto('#/')
-  // 予定は下のカードではなく、開いたときに LaRa が吹き出しで 1 回言う
-  await expect(page.getByText(/N89 ルーター回収/).first()).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByRole('button', { name: 'Planner で今日の予定を開く' })).toHaveCount(0)
-  // ログイン中の本人のトークンで読む
-  expect(authz.some((a) => a.startsWith('Bearer '))).toBe(true)
-  await page.screenshot({ path: `screenshots/${info.project.name}-home-planner.png` })
-  await page.waitForFunction(() => (window as unknown as LaraW).__lara?.debugState().figure, null, { timeout: 20_000 })
-  await page.getByRole('button', { name: 'LaRa に聞く' }).click()
-  await page.getByRole('button', { name: '今日の予定は？' }).click()
-  const bubble = page.getByRole('status', { name: 'LaRa の返事' })
-  await expect(bubble.getByText(/今日の予定は 1 件/)).toBeVisible()
-  await expect(bubble.getByText(/23:58 N89 ルーター回収/)).toBeVisible()
-  await expect(bubble.getByText(/見積もり送る（進行中）/)).toBeVisible()
-  // Planner の「明日」ボタンで入れたもの
-  await expect(bubble.getByText(/廃業届出（今日やる）/)).toBeVisible()
-  await expect(bubble.getByText(/ゴミシール購入（持ち越し）/)).toBeVisible()
-  await expect(bubble.getByRole('button', { name: 'Planner を開く →' })).toBeVisible()
-  const box = page.getByRole('textbox', { name: 'LaRa に聞く' })
-  await box.fill('明日の予定は？')
-  await box.press('Enter')
-  await expect(bubble.getByText(/明日の予定は入ってない/)).toBeVisible()
-  await page.screenshot({ path: `screenshots/${info.project.name}-home-planner-talk.png` })
+// LaRa は夜 23〜6 時は寝ていて予定を言わない。CI がいつ走っても昼になるよう、ブラウザの時刻帯をずらす（ブラウザで 13 時ごろ）
+const PLANNER_SHIFT = ((13 - new Date().getUTCHours() + 36) % 24) - 12
+const PLANNER_TODAY = new Date(Date.now() + PLANNER_SHIFT * 3600_000).toISOString().slice(0, 10)
+test.describe('planner (daytime)', () => {
+  test.use({ timezoneId: PLANNER_SHIFT >= 0 ? `Etc/GMT-${PLANNER_SHIFT}` : `Etc/GMT+${-PLANNER_SHIFT}` })
+  test('planner: LaRa tells today\'s schedule on the home and answers 今日の予定は？', async ({ page }, info) => {
+    const todayIso = PLANNER_TODAY
+    const authz: string[] = []
+    page.on('request', (r) => { if (r.url().includes('/api/v1/agenda')) authz.push(r.headers()['authorization'] ?? '') })
+    await stubSupabase(page, { agenda: (date) => date === todayIso
+      ? { ...emptyAgenda(date), events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '廃業届出', due_date: null, due_time: null, overdue: false, starred: false, list: '四谷旅館業', planned_for: date }, { title: 'ゴミシール購入', due_date: null, due_time: null, overdue: false, starred: false, list: 'マイタスク', planned_for: new Date(Date.parse(todayIso) - 86_400_000).toISOString().slice(0, 10) }, { title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
+      : emptyAgenda(date) })
+    await page.goto('#/')
+    // 予定は下のカードではなく、開いたときに LaRa が吹き出しで 1 回言う
+    await expect(page.getByText(/N89 ルーター回収/).first()).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByRole('button', { name: 'Planner で今日の予定を開く' })).toHaveCount(0)
+    // ログイン中の本人のトークンで読む
+    expect(authz.some((a) => a.startsWith('Bearer '))).toBe(true)
+    await page.screenshot({ path: `screenshots/${info.project.name}-home-planner.png` })
+    await page.waitForFunction(() => (window as unknown as LaraW).__lara?.debugState().figure, null, { timeout: 20_000 })
+    await page.getByRole('button', { name: 'LaRa に聞く' }).click()
+    await page.getByRole('button', { name: '今日の予定は？' }).click()
+    const bubble = page.getByRole('status', { name: 'LaRa の返事' })
+    await expect(bubble.getByText(/今日の予定は 1 件/)).toBeVisible()
+    await expect(bubble.getByText(/23:58 N89 ルーター回収/)).toBeVisible()
+    await expect(bubble.getByText(/見積もり送る（進行中）/)).toBeVisible()
+    // Planner の「明日」ボタンで入れたもの
+    await expect(bubble.getByText(/廃業届出（今日やる）/)).toBeVisible()
+    await expect(bubble.getByText(/ゴミシール購入（持ち越し）/)).toBeVisible()
+    await expect(bubble.getByRole('button', { name: 'Planner を開く →' })).toBeVisible()
+    const box = page.getByRole('textbox', { name: 'LaRa に聞く' })
+    await box.fill('明日の予定は？')
+    await box.press('Enter')
+    await expect(bubble.getByText(/明日の予定は入ってない/)).toBeVisible()
+    await page.screenshot({ path: `screenshots/${info.project.name}-home-planner-talk.png` })
+  })
 })
 
 type FriendW = { __lara?: { debugState(): { figure: boolean; friend: { kind: string; phase: string } | null }; friendScreenPos(): { x: number; y: number } | null; sendFriendHome(): void }; __laraVisit?: (id: string) => void }
