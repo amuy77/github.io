@@ -20,6 +20,7 @@ import { useDeleteClip, useUpdateClip } from '@/features/clips/hooks'
 import { useDeleteRecipe, useRecipes, useUpdateRecipe } from '@/features/recipes/hooks'
 import { familyKey, familyOf, nextTrialLabel, representativeOf } from '@/features/recipes/family'
 import { PurposePicker } from '@/features/recipes/purpose'
+import { PURPOSE_NAME } from '@/features/recipes/listView'
 import { GenrePicker } from '@/features/genres/GenreManager'
 import { AiFixPanel } from './AiFixPanel'
 
@@ -133,7 +134,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose, favorite })
   const ok = async () => {
     setBusy(true)
-    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${{ menu: 'お店のメニュー', reference: '参考レシピ', unsorted: '図鑑（未分類）' }[purpose]}に載せました`, 'success'); onClose() }
+    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${PURPOSE_NAME[purpose]}に載せました`, 'success'); onClose() }
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
   const later = async () => { setBusy(true); try { await update.mutateAsync({ id: recipe.id, patch: patch() }); toast('下書きのまま残しました'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }

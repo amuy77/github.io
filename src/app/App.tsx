@@ -39,7 +39,8 @@ export function App() {
             <Route path={paths.clips} element={<ClipsPage />} />
             <Route path="/clips/:id" element={<ClipDetailPage />} />
             <Route path={paths.add} element={<QuickAddPage />} />
-            <Route path={paths.recipes} element={<RecipesPage />} />
+            <Route path={paths.recipes} element={<RecipesPage key="recipes" />} />
+            <Route path={paths.shopMenu} element={<RecipesPage key="menu" side="menu" />} />
             <Route path={paths.recipeNew} element={<RecipeEditorPage />} />
             <Route path="/recipes/:id" element={<RecipeDetailPage />} />
             <Route path="/recipes/:id/edit" element={<RecipeEditorPage />} />

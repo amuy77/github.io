@@ -15,10 +15,12 @@ export interface RecipeListView {
   sort: SortKey
   /** 一覧に並んでいた順のレシピ id（詳細画面の「次へ」用） */
   order: string[]
+  /** その並びの呼び名（メニューのタブから開いたとき「お店のメニュー」。空なら purpose のタブ名） */
+  orderLabel: string
 }
 
 const KEY = 'lara.recipes.view'
-const EMPTY: RecipeListView = { purpose: null, favOnly: false, minRating: 0, q: '', sort: 'new', order: [] }
+const EMPTY: RecipeListView = { purpose: null, favOnly: false, minRating: 0, q: '', sort: 'new', order: [], orderLabel: '' }
 
 export function readListView(): RecipeListView {
   try {
@@ -38,4 +40,7 @@ export function useListViewState<K extends 'purpose' | 'favOnly' | 'minRating' |
   return [value, set]
 }
 
-export const PURPOSE_TAB_LABEL: Record<RecipePurpose | 'all', string> = { menu: 'メニュー', reference: '参考', unsorted: '未分類', all: 'すべて' }
+export const PURPOSE_TAB_LABEL: Record<RecipePurpose | 'all', string> = { menu: 'メニュー', idea: 'アイデア', reference: '参考', unsorted: '未分類', all: 'すべて' }
+
+/** 保存したときのトーストなどで使う呼び名 */
+export const PURPOSE_NAME: Record<RecipePurpose, string> = { menu: 'お店のメニュー', idea: 'アイデア', reference: '参考レシピ', unsorted: '図鑑（未分類）' }

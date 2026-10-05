@@ -10,7 +10,7 @@ export type ClipPurpose = 'idea' | 'reference' | 'unsorted'
 export type ClipCategory = string
 export type RecipeStatus = 'draft' | 'published'
 /** menu = お店で出す確定メニュー、reference = 参考にしたいレシピ、unsorted = まだ仕分けていない */
-export type RecipePurpose = 'menu' | 'reference' | 'unsorted'
+export type RecipePurpose = 'menu' | 'idea' | 'reference' | 'unsorted'
 export type RecipeSourceKind = 'manual' | 'ai_image' | 'ai_text' | 'text_paste'
 export type AiJobKind = 'recipe_from_image' | 'recipe_from_text' | 'clip_from_image' | 'auto_from_image' | 'redo' | 'consult' | 'weekly_insights'
 export type AiJobStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled'
