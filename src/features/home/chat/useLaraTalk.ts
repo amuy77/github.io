@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/components/ui/Toast'
 import { addDays, today } from '@/lib/dates'
 import type { HomeCounts } from '@/features/home/useCounts'
@@ -10,8 +11,8 @@ import { useEnqueueJob } from '@/features/ai/hooks'
 import { nextWorkerTime } from '@/features/ai/api'
 import { askLara } from '@/features/ask/api'
 import { FunctionError } from '@/features/clips/api'
-import { localReply, type LaraReply } from './localLara'
-import { usePlannerAgenda } from '@/features/planner/api'
+import { localReply, plannerDateOf, type LaraContext, type LaraReply } from './localLara'
+import { AgendaError, agendaQuery, usePlannerAgenda } from '@/features/planner/api'
 import { chatLine } from './chatVoice'
 import { markAnswersSeen, useUnseenAnswers, type UnseenAnswer } from './unseenAnswers'
 
@@ -45,8 +46,10 @@ export function useLaraTalk({ counts, streak, active = true }: { counts: HomeCou
   const logs = useMenuLogs(addDays(today(), -60), today(), active)
   const enqueue = useEnqueueJob()
   const unseen = useUnseenAnswers()
-  const planToday = usePlannerAgenda('today', active)
-  const planTomorrow = usePlannerAgenda('tomorrow', active)
+  const qc = useQueryClient()
+  // 今日・明日の分は先に読んでおく（聞かれたらすぐ答えられるように）
+  usePlannerAgenda('today', active)
+  usePlannerAgenda('tomorrow', active)
   const [line, setLine] = useState<TalkLine | null>(null)
   const [thinking, setThinking] = useState(false)
   const queue = useRef<UnseenAnswer[]>([])
@@ -75,7 +78,17 @@ export function useLaraTalk({ counts, streak, active = true }: { counts: HomeCou
     const rs = recipes.data ?? (await recipes.refetch()).data ?? []
     const cs = clips.data ?? (await clips.refetch()).data ?? []
     const ls = logs.data ?? (await logs.refetch()).data ?? []
-    const reply = localReply(q, { hour: new Date().getHours(), counts, streak, todayLogged: ls.some((l) => l.log_date === today()), recipes: rs, clips: cs, notServed: notServedRecently(ls, rs).map((x) => x.recipe), planner: { today: planToday.data, tomorrow: planTomorrow.data } })
+    // 予定を聞かれたら、その日の分を Planner から読む（先読み済みならすぐ）
+    let planner: LaraContext['planner']
+    const planDate = plannerDateOf(q, today())
+    if (planDate) {
+      try {
+        planner = { date: planDate, agenda: await qc.fetchQuery(agendaQuery(planDate)) }
+      } catch (e) {
+        planner = { date: planDate, agenda: null, error: e instanceof AgendaError ? e.reason : 'network' }
+      }
+    }
+    const reply = localReply(q, { hour: new Date().getHours(), counts, streak, todayLogged: ls.some((l) => l.log_date === today()), recipes: rs, clips: cs, notServed: notServedRecently(ls, rs).map((x) => x.recipe), planner })
     // じっくり相談: API キーがあれば即答、無ければ預かる
     if (reply.consult && !noKey.current) {
       setThinking(true)
