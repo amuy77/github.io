@@ -77,7 +77,7 @@ export function QuickAddPage() {
       for (const p of photos) refs.push(await uploadPhoto(p.file, userId))
       await enqueue.mutateAsync({ kind: 'auto_from_image', payload: { images: refs, image_paths: refs.map((r) => r.path), hint: hint.trim() || undefined } })
       clearPhotos()
-      toast(`AI に渡しました。次の処理は ${nextWorkerTime()} ごろ`, 'success')
+      toast(`受け取ったよ！${nextWorkerTime()} ごろ、トレイに届くね`, 'success')
       nav(paths.inbox, { replace: true })
     } catch (e) {
       toast(friendlyError(e, '送れませんでした'), 'error')

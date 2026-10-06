@@ -159,7 +159,7 @@ test('3D home: tapping each piece of furniture opens its card', async ({ page },
   // 住人が家具の前に立ってタップを受け止めないように、いったんお店から出てもらう
   await page.evaluate(() => (window as unknown as { __lara: { setResident(v: boolean): void } }).__lara.setResident(false))
   const cards: [string, string][] = [
-    ['inbox', 'AI が作ったカードが届く場所'], ['recipes', 'ジャンル別のレシピカード'], ['menu', '日別の記録と、週・月の構成比'],
+    ['inbox', 'AI が作ったカードが届く場所'], ['recipes', 'ジャンル別のレシピカード'], ['menu', '今日出したメニューの記録と、週・月のふりかえり'],
     ['clips', '気になったお店・SNS・ワインやビールのメモ'], ['add', 'ひらめき・URL・写真をサッと保存'],
   ]
   for (const [id, sub] of cards) {
@@ -786,7 +786,7 @@ test('navigation: switching screens starts at the top', async ({ page }, info) =
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(200)
   const nav = info.project.name === 'phone' ? page.getByRole('navigation', { name: 'メイン' }).last() : page.getByRole('navigation', { name: 'メイン' }).first()
-  await nav.getByRole('link', { name: 'メニュー' }).click()
+  await nav.getByRole('link', { name: 'きろく' }).click()
   await expect(page).toHaveURL(/#\/menu$/)
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
 })
@@ -983,7 +983,7 @@ test('comfy: going back returns to where you were, opening a tab starts at the t
   await page.getByRole('button', { name: '戻る' }).click()
   await expect(page).toHaveURL(/#\/clips$/)
   await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 }).toBeGreaterThanOrEqual(y - 20)
-  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: 'メニュー' }).click()
+  await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: 'きろく' }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
 })
 
@@ -1011,7 +1011,7 @@ test('comfy: the calendar keeps its month after visiting a past day, and the tab
   await page.getByRole('button', { name: '戻る' }).click()
   await expect(page).toHaveURL(new RegExp(`#/menu\\?m=${lastMonth}$`))
   const nav = page.getByRole('navigation', { name: 'メイン' })
-  await (await nav.count() > 1 ? nav.last() : nav.first()).getByRole('link', { name: 'メニュー' }).click()
+  await (await nav.count() > 1 ? nav.last() : nav.first()).getByRole('link', { name: 'きろく' }).click()
   await expect(page).toHaveURL(/#\/menu$/)
 })
 
@@ -1236,4 +1236,58 @@ test('home: the bottom has only 聞く and 今日を記録 as separate buttons, 
   const a = (await ask.boundingBox())!, r = (await rec.boundingBox())!
   expect(r.x).toBeGreaterThan(a.x + a.width)   // 別々のボタンで、聞くが左・記録が右
   await page.screenshot({ path: `screenshots/${info.project.name}-home-bottom.png` })
+})
+
+// ---- 段階 0: すぐ効く改善（言葉・押しやすさ・LaRa の反応・手紙） ----
+
+test('step0: the screens talk without developer words, and the record tab is called きろく', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/inbox')
+  await expect(page.getByRole('heading', { name: '受信トレイ' })).toBeVisible()
+  await expect(page.getByText(/Claude|Opus|Sonnet|Routine|API 料金/)).toHaveCount(0)
+  await page.goto('#/add')
+  await expect(page.getByText(/Claude|Opus|Routine/)).toHaveCount(0)
+  const nav = page.getByRole('navigation', { name: 'メイン' })
+  await nav.getByRole('link', { name: 'きろく' }).filter({ visible: true }).first().click()
+  await expect(page).toHaveURL(/#\/menu$/)
+  await expect(page.getByRole('heading', { name: 'きろく', level: 1 })).toBeVisible()
+})
+
+test('step0: sold counts are on for a new day, the ＋/− are big enough, and LaRa says thanks back home', async ({ page }) => {
+  await stubSupabase(page)
+  await page.addInitScript(() => localStorage.setItem('lara.settings', JSON.stringify({ home3d: false })))
+  // 記録のない日: 売れた数は最初からオン
+  await page.goto(`#/menu/${iso(daysAgo(5))}`)
+  await expect(page.getByRole('checkbox', { name: /売れた数も記録する/ })).toBeChecked()
+  await page.getByRole('button', { name: 'エッグサラダ' }).click()
+  const plus = page.getByRole('button', { name: '増やす' }).first()
+  const box = (await plus.boundingBox())!
+  expect(box.height).toBeGreaterThanOrEqual(44)
+  // 保存して戻ると LaRa がお礼を言う（テスト用の DB は新しい日を覚えないので、記録のある今日を更新する）
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  await page.getByRole('button', { name: '増やす' }).first().click()
+  await page.getByRole('button', { name: '更新する' }).click()
+  await expect(page).toHaveURL(/#\/menu\?m=/)
+  await page.goto('#/')
+  await expect(page.getByText(/記録ありがとう|しっかり覚えた|えらいえらい/)).toBeVisible()
+})
+
+test('step0: LaRa writes a letter at the start of the week, and it can be read again', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.addInitScript(() => localStorage.setItem('lara.settings', JSON.stringify({ home3d: false })))
+  await page.goto('#/')
+  const chip = page.getByRole('button', { name: 'LaRa からの手紙（未読）' })
+  await expect(chip).toBeVisible()
+  await chip.click()
+  const sheet = page.getByRole('dialog', { name: 'LaRa からの手紙' })
+  await expect(sheet.getByText('LaRa より')).toBeVisible()
+  await expect(sheet.getByText(/先週（\d+\/\d+〜\d+\/\d+）/)).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-letter.png` })
+  await page.keyboard.press('Escape')
+  // 読んだら赤い点は消える。開き直しても同じ手紙（書き直さない）
+  await expect(page.getByRole('button', { name: 'LaRa からの手紙', exact: true })).toBeVisible()
+  const first = await page.evaluate(() => localStorage.getItem('lara.letters'))
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'LaRa からの手紙', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('lara.letters'))).toBe(first)
 })

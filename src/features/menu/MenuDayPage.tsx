@@ -18,6 +18,7 @@ import { useRecipes } from '@/features/recipes/hooks'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { celebrate } from '@/features/game/celebrate'
+import { markRecorded } from '@/features/game/justRecorded'
 import { useDeleteMenuLog, useMenuLog, useSaveMenuLog } from './hooks'
 import { cx } from '@/lib/cx'
 
@@ -49,7 +50,8 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
     return m
   })
   const [note, setNote] = useState(initial?.note ?? '')
-  const [showSold, setShowSold] = useState(() => (initial?.menu_log_items ?? []).some((i) => i.sold_count !== null))
+  // 新しい日は売数も記録するのが基本（分析に使う）。前に記録した日は、そのときの選び方のまま
+  const [showSold, setShowSold] = useState(() => (initial ? (initial.menu_log_items ?? []).some((i) => i.sold_count !== null) : true))
   const [confirm, setConfirm] = useState(false)
   const dirty = useMemo(() => {
     const before = new Map((initial?.menu_log_items ?? []).map((i) => [i.recipe_id, i.sold_count]))
@@ -81,6 +83,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
       // 「売れた数も記録する」を外していたら、隠れている数は保存しない
       await save.mutateAsync({ date, note: note.trim(), items: [...items.entries()].map(([recipe_id, sold_count]) => ({ recipe_id, sold_count: showSold ? sold_count : null })) })
       if (!initial) celebrate('small')
+      markRecorded()
       toast(initial ? '更新しました' : '記録しました！', 'success')
       nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true })
     } catch (e) { toast(friendlyError(e), 'error') }
@@ -110,9 +113,9 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
                       <button type="button" aria-pressed={on} onClick={() => toggle(r.id)} className="flex h-10 items-center gap-1.5">{on && <IconCheck size={16} />}{r.title}</button>
                       {on && showSold && (
                         <span className="ml-1 flex items-center gap-0.5 rounded-chip bg-paper px-1 text-espresso-900">
-                          <button type="button" aria-label="減らす" className="size-9 rounded-full hover:bg-oat-100" onClick={() => setSold(r.id, Math.max(0, (items.get(r.id) ?? 0) - 1))}>−</button>
+                          <button type="button" aria-label="減らす" className="size-11 rounded-full text-[18px] hover:bg-oat-100" onClick={() => setSold(r.id, Math.max(0, (items.get(r.id) ?? 0) - 1))}>−</button>
                           <input inputMode="numeric" aria-label={`${r.title} の売数`} value={items.get(r.id) ?? ''} placeholder="売数" onChange={(e) => setSold(r.id, e.target.value === '' ? null : Math.max(0, parseInt(e.target.value, 10) || 0))} className="w-12 bg-transparent text-center text-[16px] tabular-nums outline-none" />
-                          <button type="button" aria-label="増やす" className="size-9 rounded-full hover:bg-oat-100" onClick={() => setSold(r.id, (items.get(r.id) ?? 0) + 1)}>＋</button>
+                          <button type="button" aria-label="増やす" className="size-11 rounded-full text-[18px] hover:bg-oat-100" onClick={() => setSold(r.id, (items.get(r.id) ?? 0) + 1)}>＋</button>
                         </span>
                       )}
                       {on && !showSold && <span className="w-1" />}
@@ -124,7 +127,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
           ))
         )}
         <label className="flex items-center gap-2 text-[13px] font-bold text-espresso-700">
-          <input type="checkbox" checked={showSold} onChange={(e) => setShowSold(e.target.checked)} className="size-4 accent-green-600" /> 売れた数も記録する（任意）
+          <input type="checkbox" checked={showSold} onChange={(e) => setShowSold(e.target.checked)} className="size-4 accent-green-600" /> 売れた数も記録する
         </label>
         <Textarea label="メモ（任意）" placeholder="雨で客足少なめ。BLT が早めに売り切れ" value={note} onChange={(e) => setNote(e.target.value)} />
         <Card className="flex items-center gap-3 text-xs text-muted">📝 続けると、週・月の構成比や人気ランキング、AI のコメントが見られるようになります。</Card>

@@ -112,8 +112,8 @@ export function AskPage() {
 
         {noKey && (
           <Card className="flex flex-col gap-2 border-mustard-300 bg-mustard-300/15">
-            <p className="text-sm font-bold">今すぐの返事には、Claude API キーの設定が必要です（まだ未設定）。</p>
-            <p className="text-xs text-muted">代わりに定期処理で答えることもできます。次は {nextWorkerTime()} ごろ、受信トレイに返事が届きます。</p>
+            <p className="text-sm font-bold">いまはすぐに返事ができないの。</p>
+            <p className="text-xs text-muted">トレイに入れてくれたら、{nextWorkerTime()} ごろに考えて返事を届けるね。</p>
             <Button variant="mustard" icon={<IconSparkles size={16} />} loading={enqueue.isPending} onClick={queueConsult}>トレイに入れて答えてもらう</Button>
           </Card>
         )}

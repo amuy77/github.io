@@ -195,7 +195,7 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
           </div>
           <Card className="flex flex-col gap-2">
             <p className="text-[13px] font-bold">AI にきれいに整えてもらう</p>
-            <p className="text-xs text-muted">Claude が {WORKER_SCHEDULE_LABEL}（次は {nextWorkerTime()} ごろ）まとめて処理して、受信トレイに届けます。</p>
+            <p className="text-xs text-muted">LaRa が {WORKER_SCHEDULE_LABEL}に見に来て（次は {nextWorkerTime()} ごろ）、読み取ってトレイに届けるよ。</p>
             {genreChips}
             <Input label="ヒント（任意）" placeholder="例: うちのメニュー。分量は 1 人前で" value={hint} onChange={(e) => setHint(e.target.value)} />
             <Button variant="mustard" icon={<IconSparkles size={16} />} loading={saving} onClick={() => sendToAi('recipe_from_text')} disabled={!text.trim()}>AI のトレイに入れる</Button>
@@ -205,7 +205,7 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
 
       {tab === 'photo' && (
         <div className="flex flex-col gap-4">
-          <MascotSays mood="thinking">レシピの写真やスクショを入れておくと、Claude が読み取ってカードにして受信トレイに届けるよ。次の処理は {nextWorkerTime()} ごろ。</MascotSays>
+          <MascotSays mood="thinking">レシピの写真やスクショを入れておくと、読み取ってカードにしてトレイに届けるよ。次の処理は {nextWorkerTime()} ごろ。</MascotSays>
           {photoFiles.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
               {photoFiles.map((p, i) => (
