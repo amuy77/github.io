@@ -19,3 +19,17 @@ export function useLeavesFrom(activeDays: number): number {
   try { if (leaves > readLeaves()) localStorage.setItem(KEY, String(leaves)) } catch { /* 覚えられなくても表示はできる */ }
   return leaves
 }
+
+/** お店の改装: 記録・ネタ・レシピの累計で 10 / 30 / 60 を超えるたびに飾りが 1 つ増える（最大 3。減らない） */
+export const DECOR_STEPS = [10, 30, 60] as const
+export function decorTier(total: number): number {
+  return DECOR_STEPS.filter((n) => total >= n).length
+}
+const DECOR_KEY = 'lara.home.decor'
+export function useDecorFrom(total: number): number {
+  let remembered = 0
+  try { remembered = Math.max(0, Number(localStorage.getItem(DECOR_KEY)) || 0) } catch { /* 覚えていなくても今の数で出す */ }
+  const tier = Math.max(remembered, decorTier(total))
+  try { if (tier > remembered) localStorage.setItem(DECOR_KEY, String(tier)) } catch { /* 表示はできる */ }
+  return tier
+}
