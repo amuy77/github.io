@@ -692,7 +692,8 @@ test('home talk: finished consult answers are told first, one by one', async ({ 
 })
 
 // LaRa は夜 23〜6 時は寝ていて予定を言わない。CI がいつ走っても昼になるよう、ブラウザの時刻帯をずらす（ブラウザで 13 時ごろ）
-const PLANNER_SHIFT = ((13 - new Date().getUTCHours() + 36) % 24) - 12
+// 13 − UTC の時（-10〜+13）だけずらすと、ブラウザはいつも同じ日付の 13 時ごろになる（日付がずれない）
+const PLANNER_SHIFT = 13 - new Date().getUTCHours()
 const PLANNER_TODAY = new Date(Date.now() + PLANNER_SHIFT * 3600_000).toISOString().slice(0, 10)
 test.describe('planner (daytime)', () => {
   test.use({ timezoneId: PLANNER_SHIFT >= 0 ? `Etc/GMT-${PLANNER_SHIFT}` : `Etc/GMT+${-PLANNER_SHIFT}` })
@@ -701,8 +702,8 @@ test.describe('planner (daytime)', () => {
     const authz: string[] = []
     page.on('request', (r) => { if (r.url().includes('/api/v1/agenda')) authz.push(r.headers()['authorization'] ?? '') })
     await stubSupabase(page, { agenda: (date) => date === todayIso
-      ? { ...emptyAgenda(date), events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '廃業届出', due_date: null, due_time: null, overdue: false, starred: false, list: '四谷旅館業', planned_for: date }, { title: 'ゴミシール購入', due_date: null, due_time: null, overdue: false, starred: false, list: 'マイタスク', planned_for: new Date(Date.parse(todayIso) - 86_400_000).toISOString().slice(0, 10) }, { title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
-      : emptyAgenda(date) })
+      ? { ...emptyAgenda(date), today: todayIso, events: [{ title: 'N89 ルーター回収', all_day: false, start: '23:58', end: '23:59', location: null, calendar: 'Googleカレンダー' }], tasks: [{ title: '廃業届出', due_date: null, due_time: null, overdue: false, starred: false, list: '四谷旅館業', planned_for: date }, { title: 'ゴミシール購入', due_date: null, due_time: null, overdue: false, starred: false, list: 'マイタスク', planned_for: new Date(Date.parse(todayIso) - 86_400_000).toISOString().slice(0, 10) }, { title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }, { title: '牛乳', due_date: date, due_time: null, overdue: false, starred: false, list: 'マイタスク' }] }
+      : { ...emptyAgenda(date), today: todayIso } })
     await page.goto('#/')
     // 予定は下のカードではなく、開いたときに LaRa が吹き出しで 1 回言う
     await expect(page.getByText(/N89 ルーター回収/).first()).toBeVisible({ timeout: 20_000 })
