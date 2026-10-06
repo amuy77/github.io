@@ -21,17 +21,17 @@ export function FriendsCard() {
               <img src={f.image} alt="" className="size-20 shrink-0 object-contain" />
               <div className="min-w-0 flex-1">
                 <p className="font-display text-[17px] font-bold">{f.name} <span className="text-xs text-muted">（{f.kana}）</span></p>
-                <p className="text-xs leading-relaxed text-muted">{f.profile}</p>
-                {f.comic && <button type="button" onClick={() => setComic(f.comic!)} className="mt-1 text-xs font-bold text-green-700">4コマを見る ›</button>}
+                <p className="text-[13px] leading-relaxed text-muted">{f.profile}</p>
+                {f.comic && <button type="button" onClick={() => setComic(f.comic!)} className="mt-1 inline-flex h-11 items-center text-[14px] font-bold text-green-700">4コマを見る ›</button>}
               </div>
             </div>
             <div className="flex flex-wrap gap-2" role="group" aria-label={`${f.name} が遊びに来る頻度`}>
               {VISIT_FREQS.map((v) => <Chip key={v.value} active={freq === v.value} onClick={() => updateSettings({ friends: { ...friends, [f.id]: v.value } })}>{v.label}</Chip>)}
             </div>
             <div className="flex items-center gap-2">
-              <p className="flex-1 text-xs text-muted">{home3d ? '昼間（10〜20 時）に、ホームのお店へときどき遊びに来ます' : '3D のお店ホームをオンにすると遊びに来ます'}</p>
+              <p className="flex-1 text-[13px] text-muted">{home3d ? '昼間（10〜20 時）に、ホームのお店へときどき遊びに来ます' : '3D のお店ホームをオンにすると遊びに来ます'}</p>
               <button type="button" disabled={!home3d} onClick={() => { callFriend(f.id); nav(paths.home) }}
-                className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white disabled:opacity-40">今すぐ呼ぶ</button>
+                className="h-11 shrink-0 rounded-chip bg-green-600 px-4 text-[14px] font-bold text-white disabled:opacity-40">今すぐ呼ぶ</button>
             </div>
           </Card>
         )

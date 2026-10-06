@@ -3,15 +3,11 @@ import { Link } from 'react-router'
 import { PageHeader, SectionTitle, SegmentedTabs, Skeleton, EmptyState } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { useToast } from '@/components/ui/Toast'
 import { MascotSays } from '@/components/mascot/Mascot'
-import { IconSparkles } from '@/components/ui/icons'
 import { addDays, formatMD, monthStart, today, weekStart } from '@/lib/dates'
 import { paths } from '@/app/routes'
 import { useRecipes } from '@/features/recipes/hooks'
 import { useGenres } from '@/features/genres/hooks'
-import { useEnqueueJob } from '@/features/ai/hooks'
-import { nextWorkerTime } from '@/features/ai/api'
 import { useInsights, useMenuLogs } from './hooks'
 import { genreShares, grossProfit, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
 import { useIngredientPrices } from '@/features/recipes/priceHooks'
@@ -25,7 +21,6 @@ type Period = 'week' | 'month' | '4w'
 const KIND_STYLE: Record<string, string> = { praise: 'bg-mustard-300/30', bias: 'bg-brick-500/10', popular: 'bg-green-600/10', suggestion: 'bg-plum-400/15', reminder: 'bg-oat-100' }
 
 export function MenuStatsPage() {
-  const toast = useToast()
   const [period, setPeriod] = useState<Period>('week')
   const t = today()
   const range = useMemo(() => period === 'week' ? { from: weekStart(t), to: t } : period === 'month' ? { from: monthStart(t), to: t } : { from: addDays(weekStart(t), -21), to: t }, [period, t])
@@ -34,7 +29,6 @@ export function MenuStatsPage() {
   const recipes = useRecipes()
   const genres = useGenres()
   const insights = useInsights()
-  const enqueue = useEnqueueJob()
 
   const loading = logs.isLoading || recipes.isLoading || genres.isLoading
   const shares = useMemo(() => genreShares(logs.data ?? [], recipes.data ?? [], genres.data ?? []), [logs.data, recipes.data, genres.data])
@@ -173,9 +167,6 @@ export function MenuStatsPage() {
           ) : (
             <MascotSays mood="thinking">毎週月曜の朝に、先週のメニューを見てコメントするよ。記録が溜まるのを待ってるね。</MascotSays>
           )}
-          <Button variant="secondary" size="sm" icon={<IconSparkles size={16} />} loading={enqueue.isPending} className="self-start" onClick={async () => { try { await enqueue.mutateAsync({ kind: 'weekly_insights', payload: { week_start: weekStart(addDays(t, -7)) } }); toast(`預かったよ。${nextWorkerTime()} ごろ、ふりかえってくるね`, 'success') } catch { /* 失敗の通知は共通のトーストが出す */ } }}>
-            今すぐ分析してもらう
-          </Button>
         </section>
       </div>
     </>
