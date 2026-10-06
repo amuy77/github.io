@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { HomeModeChip } from '@/features/settings/HomeModeChip'
-import { LetterChip } from '@/features/home/LetterChip'
+import { AlbumChip } from '@/features/home/AlbumChip'
 import { AgendaChip } from '@/features/planner/AgendaChip'
 import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
@@ -20,6 +20,8 @@ import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 import { useMenuLogs } from '@/features/menu/hooks'
 import { useAgendaLine } from '@/features/planner/api'
 import { recordedLine, takeJustRecorded } from '@/features/game/justRecorded'
+import { noteOutfit, noteSaying } from '@/features/home/album'
+import { TreasureSpot } from '@/features/home/TreasureSpot'
 import { FRIENDS, VISIT_CHANCE, getCharacter, markVisited, planVisit, takeFriendCall, type CharacterDef, type CharacterId } from '@/characters'
 
 type Place = Exclude<Hotspot, 'resident' | 'friend'>
@@ -96,6 +98,8 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
   const { outfit: outfitPref } = useSettings()
   const outfit = outfitFor(outfitPref, day)
   const outfitRef = useRef(outfit)
+  // 今日の服を、アルバムの服の図鑑に
+  useEffect(() => { noteOutfit(outfit) }, [outfit])
 
   useEffect(() => {
     const el = ref.current
@@ -166,6 +170,7 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
     const show = (text: string) => {
       const pos = scene.residentScreenPos(), box = ref.current?.getBoundingClientRect()
       if (!pos || !box) return
+      noteSaying(text)
       const half = Math.min(BUBBLE_MAX / 2 + 16, box.width / 2)
       setBubble({ text, x: Math.min(Math.max(pos.x - box.left, half), box.width - half), y: pos.y - box.top })
     }
@@ -362,12 +367,15 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
         </div>
         <div className="flex items-center gap-2">
           <AgendaChip />
-          <LetterChip />
+          <AlbumChip />
           <HomeModeChip showing="3d" />
           <SettingsChip />
         </div>
       </div>
 
+      {/* 1 日 1 つ落ちているたからもの（場所は日によって変わる） */}
+      <TreasureSpot className="absolute top-[60%] -translate-x-1/2" style={{ left: `${[16, 30, 68, 82][Number(day.slice(8, 10)) % 4]}%` }}
+        onPicked={(line) => { const scene = sceneRef.current; if (scene) { scene.residentReply('happy'); say(scene, [line]) } }} />
       {/* 住人の吹き出し */}
       <AnimatePresence>
         {bubble && (

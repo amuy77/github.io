@@ -102,6 +102,12 @@ async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean
   await page.addInitScript(([key, value]) => { localStorage.setItem(key, value) }, [`sb-${REF}-auth-token`, JSON.stringify(s)])
   // はじめての案内は見たことにしておく（案内そのもののテストでは消す）
   await page.addInitScript(() => { if (!sessionStorage.getItem('lara.smoke.keepOnboarding')) localStorage.setItem('lara.onboarded', '1') })
+  // 今日のたからものは拾ったことにしておく（家具のタップの邪魔をしないように。たからもののテストでは消す）
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('lara.smoke.keepTreasure') || localStorage.getItem('lara.album')) return
+    const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    localStorage.setItem('lara.album', JSON.stringify({ pickedOn: day }))
+  })
   await page.route(`https://${REF}.supabase.co/**`, async (route) => {
     const req = route.request()
     const url = new URL(req.url())
@@ -1292,19 +1298,19 @@ test('step0: LaRa writes a letter at the start of the week, and it can be read a
   await stubSupabase(page)
   await page.addInitScript(() => localStorage.setItem('lara.settings', JSON.stringify({ home3d: false })))
   await page.goto('#/')
-  const chip = page.getByRole('button', { name: 'LaRa からの手紙（未読）' })
+  const chip = page.getByRole('button', { name: 'LaRa のアルバム（新しい手紙）' })
   await expect(chip).toBeVisible()
   await chip.click()
-  const sheet = page.getByRole('dialog', { name: 'LaRa からの手紙' })
+  const sheet = page.getByRole('dialog', { name: 'LaRa のアルバム' })
   await expect(sheet.getByText('LaRa より')).toBeVisible()
   await expect(sheet.getByText(/先週（\d+\/\d+〜\d+\/\d+）/)).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-letter.png` })
   await page.keyboard.press('Escape')
   // 読んだら赤い点は消える。開き直しても同じ手紙（書き直さない）
-  await expect(page.getByRole('button', { name: 'LaRa からの手紙', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'LaRa のアルバム', exact: true })).toBeVisible()
   const first = await page.evaluate(() => localStorage.getItem('lara.letters'))
   await page.reload()
-  await expect(page.getByRole('button', { name: 'LaRa からの手紙', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'LaRa のアルバム', exact: true })).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('lara.letters'))).toBe(first)
 })
 
@@ -1405,4 +1411,33 @@ test('stage1: settings are grouped, show the shop members, and the first-run gui
   await expect(guide).toBeHidden()
   await page.reload()
   await expect(page.getByRole('dialog', { name: 'LaRa の使い方' })).toHaveCount(0)
+})
+
+// ---- 段階 3（お店側）: LaRa のアルバム（服の図鑑・語録・たからもの） ----
+
+test('stage3: pick today\'s treasure on the home, and the album shows treasures, outfits and sayings', async ({ page }, info) => {
+  await stubSupabase(page)
+  // 最初の 1 回だけアルバムを空に（スタブが「拾ったこと」にしているのを消す。開き直したときは残す）
+  await page.addInitScript(() => { if (!sessionStorage.getItem('lara.smoke.keepTreasure')) { sessionStorage.setItem('lara.smoke.keepTreasure', '1'); localStorage.removeItem('lara.album') } localStorage.setItem('lara.settings', JSON.stringify({ home3d: false, outfit: 'moon' })) })
+  await page.goto('#/')
+  const spot = page.getByRole('button', { name: '何か落ちてる' })
+  await expect(spot).toBeVisible()
+  await spot.click()
+  await expect(page.getByText(/を拾った！アルバムに入れたよ/)).toBeVisible()
+  await expect(spot).toHaveCount(0)
+  // 1 日 1 つ: 開き直しても、もう落ちていない
+  await page.reload()
+  await expect(page.getByRole('button', { name: '何か落ちてる' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: /^LaRa のアルバム/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'LaRa のアルバム' })
+  await sheet.getByRole('tab', { name: /たから/ }).click()
+  await expect(sheet.getByText(/× 1/)).toBeVisible()
+  await expect(sheet.getByText(/1 \/ \d+ しゅるい/)).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-album-treasures.png` })
+  await sheet.getByRole('tab', { name: /服/ }).click()
+  await expect(sheet.getByText('三日月')).toBeVisible()
+  await expect(sheet.getByText('？？？').first()).toBeVisible()
+  await sheet.getByRole('tab', { name: /語録/ }).click()
+  await expect(sheet.getByRole('listitem').first()).toBeVisible()
 })
