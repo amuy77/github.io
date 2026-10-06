@@ -34,7 +34,7 @@ export function RecipeCard({ recipe, genre, onToggleFavorite, versions = 1 }: { 
         <div className="flex flex-col gap-0.5 p-3 pr-12">
           <p className="line-clamp-2 text-[14px] font-bold leading-snug">{recipe.title}</p>
           {sub && <p className="truncate text-[11px] text-muted">{sub}</p>}
-          <div className="flex flex-wrap items-center gap-1.5"><PurposeBadge value={recipe.purpose} /><RatingStars value={recipe.rating} max={3} showHold={false} />{versions > 1 && <span className="rounded-chip bg-green-600/15 px-1.5 py-0.5 text-[10px] font-bold text-green-700">{versions}版{recipe.is_main ? '・採用中' : ''}</span>}</div>
+          <div className="flex flex-wrap items-center gap-1.5"><PurposeBadge value={recipe.purpose} /><RatingStars value={recipe.rating} max={3} showHold={false} />{recipe.price != null && <span className="text-[11px] font-bold tabular-nums text-espresso-700">¥{recipe.price.toLocaleString()}</span>}{versions > 1 && <span className="rounded-chip bg-green-600/15 px-1.5 py-0.5 text-[10px] font-bold text-green-700">{versions}版{recipe.is_main ? '・採用中' : ''}</span>}</div>
         </div>
         {recipe.status === 'draft' && <span className="absolute left-2 top-2 rounded-chip bg-mustard-400 px-2 py-0.5 text-[10px] font-bold">下書き</span>}
         {isNew(recipe.created_at) && recipe.status === 'published' && <Stamp color="text-brick-500" className="absolute -right-1 -top-1 scale-75">NEW</Stamp>}
@@ -54,7 +54,7 @@ export function RecipeListRow({ recipe, genre, onToggleFavorite, versions = 1 }:
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-bold leading-snug">{recipe.title}{recipe.status === 'draft' && <span className="ml-1.5 rounded-chip bg-mustard-400 px-1.5 py-0.5 text-[10px] font-bold">下書き</span>}{isNew(recipe.created_at) && recipe.status === 'published' && <span className="ml-1.5 text-[10px] font-bold text-brick-500">NEW</span>}</p>
           {sub && <p className="truncate text-[11px] text-muted">{sub}</p>}
-          <div className="mt-0.5 flex items-center gap-1.5"><PurposeBadge value={recipe.purpose} /><RatingStars value={recipe.rating} max={3} showHold={false} />{versions > 1 && <span className="rounded-chip bg-green-600/15 px-1.5 py-0.5 text-[10px] font-bold text-green-700">{versions}版{recipe.is_main ? '・採用中' : ''}</span>}</div>
+          <div className="mt-0.5 flex items-center gap-1.5"><PurposeBadge value={recipe.purpose} /><RatingStars value={recipe.rating} max={3} showHold={false} />{recipe.price != null && <span className="text-[11px] font-bold tabular-nums text-espresso-700">¥{recipe.price.toLocaleString()}</span>}{versions > 1 && <span className="rounded-chip bg-green-600/15 px-1.5 py-0.5 text-[10px] font-bold text-green-700">{versions}版{recipe.is_main ? '・採用中' : ''}</span>}</div>
         </div>
       </Link>
       {onToggleFavorite && <FavoriteButton recipe={recipe} onToggle={onToggleFavorite} className="size-11 shrink-0" />}

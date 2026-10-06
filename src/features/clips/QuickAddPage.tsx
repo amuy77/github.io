@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { PageHeader } from '@/components/ui/Page'
-import { Card } from '@/components/ui/Card'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
@@ -100,11 +99,13 @@ export function QuickAddPage() {
       case 'recipe': nav(paths.recipeNew); break
     }
   }
+  // 大きく出す 2 つ（撮る・書く）
+  const MAIN: ActionId[] = ['camera', 'note']
   const actions: { id: ActionId; icon: React.ReactNode; label: string; sub: string; color: string }[] = [
-    { id: 'camera', icon: <IconCamera />, label: 'カメラで撮る', sub: '撮るだけ。ネタ帳かレシピかは AI が判断', color: 'bg-brick-500 text-white' },
+    { id: 'camera', icon: <IconCamera />, label: '撮る', sub: '撮るだけ。あとは LaRa が仕分け', color: 'bg-brick-500 text-white' },
     { id: 'library', icon: <IconImage />, label: '写真から選ぶ', sub: 'スクショやカメラロール。AI が振り分け', color: 'bg-mustard-400 text-espresso-900' },
     { id: 'paste', icon: <IconClipboard />, label: 'クリップボードから', sub: 'Instagram の「リンクをコピー」の後に', color: 'bg-plum-400 text-white' },
-    { id: 'note', icon: <IconLink />, label: 'URL・メモを書く', sub: 'リンクや短いメモ', color: 'bg-green-600 text-white' },
+    { id: 'note', icon: <IconLink />, label: '書く', sub: 'メモやリンク', color: 'bg-green-600 text-white' },
     { id: 'idea', icon: <IconBulb />, label: 'ひらめき', sub: '新メニューの種、思いつき', color: 'bg-[#FFF2C2] text-espresso-900' },
     { id: 'recipe', icon: <IconBook />, label: 'レシピを作る', sub: '手入力・テキスト貼り付け', color: 'bg-wood-300 text-espresso-900' },
   ]
@@ -115,15 +116,28 @@ export function QuickAddPage() {
       <input ref={cam} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={onFiles} />
       <input ref={lib} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={onFiles} />
       <div className="flex flex-col gap-4">
-        <MascotSays mood="happy">何を残しておく？写真なら、あとは AI にまかせて OK。</MascotSays>
+        <MascotSays mood="happy">何を残しておく？写真なら、撮るだけで OK だよ。</MascotSays>
+        {/* よく使う 2 つは大きく。ほかの方法は小さく並べる（隠さない） */}
         <div className="grid grid-cols-2 gap-3">
-          {actions.map((a) => (
-            <Card key={a.id} pressable padded={false} className="overflow-hidden" onClick={() => handle(a.id)} onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') handle(a.id) }}>
-              <div className={cx('flex h-14 items-center gap-2 px-4 font-bold', a.color)}>{a.icon}<span className="text-[14px]">{a.label}</span></div>
-              <p className="px-4 py-3 text-[12px] text-muted">{a.sub}</p>
-            </Card>
+          {actions.filter((x) => MAIN.includes(x.id)).map((a) => (
+            <button key={a.id} type="button" onClick={() => handle(a.id)} className={cx('flex h-36 flex-col items-center justify-center gap-2 rounded-card px-3 text-center shadow-card active:scale-[0.98]', a.color)}>
+              <span className="[&>svg]:size-9">{a.icon}</span>
+              <span className="text-[17px] font-bold">{a.label}</span>
+              <span className="text-[11px] leading-snug opacity-85">{a.sub}</span>
+            </button>
           ))}
         </div>
+        <section className="flex flex-col gap-2" aria-label="ほかの方法">
+          <p className="text-[13px] font-bold text-espresso-700">ほかの方法</p>
+          <div className="grid grid-cols-2 gap-2">
+            {actions.filter((x) => !MAIN.includes(x.id)).map((a) => (
+              <button key={a.id} type="button" onClick={() => handle(a.id)} className="flex min-h-14 items-center gap-2 rounded-[14px] border border-line bg-paper px-3 py-2 text-left active:scale-[0.98]">
+                <span className={cx('grid size-9 shrink-0 place-items-center rounded-full [&>svg]:size-5', a.color)}>{a.icon}</span>
+                <span className="min-w-0"><span className="block text-[14px] font-bold leading-tight">{a.label}</span><span className="block truncate text-[11px] text-muted">{a.sub}</span></span>
+              </button>
+            ))}
+          </div>
+        </section>
         <p className="text-center text-xs text-muted"><IconNote size={12} className="inline" /> iPhone の「写真からテキストをコピー」→「クリップボードから」で、手書きメモも読み込めるよ</p>
       </div>
 

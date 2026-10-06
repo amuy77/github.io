@@ -5,6 +5,7 @@ import { useSettings } from '@/features/settings/useSettings'
 import { today } from '@/lib/dates'
 import { webglAvailable } from './webgl'
 import { useLeavesFrom } from './leaves'
+import { Onboarding } from './Onboarding'
 
 const ShopHome = lazy(() => import('./shop3d/ShopHome'))
 
@@ -26,10 +27,15 @@ export function HomePage() {
   const activeToday = streak.data ? streak.data.days.includes(today()) : true
   const worried = !activeToday && new Date().getHours() >= 18
   const use3d = home3d && webglAvailable() && !lost
-  if (!use3d) return <Home2D counts={c} streak={s} worried={worried} />
   return (
-    <Suspense fallback={<Home2D counts={c} streak={s} loading />}>
-      <ShopHome counts={c} streak={s} leaves={leaves} worried={worried} onContextLost={() => { lostUntil = Date.now() + LOST_COOLDOWN; setLost(true) }} />
-    </Suspense>
+    <>
+      {!use3d ? <Home2D counts={c} streak={s} worried={worried} /> : (
+        <Suspense fallback={<Home2D counts={c} streak={s} loading />}>
+          <ShopHome counts={c} streak={s} leaves={leaves} worried={worried} onContextLost={() => { lostUntil = Date.now() + LOST_COOLDOWN; setLost(true) }} />
+        </Suspense>
+      )}
+      {/* はじめて開いたときだけの案内 */}
+      <Onboarding />
+    </>
   )
 }

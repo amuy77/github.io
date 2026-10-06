@@ -13,7 +13,7 @@ import { useGenres } from '@/features/genres/hooks'
 import { useEnqueueJob } from '@/features/ai/hooks'
 import { nextWorkerTime } from '@/features/ai/api'
 import { useInsights, useMenuLogs } from './hooks'
-import { genreShares, notServedRecently, recipeFrequency } from './aggregate'
+import { genreShares, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
 import { FrequencyRanking, GenreDonut } from './charts'
 import { cx } from '@/lib/cx'
 
@@ -36,6 +36,11 @@ export function MenuStatsPage() {
   const shares = useMemo(() => genreShares(logs.data ?? [], recipes.data ?? [], genres.data ?? []), [logs.data, recipes.data, genres.data])
   const ranking = useMemo(() => recipeFrequency(logs.data ?? [], recipes.data ?? []), [logs.data, recipes.data])
   const notServed = useMemo(() => notServedRecently(allLogs.data ?? [], recipes.data ?? []), [allLogs.data, recipes.data])
+  const sales = useMemo(() => salesSummary(logs.data ?? [], recipes.data ?? []), [logs.data, recipes.data])
+  const weekdays = useMemo(() => weekdayAverages(allLogs.data ?? []), [allLogs.data])
+  const tomorrow = addDays(t, 1)
+  const prep = useMemo(() => prepForecast(allLogs.data ?? [], recipes.data ?? [], tomorrow), [allLogs.data, recipes.data, tomorrow])
+  const maxDay = Math.max(1, ...weekdays.map((w) => w.avgSold ?? 0))
   const days = logs.data?.length ?? 0
   const latest = insights.data?.[0]
 
@@ -45,10 +50,39 @@ export function MenuStatsPage() {
       <div className="flex flex-col gap-4">
         <SegmentedTabs value={period} onChange={setPeriod} options={[{ value: 'week', label: '今週' }, { value: 'month', label: '今月' }, { value: '4w', label: '4週間' }]} />
 
+        {prep.length > 0 && (
+          <Card className="flex flex-col gap-2">
+            <SectionTitle className="mt-0" count={`${formatMD(tomorrow)}`}>明日の仕込みの目安</SectionTitle>
+            <p className="text-xs text-muted">同じ曜日の、これまでの売れた数の平均だよ（{prep[0].samples} 回分）</p>
+            <ul className="flex flex-col divide-y divide-dashed divide-line">
+              {prep.map((p) => (
+                <li key={p.recipe.id} className="flex items-center gap-2 py-2 text-[14px]">
+                  <Link to={paths.recipe(p.recipe.id)} className="min-w-0 flex-1 truncate font-bold">{p.recipe.title}</Link>
+                  <span className="tabular-nums">約 <b className="text-[16px]">{Math.round(p.avg)}</b> 個</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         {loading ? <Skeleton className="h-48" /> : days === 0 ? (
           <EmptyState emoji="📊" title="この期間の記録がありません" body="メニューを記録すると、ジャンルの構成比や人気の品がここに出ます。" action={<Link to={paths.menuDay(t)} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">今日を記録する</Link>} />
         ) : (
           <>
+            <Card className="flex flex-col gap-2">
+              <SectionTitle className="mt-0">売上</SectionTitle>
+              {sales.total > 0 ? (
+                <div className="flex items-end gap-4">
+                  <p className="font-display text-[30px] font-extrabold leading-none tabular-nums">¥{sales.total.toLocaleString()}</p>
+                  <p className="pb-0.5 text-xs text-muted">{sales.items} 個 ・ 1 日あたり ¥{Math.round(sales.total / Math.max(1, sales.days)).toLocaleString()}</p>
+                </div>
+              ) : <p className="text-sm text-muted">売れた数と価格が入ると、ここに売上が出るよ</p>}
+              {sales.missingPrice.length > 0 && (
+                <p className="rounded-[10px] bg-mustard-300/20 px-3 py-2 text-xs">
+                  価格が入っていない品: {sales.missingPrice.slice(0, 4).map((r, i) => <span key={r.id}>{i > 0 && '、'}<Link to={paths.recipeEdit(r.id)} className="font-bold underline underline-offset-2">{r.title}</Link></span>)}{sales.missingPrice.length > 4 && ` ほか ${sales.missingPrice.length - 4} 品`}。価格を入れると売上に入るよ
+                </p>
+              )}
+            </Card>
             <Card className="flex flex-col gap-3">
               <SectionTitle className="mt-0">ジャンルの構成比</SectionTitle>
               <GenreDonut shares={shares} />
@@ -59,6 +93,24 @@ export function MenuStatsPage() {
               <FrequencyRanking rows={ranking} />
             </Card>
           </>
+        )}
+
+        {weekdays.some((w) => w.avgSold !== null) && (
+          <Card className="flex flex-col gap-2">
+            <SectionTitle className="mt-0" count="直近 90 日">曜日ごとの売れ方</SectionTitle>
+            <div className="grid grid-cols-7 items-end gap-1.5" role="img" aria-label={`曜日ごとの 1 日あたりの売れた数: ${weekdays.map((w) => `${w.day} ${w.avgSold ?? 'なし'}`).join('、')}`}>
+              {weekdays.map((w) => (
+                <div key={w.day} className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] tabular-nums text-muted">{w.avgSold === null ? '–' : Math.round(w.avgSold)}</span>
+                  <div className="flex h-20 w-full items-end rounded-[6px] bg-oat-100">
+                    <div className="w-full rounded-[6px] bg-green-600" style={{ height: `${w.avgSold === null ? 0 : Math.max(6, (w.avgSold / maxDay) * 100)}%` }} />
+                  </div>
+                  <span className="text-[12px] font-bold">{w.day}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted">1 日あたりの売れた数（売れた数を記録した日だけ）</p>
+          </Card>
         )}
 
         {notServed.length > 0 && (

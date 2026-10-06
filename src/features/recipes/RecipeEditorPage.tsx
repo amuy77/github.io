@@ -55,7 +55,7 @@ const newKey = () => `r${++keySeq}`
 const ingRows = (list: Ingredient[]): IngRow[] => (list.length ? list : [{ name: '', amount: '' }]).map((i) => ({ ...i, key: newKey() }))
 const stepRows = (list: string[]): StepRow[] => (list.length ? list : ['']).map((text) => ({ key: newKey(), text }))
 
-interface FormState { title: string; genreId: string | null; ingredients: IngRow[]; steps: StepRow[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string; purpose: RecipePurpose }
+interface FormState { title: string; genreId: string | null; ingredients: IngRow[]; steps: StepRow[]; notes: string; hero: ImageRef | null; sourceKind: RecipeSourceKind; rating: number | null; familyId: string | null; label: string; purpose: RecipePurpose; price: string }
 
 function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | null; from: RecipeRow | null; initialTab: Tab; newPurpose: RecipePurpose }) {
   const nav = useNavigate()
@@ -73,6 +73,7 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
       title: src?.title ?? '', genreId: src?.genre_id ?? null, ingredients: ingRows(src?.ingredients ?? []),
       steps: stepRows(src?.steps ?? []), notes: recipe?.notes ?? '', hero: recipe?.hero_image ?? null, sourceKind: recipe?.source_kind ?? 'manual',
       rating: recipe?.rating ?? null,
+      price: recipe?.price != null ? String(recipe.price) : from?.price != null ? String(from.price) : '',
       // 新しいレシピは開いた場所（メニュー／図鑑）に合わせる。試作は元の版に合わせる
       purpose: recipe?.purpose ?? from?.purpose ?? newPurpose,
       familyId: recipe ? recipe.family_id : from ? familyKey(from) : null,
@@ -142,6 +143,7 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
   async function save() {
     if (!userId) return
     const title = form.title.trim()
+    const price = form.price ? Number(form.price) : null
     if (!title) { toast('レシピ名を入れてね', 'error'); return }
     setSaving(true)
     try {
@@ -154,6 +156,8 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
         steps: form.steps.map((s) => s.text.trim()).filter(Boolean),
         notes: form.notes.trim(), source_kind: form.sourceKind, status: 'published' as const,
         rating: form.rating, purpose: form.purpose, family_id: form.familyId, variant_label: form.familyId || isFamilyHead ? form.label.trim() : '',
+        // 価格は入れたとき・前から入っていたときだけ送る（SQL を流す前の DB でも、価格を使わなければ今まで通り保存できるように）
+        ...(price !== null || recipe?.price != null ? { price } : {}),
       }
       if (recipe) {
         const saved = await update.mutateAsync({ id: recipe.id, patch: row })
@@ -225,6 +229,7 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
           <Input label="レシピ名" placeholder="BLT サンド" value={form.title} onChange={(e) => set('title', e.target.value)} />
           <PurposePicker value={form.purpose} onChange={(v) => set('purpose', v)} />
           {genreChips}
+          {form.purpose === 'menu' && <Input label="価格（税込・円）" inputMode="numeric" placeholder="980" value={form.price} onChange={(e) => set('price', e.target.value.replace(/[^\d]/g, '').slice(0, 7))} />}
           <RatingInput label="評価" max={3} value={form.rating} onChange={(v) => set('rating', v)} />
 
           <div className="flex flex-col gap-2 rounded-card border border-line bg-oat-50 p-3">

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { HomeModeChip } from '@/features/settings/HomeModeChip'
 import { LetterChip } from '@/features/home/LetterChip'
+import { AgendaChip } from '@/features/planner/AgendaChip'
 import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -360,6 +361,7 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
           <div className={cx('mt-1 text-[11px] font-bold tracking-widest', part === 'night' ? 'text-oat-200/80' : 'text-muted')}>{formatMD(today())}</div>
         </div>
         <div className="flex items-center gap-2">
+          <AgendaChip />
           <LetterChip />
           <HomeModeChip showing="3d" />
           <SettingsChip />
