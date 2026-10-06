@@ -46,7 +46,7 @@ const friendHours = (h: number) => h >= 10 && h < 20
 const readSeen = () => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0 } catch { return 0 } }
 const writeSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())) } catch { /* private mode */ } }
 
-export function ShopHome({ counts, streak, leaves = 0, worried = false, onContextLost }: { counts: HomeCounts; streak: number; leaves?: number; worried?: boolean; onContextLost?: () => void }) {
+export function ShopHome({ counts, streak, leaves = 0, decor = 0, worried = false, onContextLost }: { counts: HomeCounts; streak: number; leaves?: number; decor?: number; worried?: boolean; onContextLost?: () => void }) {
   const nav = useNavigate()
   const onContextLostRef = useRef(onContextLost)
   onContextLostRef.current = onContextLost
@@ -88,12 +88,12 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
   // セリフに使う今の数（レシピ・ネタ・確認待ち・連続記録）と、今日のメニューがもう記録されているか
   const [day, setDay] = useState(today)
   const menuToday = (useMenuLogs(day, day).data?.length ?? 0) > 0
-  const dataRef = useRef({ counts, streak, leaves, menuToday })
+  const dataRef = useRef({ counts, streak, leaves, decor, menuToday })
   // 最初のあいさつをもう済ませたか（先にタップしたり話しかけたりしたら、それをあいさつ代わりにする）
   const greetedRef = useRef(false)
   // 続けてタップされた回数（数秒あくと 1 に戻る）
   const tapsRef = useRef({ n: 0, at: 0 })
-  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak, leaves, menuToday }
+  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak, leaves, decor, menuToday }
   // 服: 設定（おまかせ / 固定）と今日の日付で決まる。開いたまま日付が変わっても着替えるよう、日付はときどき見直す
   const { outfit: outfitPref } = useSettings()
   const outfit = outfitFor(outfitPref, day)
@@ -140,7 +140,7 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
     scene.setResident(true)
     // 省エネ設定の切り替えで作り直したときも、本・葉っぱ・心配顔は今の値のまま。友達は作り直したシーンにはいないので忘れる
     const d = dataRef.current
-    scene.setCounts({ books: Math.min(24, d.counts.recipes), cards: Math.min(12, d.counts.clips), leaves: d.leaves, chalk: Math.min(30, d.counts.menuLogs), inbox: d.counts.inbox })
+    scene.setCounts({ books: Math.min(24, d.counts.recipes), cards: Math.min(12, d.counts.clips), leaves: d.leaves, decor: d.decor, chalk: Math.min(30, d.counts.menuLogs), inbox: d.counts.inbox })
     scene.setResidentMood(worriedRef.current ? 'worried' : 'idle')
     friendRef.current = null
     for (const id of friendTimers.current) window.clearTimeout(id)
@@ -331,8 +331,8 @@ export function ShopHome({ counts, streak, leaves = 0, worried = false, onContex
   useEffect(() => () => { window.clearTimeout(hideRef.current); for (const id of seqRef.current) window.clearTimeout(id) }, [])
 
   useEffect(() => {
-    sceneRef.current?.setCounts({ books: Math.min(24, counts.recipes), cards: Math.min(12, counts.clips), leaves, chalk: Math.min(30, counts.menuLogs), inbox: counts.inbox })
-  }, [counts, leaves])
+    sceneRef.current?.setCounts({ books: Math.min(24, counts.recipes), cards: Math.min(12, counts.clips), leaves, decor, chalk: Math.min(30, counts.menuLogs), inbox: counts.inbox })
+  }, [counts, leaves, decor])
 
   useEffect(() => { worriedRef.current = worried; sceneRef.current?.setResidentMood(worried ? 'worried' : 'idle') }, [worried])
 

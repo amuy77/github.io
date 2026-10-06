@@ -1508,3 +1508,20 @@ test('stage4: the prep sheet totals ingredients for tomorrow, can be adjusted, c
   expect(text).toContain('・エッグサラダ 3')
   expect(text).toContain('□ 卵 6個')
 })
+
+// ---- 段階 3（お店側）: 季節の飾りと改装 ----
+
+test('stage3: the 3D shop has this month\'s decoration and grows decorations with what you have recorded', async ({ page }, info) => {
+  type W = { __lara?: { debugState(): { figure: boolean; season: string | null; decor: number } } }
+  await stubSupabase(page)
+  await page.goto('#/')
+  await page.waitForFunction(() => (window as unknown as W).__lara?.debugState().figure, null, { timeout: 20_000 })
+  const st = await page.evaluate(() => (window as unknown as W).__lara!.debugState())
+  const m = new Date().getMonth() + 1
+  const want = m === 10 ? 'halloween' : m === 12 ? 'christmas' : m === 1 ? 'newyear' : m === 3 || m === 4 ? 'sakura' : m === 7 || m === 8 ? 'summer' : null
+  expect(st.season).toBe(want)
+  // テストのデータは記録 9・ネタ 5・レシピ 数品 → 累計 10 以上で 1 つ目（窓の上の電球）
+  await expect.poll(async () => (await page.evaluate(() => (window as unknown as W).__lara!.debugState())).decor).toBeGreaterThanOrEqual(1)
+  await page.waitForTimeout(800)
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-season.png` })
+})

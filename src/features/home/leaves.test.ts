@@ -12,3 +12,10 @@ describe('grownLeaves', () => {
     expect(grownLeaves(40, 0)).toBe(MAX_LEAVES)
   })
 })
+
+describe('decorTier', () => {
+  it('adds one decoration at 10, 30 and 60', async () => {
+    const { decorTier } = await import('./leaves')
+    expect([0, 9, 10, 29, 30, 59, 60, 500].map(decorTier)).toEqual([0, 0, 1, 1, 2, 2, 3, 3])
+  })
+})

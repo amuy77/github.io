@@ -4,7 +4,7 @@ import type { DayPart } from '@/lib/dates'
 import { BALL_R, buildBalanceBall, buildLaraFigure, type FigureKind, type LaraFigure, type LaraOutfit, type LaraPose, type LaraProp } from './laraFigure'
 
 export type Hotspot = 'clips' | 'recipes' | 'menu' | 'inbox' | 'add' | 'resident' | 'friend'
-export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number }
+export interface ShopCounts { books: number; cards: number; leaves: number; chalk: number; inbox: number; decor?: number }
 export interface ShopSceneOptions {
   onTap: (h: Hotspot) => void
   onHover?: (h: Hotspot | null) => void
@@ -156,6 +156,10 @@ export class ShopScene {
   /** ベンチに立てかけてあるウクレレ（弾いている間は隠す） */
   private ukeDecor: THREE.Object3D | null = null
   private ballDecor: THREE.Object3D | null = null
+  /** 改装の飾り（記録・ネタ・レシピの累計で 1 つずつ増える。減らない） */
+  private decorTiers: THREE.Object3D[] = []
+  /** 季節の飾り（今の月のもの） */
+  private season: string | null = null
   /** 郵便受けで知らせ終わった未読の数（これより増えたら郵便受けへ行く） */
   private mailSeen = 0
   /** 確認用に時刻を固定する（null なら今の時刻） */
@@ -235,6 +239,7 @@ export class ShopScene {
     this.cards.forEach((o, i) => { o.visible = i < this.counts.cards })
     this.leaves.forEach((o, i) => { o.visible = i < this.counts.leaves })
     this.chalkLines.forEach((o, i) => { o.visible = i < this.counts.chalk })
+    this.decorTiers.forEach((o, i) => { o.visible = i < (this.counts.decor ?? 0) })
     if (this.opts.badgeEl) { this.opts.badgeEl.textContent = String(this.counts.inbox); this.opts.badgeEl.style.display = this.counts.inbox > 0 ? 'block' : 'none' }
     this.updateResidentState()
     this.invalidate()
@@ -339,7 +344,7 @@ export class ShopScene {
   }
 
   /** デバッグ用の状態 */
-  debugState() { return { lively: this.lively, resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, radius: this.radius, roomBox: [this.roomBox.min.toArray(), this.roomBox.max.toArray()], friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null } }
+  debugState() { return { lively: this.lively, resident: this.resident ? this.resident.position.toArray() : null, state: this.residentState, arrived: this.arrivedAt >= 0, path: this.residentNodes, target: this.residentTarget.toArray(), counts: this.counts, mode: this.mode, figure: !!this.figure, outfit: this.residentOutfit, life: lifePart(this.hourNow()), mailSeen: this.mailSeen, forced: this.forcedActivity(), gesture: this.gesture?.pose ?? null, listening: this.listening, radius: this.radius, roomBox: [this.roomBox.min.toArray(), this.roomBox.max.toArray()], friend: this.friend ? { kind: this.friend.kind, phase: this.friend.phase, at: this.friend.at } : null, ballDecor: this.ballDecor?.visible ?? null, season: this.season, decor: this.decorTiers.filter((o) => o.visible).length } }
   /** デバッグ用: 時刻を固定する（null で今の時刻に戻す） */
   debugSetHour(h: number | null) { this.hourOverride = h; this.updateResidentState(); this.drawSea(this.mode, this.lastT) }
   /** デバッグ用: 今の場所での時間を飛ばして、次の行動を選ばせる（優先の行動があるときは何もしない） */
@@ -878,6 +883,8 @@ export class ShopScene {
     box(S, 0.35, 0.3, 0.85, C.oakD, -2.375, 0.15, -0.475, { rough: 1 })
 
     // 動かない飾りを材質ごとにまとめる（タップできる家具の中の、動かない部品も）
+    this.buildSeason(room)
+    this.buildDecorTiers(room)
     this.mergeStatic(S)
     this.mergeStatic(board, (o) => this.cards.includes(o as THREE.Group))
     this.mergeStatic(chalkboard, (o) => this.chalkLines.includes(o as THREE.Mesh))
@@ -888,6 +895,80 @@ export class ShopScene {
   }
 
   /** 動かないメッシュを材質（と影を落とすか）ごとに 1 つへまとめる。skip(o) が true の物とその子はそのまま残す */
+  /**
+   * 季節の飾り: 入口の右の角（玄関マットの右）に、その月のものを置く。
+   * 10 月はかぼちゃ、12 月はツリー、1 月は門松、3〜4 月は桜の枝、7〜8 月は浮き輪とバケツ。それ以外の月は何も置かない
+   */
+  private buildSeason(room: THREE.Group) {
+    const m = new Date().getMonth() + 1
+    const g = new THREE.Group(); g.position.set(4.15, 0, 5.1); room.add(g)
+    const { box, cyl, sph } = { box: this.box.bind(this), cyl: this.cyl.bind(this), sph: this.sph.bind(this) }
+    if (m === 10) {
+      this.season = 'halloween'
+      for (const [x, z, r] of [[0, 0, 0.22], [-0.32, 0.12, 0.16], [0.12, -0.3, 0.13]] as [number, number, number][]) {
+        sph(g, r, 0xe8862e, x, r * 0.8, z, { seg: 12, sy: 0.8 })
+        for (let k = 0; k < 4; k++) sph(g, r * 1.01, 0xd4741f, x, r * 0.8, z, { seg: 12, sy: 0.8, sx: 0.35, ry: (k * Math.PI) / 4 })
+        cyl(g, 0.02, 0.025, 0.08, 0x5a7a3a, x, r * 1.6 + 0.03, z, { seg: 6 })
+      }
+    } else if (m === 12) {
+      this.season = 'christmas'
+      cyl(g, 0.16, 0.14, 0.18, C.terracotta, 0, 0.09, 0, { seg: 12 })
+      for (const [y, r, h] of [[0.42, 0.42, 0.5], [0.72, 0.32, 0.42], [0.98, 0.22, 0.34]] as [number, number, number][]) {
+        this.place(g, new THREE.Mesh(new THREE.ConeGeometry(r, h, 10), this.M(0x2f6b4a)), 0, y, 0, {})
+      }
+      sph(g, 0.06, C.mustard, 0, 1.2, 0, { seg: 8, emissive: C.mustard, ei: 0.6 })
+      for (let k = 0; k < 7; k++) { const a = k * 0.9, y = 0.35 + k * 0.1, r = 0.38 - k * 0.04; sph(g, 0.03, [C.coral, C.mustard, C.white][k % 3], Math.cos(a) * r, y, Math.sin(a) * r, { seg: 6 }) }
+    } else if (m === 1) {
+      this.season = 'newyear'
+      cyl(g, 0.2, 0.22, 0.28, C.rattan, 0, 0.14, 0, { seg: 14 })
+      for (const [x, z, h] of [[0, 0, 0.9], [-0.07, 0.08, 0.75], [0.08, 0.07, 0.65]] as [number, number, number][]) cyl(g, 0.045, 0.045, h, 0x7fae5a, x, 0.28 + h / 2, z, { seg: 8 })
+      for (let k = 0; k < 6; k++) sph(g, 0.09, C.leafD, Math.cos(k) * 0.16, 0.36, Math.sin(k) * 0.16, { seg: 6, sy: 0.6 })
+      sph(g, 0.04, C.brick, 0.12, 0.42, -0.1, { seg: 6 })
+    } else if (m === 3 || m === 4) {
+      this.season = 'sakura'
+      cyl(g, 0.12, 0.09, 0.4, C.white, 0, 0.2, 0, { seg: 12 })
+      for (let k = 0; k < 3; k++) {
+        const a = -0.5 + k * 0.5
+        cyl(g, 0.012, 0.014, 0.7, C.woodDD, Math.sin(a) * 0.15, 0.7, Math.cos(a) * 0.04, { seg: 5, rz: a * 0.6 })
+        for (let j = 0; j < 7; j++) sph(g, 0.045, j % 2 ? 0xf7c6d4 : 0xf3a9bf, Math.sin(a) * (0.12 + j * 0.03), 0.62 + j * 0.06, Math.cos(a * 3 + j) * 0.06, { seg: 6 })
+      }
+    } else if (m === 7 || m === 8) {
+      this.season = 'summer'
+      const ring = this.place(g, new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.08, 8, 20), this.M(C.coral)), 0, 0.09, 0, { rx: Math.PI / 2 })
+      ring.castShadow = true
+      for (let k = 0; k < 4; k++) this.place(g, new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.081, 8, 4, Math.PI / 8), this.M(C.white)), 0, 0.09, 0, { rx: Math.PI / 2, rz: (k * Math.PI) / 2 })
+      cyl(g, 0.1, 0.08, 0.16, C.sea, -0.35, 0.08, 0.15, { seg: 12 }); box(g, 0.03, 0.18, 0.02, C.mustard, -0.3, 0.2, 0.18, { rz: 0.5 })
+    }
+  }
+
+  /**
+   * 改装: 記録・ネタ・レシピが増えると 1 つずつ飾りが増える（setCounts の decor の数だけ見せる。減らない数を渡す）。
+   * 1: 窓の上の電球のガーランド、2: 左の壁の LaRa の写真、3: 入口の左の花瓶
+   */
+  private buildDecorTiers(room: THREE.Group) {
+    const { box, cyl, sph } = { box: this.box.bind(this), cyl: this.cyl.bind(this), sph: this.sph.bind(this) }
+    const lights = new THREE.Group(); room.add(lights)
+    const n = 9
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1), x = 2.1 + t * 1.8, y = 2.42 - Math.sin(t * Math.PI) * 0.12
+      sph(lights, 0.035, [0xffd27a, 0xffb36b, 0xfff0c2][i % 3], x, y, -2.53, { seg: 6, emissive: 0xffc46b, ei: 0.9 })
+      if (i < n - 1) box(lights, 1.8 / (n - 1), 0.006, 0.006, C.ink, x + 0.1, y + 0.03, -2.54, { rz: (i < (n - 1) / 2 ? -1 : 1) * 0.06 })
+    }
+    const photo = new THREE.Group(); room.add(photo); photo.position.set(-3.17, 1.95, 4.6)
+    box(photo, 0.04, 0.5, 0.42, C.whiteWood, 0, 0, 0); box(photo, 0.02, 0.42, 0.34, C.mint, 0.02, 0, 0)
+    sph(photo, 0.1, C.cream, 0.035, -0.02, 0, { seg: 10, sx: 0.3 }); sph(photo, 0.07, C.mustard, 0.04, 0.1, -0.05, { seg: 8, sx: 0.3 })
+    sph(photo, 0.06, C.mint, 0.045, 0.12, -0.02, { seg: 8, sx: 0.3 })
+    const vase = new THREE.Group(); room.add(vase); vase.position.set(-2.95, 0, 4.95)
+    cyl(vase, 0.1, 0.14, 0.5, C.sea, 0, 0.25, 0, { seg: 12 })
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2
+      cyl(vase, 0.008, 0.008, 0.45, C.leafD, Math.cos(a) * 0.05, 0.68, Math.sin(a) * 0.05, { seg: 4, rz: Math.cos(a) * 0.2, rx: Math.sin(a) * 0.2 })
+      this.hibiscus(vase, Math.cos(a) * 0.12, 0.9 + (k % 2) * 0.06, Math.sin(a) * 0.12, k % 2 ? C.hibiscus : C.hibiscusB, 0.06)
+    }
+    this.decorTiers = [lights, photo, vase]
+    for (const o of this.decorTiers) o.visible = false
+  }
+
   private mergeStatic(container: THREE.Object3D, skip: (o: THREE.Object3D) => boolean = () => false) {
     container.updateMatrixWorld(true)
     const inv = container.matrixWorld.clone().invert()
