@@ -16,7 +16,7 @@ export const notesPath = (side: NotesSide = readNotesSide()) => ({ clips: paths.
 export const isNotesPath = (pathname: string) => /^\/(clips|recipes|shop-menu)(\/|$)/.test(pathname)
 
 /**
- * ネタ帳・図鑑・メニューで共通の「いま見ているジャンル」（'all' | 'none' = ジャンルなし | ジャンル id）。
+ * ネタ帳・図鑑・メニューで共通の「いま見ているジャンル」（'all' | 'idea' = アイデアだけ | 'none' = ジャンルなし | ジャンル id）。
  * 切り替えても同じジャンルのまま見られるように 1 か所で覚える。アプリを開いている間だけの記憶
  */
 const GENRE_KEY = 'lara.notes.genre'

@@ -26,8 +26,8 @@ const load = (): Msg[] => { try { return JSON.parse(sessionStorage.getItem(STORE
 const save = (m: Msg[]) => { try { sessionStorage.setItem(STORE, JSON.stringify(m.slice(-30))) } catch { /* private mode など */ } }
 
 const SUGGEST = [
-  { label: '🌿 さっぱりしたい気分', q: '今日はさっぱりしたものが食べたい気分。図鑑とネタ帳から合いそうなのを 3 つ提案して' },
-  { label: '🔥 がっつり系', q: 'がっつり系でお客さんが喜びそうなのを、図鑑とネタ帳から 3 つ選んで' },
+  { label: '🌿 さっぱりしたい気分', q: '今日はさっぱりしたものが食べたい気分。レシピとネタ帳から合いそうなのを 3 つ提案して' },
+  { label: '🔥 がっつり系', q: 'がっつり系でお客さんが喜びそうなのを、レシピとネタ帳から 3 つ選んで' },
   { label: '🍂 季節のおすすめ', q: '今の季節に出すならどれがいい？理由も一言で' },
   { label: '📅 しばらく出してないもの', q: '最近メニューに出していない良いレシピを教えて' },
   { label: '⭐ 評価の高い順に', q: '★の高いレシピとネタを並べて、次に試すならどれか教えて' },
@@ -93,7 +93,7 @@ export function AskPage() {
 
         {msgs.length === 0 && (
           <>
-            <MascotSays mood="happy">料理の名前で探したり、「こんな気分」から選んだり。味の相談もいいよ。図鑑とネタ帳、ぜんぶ見て答えるね</MascotSays>
+            <MascotSays mood="happy">料理の名前で探したり、「こんな気分」から選んだり。味の相談もいいよ。レシピとネタ帳、ぜんぶ見て答えるね</MascotSays>
             <div className="flex flex-wrap gap-2">
               {SUGGEST.map((s) => <button key={s.label} type="button" onClick={() => void send(s.q)} className="rounded-chip border border-line bg-paper px-3 py-2 text-[13px] font-bold shadow-card active:scale-95">{s.label}</button>)}
             </div>

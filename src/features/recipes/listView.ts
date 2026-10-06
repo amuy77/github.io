@@ -43,4 +43,4 @@ export function useListViewState<K extends 'purpose' | 'favOnly' | 'minRating' |
 export const PURPOSE_TAB_LABEL: Record<RecipePurpose | 'all', string> = { menu: 'メニュー', idea: 'アイデア', reference: '参考', unsorted: '未分類', all: 'すべて' }
 
 /** 保存したときのトーストなどで使う呼び名 */
-export const PURPOSE_NAME: Record<RecipePurpose, string> = { menu: 'お店のメニュー', idea: 'アイデア', reference: '参考レシピ', unsorted: '図鑑（未分類）' }
+export const PURPOSE_NAME: Record<RecipePurpose, string> = { menu: 'お店のメニュー', idea: 'アイデア', reference: '参考レシピ', unsorted: 'レシピ（未分類）' }

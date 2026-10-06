@@ -87,7 +87,7 @@ export function RecipeDetailPage() {
         {r.status === 'draft' && (
           <div className="flex items-center gap-3 rounded-card border border-mustard-300 bg-mustard-300/20 p-3 text-sm">
             <span className="text-xl" aria-hidden>📬</span>
-            <p className="flex-1 font-bold">AI が作った下書きです。確認して図鑑に載せよう。</p>
+            <p className="flex-1 font-bold">AI が作った下書きです。確認してレシピに載せよう。</p>
             <Button size="sm" onClick={() => setReview(true)}>確認する</Button>
           </div>
         )}

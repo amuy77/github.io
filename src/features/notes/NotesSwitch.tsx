@@ -16,7 +16,7 @@ export function NotesSwitch({ current }: { current: NotesSide }) {
   return (
     <div className="mb-2 flex gap-1 rounded-chip border border-line bg-paper p-1" role="tablist" aria-label="ノート">
       {item('clips', '📌 ネタ帳', paths.clips)}
-      {item('recipes', '📖 図鑑', paths.recipes)}
+      {item('recipes', '📖 レシピ', paths.recipes)}
       {item('menu', '🍽️ メニュー', paths.shopMenu)}
     </div>
   )

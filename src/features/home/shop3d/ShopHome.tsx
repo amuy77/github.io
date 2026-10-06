@@ -27,7 +27,7 @@ import { FRIENDS, VISIT_CHANCE, getCharacter, markVisited, planVisit, takeFriend
 type Place = Exclude<Hotspot, 'resident' | 'friend'>
 const HOT: Record<Place, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
-  recipes: { em: '📖', name: 'レシピ図鑑', sub: 'ジャンル別のレシピカード', to: paths.recipes },
+  recipes: { em: '📖', name: 'レシピ', sub: 'ジャンル別のレシピカード', to: paths.recipes },
   menu: { em: '🗓️', name: 'きろく', sub: '今日出したメニューの記録と、週・月のふりかえり', to: paths.menu },
   inbox: { em: '📬', name: '受信トレイ', sub: 'AI が作ったカードが届く場所', to: paths.inbox },
   add: { em: '📝', name: 'すぐメモ', sub: 'ひらめき・URL・写真をサッと保存', to: paths.add },

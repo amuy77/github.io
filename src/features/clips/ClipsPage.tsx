@@ -3,8 +3,7 @@ import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
 import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
-import type { ClipPurpose, ClipRow } from '@/lib/supabase/database.types'
-import { CLIP_PURPOSES } from './purpose'
+import type { ClipRow } from '@/lib/supabase/database.types'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { GenreManagerSheet } from '@/features/genres/GenreManager'
@@ -33,31 +32,29 @@ export function ClipsPage() {
   const update = useUpdateClip()
   // タブ・ジャンル・★・検索は覚えておく（ネタを開いて戻っても、同じところから続けられるように）
   const [q, setQ] = useRemembered('q', '')
-  const [genreId, setGenreId] = useNotesGenre() // 'all' | 'none' | ジャンル id（図鑑と共通）
+  const [genreId, setGenreId] = useNotesGenre() // 'all' | 'none' | 'idea' | ジャンル id（レシピと共通）
   const [favOnly, setFavOnly] = useRemembered('favOnly', false)
   const [minRating, setMinRating] = useRemembered<0 | 4 | -1>('minRating', 0)
-  const [purpose, setPurpose] = useRemembered<ClipPurpose | 'all'>('purpose', 'all')
   const [sort, setSort] = useRemembered<SortKey>('sort', 'new')
   const [editorOpen, setEditorOpen] = useState(false)
   const [managing, setManaging] = useState(false)
   const genres = useGenres()
 
   const list = useMemo(() => {
-    const all = (clips.data ?? []).filter((c) => purpose === 'all' || c.purpose === purpose)
+    const all = clips.data ?? []
     const needle = q.trim().toLowerCase()
     return sortRows(all.filter((c) => {
-      if (genreId === 'none' ? (c.genre_id ?? null) !== null : genreId !== 'all' && c.genre_id !== genreId) return false
+      if (genreId === 'idea' ? c.purpose !== 'idea' : genreId === 'none' ? (c.genre_id ?? null) !== null : genreId !== 'all' && c.genre_id !== genreId) return false
       if (favOnly && !c.favorite) return false
       if (minRating === -1 ? c.type === 'idea' || c.rating !== null : minRating > 0 && (c.rating ?? 0) < minRating) return false
       if (!needle) return true
       const hay = `${clipTitle(c)} ${c.note} ${c.shop_name ?? ''} ${c.tags.join(' ')} ${c.preview?.title ?? ''}`.toLowerCase()
       return hay.includes(needle)
     }), sort, clipTitle)
-  }, [clips.data, q, genreId, favOnly, minRating, purpose, sort])
-  const purposeCount = (p: ClipPurpose) => (clips.data ?? []).filter((c) => c.purpose === p).length
+  }, [clips.data, q, genreId, favOnly, minRating, sort])
 
   const toggleFav = (c: ClipRow) => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })
-  // ジャンルが「すべて」のときは、図鑑と同じようにジャンルごとの見出しで区切る（0 件のジャンルは出さない）
+  // ジャンルが「すべて」のときは、レシピと同じようにジャンルごとの見出しで区切る（0 件のジャンルは出さない）
   const sections = useMemo(() => {
     if (genreId !== 'all') return [{ key: 'one', title: null as string | null, items: list }]
     const gs = genres.data ?? []
@@ -66,8 +63,7 @@ export function ClipsPage() {
     if (rest.length) out.push({ key: 'none', title: '🏷️ ジャンルなし', items: rest })
     return out.filter((s) => s.items.length > 0)
   }, [genreId, genres.data, list])
-  // チップの件数は、タブ（アイデア・参考）で絞った中で数える
-  const inTab = useMemo(() => (clips.data ?? []).filter((c) => purpose === 'all' || c.purpose === purpose), [clips.data, purpose])
+  const inTab = clips.data ?? []
   const [layout, setLayout] = useListLayout('lara.clips.layout')
 
   return (
@@ -75,21 +71,6 @@ export function ClipsPage() {
       <PageHeader title="ネタ帳" sub={clips.data ? `${clips.data.length}件` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => setEditorOpen(true)}>追加</Button>} />
       <NotesSwitch current="clips" />
       <div className="flex flex-col gap-3">
-        {(clips.data?.length ?? 0) > 0 && (
-          <div className="grid grid-cols-4 gap-1 rounded-[18px] border border-line bg-paper p-1" role="tablist" aria-label="ネタの種類">
-            {([
-              ...CLIP_PURPOSES.map((p) => ({ value: p.value as ClipPurpose | 'all', label: `${p.emoji} ${p.label}`, n: purposeCount(p.value) })),
-              { value: 'unsorted' as const, label: '❔ 未分類', n: purposeCount('unsorted') },
-              { value: 'all' as const, label: 'すべて', n: clips.data?.length ?? 0 },
-            ]).map((t) => (
-              <button key={t.value} type="button" role="tab" aria-selected={purpose === t.value} onClick={() => setPurpose(t.value)}
-                className={cx('flex h-12 flex-col items-center justify-center rounded-[14px] text-[12px] font-bold leading-tight', purpose === t.value ? { idea: 'bg-mustard-400 text-espresso-900', reference: 'bg-plum-400 text-white', unsorted: 'bg-oat-100 text-espresso-900', all: 'bg-green-600 text-white' }[t.value] : 'text-espresso-900')}>
-                <span className="whitespace-nowrap">{t.label}</span>
-                <span className="tabular-nums opacity-80">{t.n}</span>
-              </button>
-            ))}
-          </div>
-        )}
         <div className="flex items-center gap-2">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
             <IconSearch size={18} className="text-muted" />
@@ -106,7 +87,7 @@ export function ClipsPage() {
           </FilterButton>
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <GenreChips value={genreId} onChange={setGenreId} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
+          <GenreChips value={genreId} onChange={setGenreId} idea={inTab.filter((c) => c.purpose === 'idea').length} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
           <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
         <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />

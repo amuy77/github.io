@@ -26,7 +26,7 @@ import { outfitFor } from './shop3d/outfit'
 export function Home2D({ counts, streak, loading, worried }: { counts: HomeCounts; streak: number; loading?: boolean; worried?: boolean }) {
   const tiles = [
     { to: paths.clips, em: '📌', name: 'ネタ帳', n: counts.clips, accent: 'mustard' as const },
-    { to: paths.recipes, em: '📖', name: 'レシピ図鑑', n: counts.recipes, accent: 'green' as const },
+    { to: paths.recipes, em: '📖', name: 'レシピ', n: counts.recipes, accent: 'green' as const },
     { to: paths.menu, em: '🗓️', name: 'きろく', n: counts.menuLogs, accent: 'brick' as const },
     { to: paths.inbox, em: '📬', name: '受信トレイ', n: counts.inbox, accent: 'plum' as const },
   ]
