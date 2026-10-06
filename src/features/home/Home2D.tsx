@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { TalkBar, TalkBubbleBody, TalkButton } from './chat/LaraTalk'
 import { useLaraTalk } from './chat/useLaraTalk'
@@ -7,7 +7,7 @@ import { chatLine } from './chat/chatVoice'
 import { tileLine, voicePart } from './shop3d/laraVoice'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { HomeModeChip } from '@/features/settings/HomeModeChip'
-import { LetterChip } from '@/features/home/LetterChip'
+import { AlbumChip } from '@/features/home/AlbumChip'
 import { AgendaChip } from '@/features/planner/AgendaChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
@@ -17,6 +17,10 @@ import type { HomeCounts } from './useCounts'
 import { CountBadge } from '@/components/ui/Chip'
 import { PLANNER_URL, openExternal, useAgendaLine } from '@/features/planner/api'
 import { recordedLine2d, takeJustRecorded } from '@/features/game/justRecorded'
+import { noteOutfit, noteSaying } from './album'
+import { TreasureSpot } from './TreasureSpot'
+import { useSettings } from '@/features/settings/useSettings'
+import { outfitFor } from './shop3d/outfit'
 
 /** 3D が使えないとき／オフ設定のときのホーム（タイル版） */
 export function Home2D({ counts, streak, loading, worried }: { counts: HomeCounts; streak: number; loading?: boolean; worried?: boolean }) {
@@ -39,19 +43,25 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
   const part = voicePart(hour)
   const agenda = useAgendaLine()
   const says = useMemo(() => (kind === 'loading' ? chatLine('home2dLoading') : kind === 'recorded' ? recordedLine2d() : tileLine(kind, hour)), [kind, part]) // eslint-disable-line react-hooks/exhaustive-deps
+  // LaRa が言ったこと・今日の服をアルバムに
+  useEffect(() => { if (kind !== 'loading') noteSaying(says) }, [kind, says])
+  const { outfit: outfitPref } = useSettings()
+  useEffect(() => { noteOutfit(outfitFor(outfitPref)) }, [outfitPref])
   // ホームは画面の端まで使う 3D 版に合わせて外側の余白が無いので、タイル版は自分で左右と下（タブバーの分）の余白を取る
   return (
     <div className="flex flex-col gap-4 px-4 pt-[calc(12px+var(--safe-top))] pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)] md:px-8 md:pb-10">
       <div className="relative">
         <div className="confetti-bg pointer-events-none absolute -inset-x-4 -top-4 h-24" aria-hidden />
         <div className="relative flex items-end justify-between">
+          {/* 1 日 1 つ落ちているたからもの */}
+          {!loading && <TreasureSpot className="absolute left-1/2 top-1 -translate-x-1/2" />}
           <div>
             <div className="font-display text-[28px] font-extrabold leading-none tracking-wide">LaRa</div>
             <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
           </div>
           <div className="flex items-center gap-2">
             <AgendaChip />
-            <LetterChip />
+            <AlbumChip />
             <HomeModeChip showing="2d" />
             <SettingsChip />
           </div>
@@ -68,7 +78,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1"><MascotSays mood={loading ? 'thinking' : worried ? 'worried' : 'happy'}>
             {/* 今日の予定（Planner）があれば、それをひとことに */}
-            {!loading && agenda ? (
+            {!loading && agenda && kind !== 'recorded' ? (
               <>
                 {agenda}
                 <button type="button" onClick={() => openExternal(PLANNER_URL)} className="mt-1.5 block rounded-chip border border-green-600/40 bg-paper px-2.5 py-1 text-[12px] font-bold text-green-700">📅 Planner を開く →</button>
