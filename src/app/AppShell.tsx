@@ -13,12 +13,12 @@ import { Mascot } from '@/components/mascot/Mascot'
 import { isNotesPath, notesPath } from '@/features/notes/notes'
 import { PLANNER_URL } from '@/features/planner/api'
 
-// 下のタブ: ホーム / ノート（ネタ帳・図鑑・メニュー。最後に見たものを開く）/ ＋ / メニュー / Planner（別アプリ）
+// 下のタブ: ホーム / ノート（ネタ帳・図鑑・メニュー。最後に見たものを開く）/ ＋ / きろく（日々のメニュー記録と分析）/ Planner（別アプリ）
 type TabDef = { key: string; label: string; Icon: typeof IconHome; to: (pathname: string) => string; active: (pathname: string) => boolean; external?: boolean }
 const tabs: TabDef[] = [
   { key: 'home', label: 'ホーム', Icon: IconHome, to: () => paths.home, active: (p) => p === paths.home },
   { key: 'notes', label: 'ノート', Icon: IconNote, to: () => notesPath(), active: isNotesPath },
-  { key: 'menu', label: 'メニュー', Icon: IconCalendar, to: () => paths.menu, active: (p) => p.startsWith(paths.menu) },
+  { key: 'menu', label: 'きろく', Icon: IconCalendar, to: () => paths.menu, active: (p) => p.startsWith(paths.menu) },
   { key: 'planner', label: 'Planner', Icon: IconPlanner, to: () => PLANNER_URL, active: () => false, external: true },
 ]
 
@@ -130,7 +130,7 @@ function TabLink({ tab, pathname, className, children }: { tab: TabDef; pathname
 function Tab({ tab, pathname, badge = 0 }: { tab: TabDef; pathname: string; badge?: number }) {
   const on = tab.active(pathname)
   return (
-    <TabLink tab={tab} pathname={pathname} className={cx('relative flex h-[var(--tabbar-h)] w-16 flex-col items-center justify-center gap-0.5 text-[10px] font-bold', on ? 'text-green-600' : 'text-muted')}>
+    <TabLink tab={tab} pathname={pathname} className={cx('relative flex h-[var(--tabbar-h)] w-16 flex-col items-center justify-center gap-0.5 text-[11px] font-bold', on ? 'text-green-600' : 'text-muted')}>
       <tab.Icon />
       {tab.label}
       {tab.external && <span className="absolute right-3 top-2.5 text-[9px]" aria-hidden>↗</span>}

@@ -365,6 +365,11 @@ export class ShopScene {
     }
     return null
   }
+  /** 今日の記録が済んだ: 黒板へ行って書く。寝ている時間はそのまま寝かせておく */
+  writeChalk() {
+    if (!this.resident || lifePart(this.hourNow()) === 'sleep') return
+    this.goTo('chalkboard'); this.showEmote('♪'); this.invalidate()
+  }
   /** デバッグ用: 行動の場所へ瞬間移動して、その行動を続ける（null は今の時間帯の決まった行動） */
   debugGoto(act: ResidentActivity | null) {
     this.goTo(act ?? this.forcedActivity() ?? this.baseActivity(), true)

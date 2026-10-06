@@ -4,6 +4,7 @@ import { Home2D } from './Home2D'
 import { useSettings } from '@/features/settings/useSettings'
 import { today } from '@/lib/dates'
 import { webglAvailable } from './webgl'
+import { useLeavesFrom } from './leaves'
 
 const ShopHome = lazy(() => import('./shop3d/ShopHome'))
 
@@ -19,6 +20,8 @@ export function HomePage() {
   const [lost, setLost] = useState(() => Date.now() < lostUntil)
   const c = counts.data ?? { clips: 0, recipes: 0, menuLogs: 0, inbox: 0, drafts: 0, pendingJobs: 0 }
   const s = streak.data?.streak ?? 0
+  // 鉢植えの葉は記録した日の数で育つ（減らない）
+  const leaves = useLeavesFrom(streak.data?.days.length ?? 0)
   // 18 時を過ぎても今日の記録が無いと、住人がちょっと心配そうになる
   const activeToday = streak.data ? streak.data.days.includes(today()) : true
   const worried = !activeToday && new Date().getHours() >= 18
@@ -26,7 +29,7 @@ export function HomePage() {
   if (!use3d) return <Home2D counts={c} streak={s} worried={worried} />
   return (
     <Suspense fallback={<Home2D counts={c} streak={s} loading />}>
-      <ShopHome counts={c} streak={s} worried={worried} onContextLost={() => { lostUntil = Date.now() + LOST_COOLDOWN; setLost(true) }} />
+      <ShopHome counts={c} streak={s} leaves={leaves} worried={worried} onContextLost={() => { lostUntil = Date.now() + LOST_COOLDOWN; setLost(true) }} />
     </Suspense>
   )
 }

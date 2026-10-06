@@ -7,6 +7,7 @@ import { chatLine } from './chat/chatVoice'
 import { tileLine, voicePart } from './shop3d/laraVoice'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { HomeModeChip } from '@/features/settings/HomeModeChip'
+import { LetterChip } from '@/features/home/LetterChip'
 import { Card } from '@/components/ui/Card'
 import { MascotSays } from '@/components/mascot/Mascot'
 import { paths } from '@/app/routes'
@@ -14,13 +15,14 @@ import { formatMD, today } from '@/lib/dates'
 import type { HomeCounts } from './useCounts'
 import { CountBadge } from '@/components/ui/Chip'
 import { PLANNER_URL, openExternal, useAgendaLine } from '@/features/planner/api'
+import { recordedLine2d, takeJustRecorded } from '@/features/game/justRecorded'
 
 /** 3D が使えないとき／オフ設定のときのホーム（タイル版） */
 export function Home2D({ counts, streak, loading, worried }: { counts: HomeCounts; streak: number; loading?: boolean; worried?: boolean }) {
   const tiles = [
     { to: paths.clips, em: '📌', name: 'ネタ帳', n: counts.clips, accent: 'mustard' as const },
     { to: paths.recipes, em: '📖', name: 'レシピ図鑑', n: counts.recipes, accent: 'green' as const },
-    { to: paths.menu, em: '🗓️', name: 'メニュー記録', n: counts.menuLogs, accent: 'brick' as const },
+    { to: paths.menu, em: '🗓️', name: 'きろく', n: counts.menuLogs, accent: 'brick' as const },
     { to: paths.inbox, em: '📬', name: '受信トレイ', n: counts.inbox, accent: 'plum' as const },
   ]
   const nav = useNavigate()
@@ -29,11 +31,13 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
   const stopTalk = () => { setTalking(false); talk.stop() }
   const answers = useUnseenAnswers().length
   // LaRa のひとことは、お店の LaRa と同じセリフ集から。状況（準備中・答えが届いた・記録まだ・時間帯）が変わったときだけ選び直す
-  const kind = loading ? 'loading' : answers > 0 ? 'answers' : worried ? 'worried' : 'greet'
+  // 記録してから戻ってきたら、まずそのことを言う（3D の読み込み中に代わりに出ているときは、3D の方に任せる）
+  const [recorded] = useState(() => !loading && takeJustRecorded())
+  const kind = loading ? 'loading' : recorded ? 'recorded' : answers > 0 ? 'answers' : worried ? 'worried' : 'greet'
   const hour = new Date().getHours()
   const part = voicePart(hour)
   const agenda = useAgendaLine()
-  const says = useMemo(() => (kind === 'loading' ? chatLine('home2dLoading') : tileLine(kind, hour)), [kind, part]) // eslint-disable-line react-hooks/exhaustive-deps
+  const says = useMemo(() => (kind === 'loading' ? chatLine('home2dLoading') : kind === 'recorded' ? recordedLine2d() : tileLine(kind, hour)), [kind, part]) // eslint-disable-line react-hooks/exhaustive-deps
   // ホームは画面の端まで使う 3D 版に合わせて外側の余白が無いので、タイル版は自分で左右と下（タブバーの分）の余白を取る
   return (
     <div className="flex flex-col gap-4 px-4 pt-[calc(12px+var(--safe-top))] pb-[calc(var(--tabbar-h)+var(--safe-bottom)+24px)] md:px-8 md:pb-10">
@@ -45,6 +49,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
             <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
           </div>
           <div className="flex items-center gap-2">
+            <LetterChip />
             <HomeModeChip showing="2d" />
             <SettingsChip />
           </div>
@@ -86,7 +91,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
           </Link>
         ))}
       </div>
-      <Link to={paths.menuDay(today())} className="block rounded-card bg-green-600 px-4 py-3 text-center font-bold text-white shadow-card">今日のメニューを記録する →</Link>
+      <Link to={paths.menuDay(today())} className="block rounded-card bg-green-600 px-4 py-3 text-center font-bold text-white shadow-card">今日を記録 →</Link>
     </div>
   )
 }

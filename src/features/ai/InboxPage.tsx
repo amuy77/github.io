@@ -71,12 +71,12 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="受信トレイ" sub={`Claude が ${WORKER_SCHEDULE_LABEL}に処理（次は ${nextWorkerTime()} ごろ）`} />
+      <PageHeader title="受信トレイ" sub={`LaRa が ${WORKER_SCHEDULE_LABEL}に見に来るよ（次は ${nextWorkerTime()} ごろ）`} />
       <div className="flex flex-col gap-4">
         {reviews.length > 0 ? (
           <MascotSays mood="party">AI が {reviews.length} 件振り分けたよ！タップして中身を確認してね。</MascotSays>
         ) : active.length > 0 ? (
-          <MascotSays mood="thinking">{active.some((j) => j.status === 'processing') ? 'いま読み取り中…' : `次の処理は ${nextWorkerTime()} ごろ。急ぎなら Claude に「LaRa の AI ジョブを今処理して」と頼んでね。`}</MascotSays>
+          <MascotSays mood="thinking">{active.some((j) => j.status === 'processing') ? 'いま読み取り中…' : `${nextWorkerTime()} ごろに読みに来るね。届いたらここに並ぶよ。`}</MascotSays>
         ) : (
           <MascotSays mood="idle">「＋」から写真を送ると、ネタ帳かレシピか AI が振り分けて、ここで確認できるよ。</MascotSays>
         )}
@@ -117,8 +117,8 @@ export function InboxPage() {
           </>
         )}
         <Card className="text-xs leading-relaxed text-muted">
-          <p className="font-bold text-espresso-700">仕組み</p>
-          <p>API 料金は使わず、Claude Code の定期実行（Routine）がこのトレイを見に来て写真を読み取ります。レシピなら下書き、ネタ（他店のメニューやラベルなど）ならネタ帳に入れて、ここで確認待ちになります。★ はその場で付けても、保留にしてあとで付けても OK。</p>
+          <p className="font-bold text-espresso-700">トレイって？</p>
+          <p>写真やメモを預けると、LaRa が読んで、レシピなら下書き、ネタならネタ帳に入れて、ここに届けるよ。中身を見て「OK」したら完成。★ はあとから付けても大丈夫。</p>
         </Card>
       </div>
       <ClipReviewSheet clip={liveClip} onClose={() => setClipOpen(null)} />
@@ -147,7 +147,7 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
   const escalated = job.status === 'pending' && !!payload.escalate && job.kind !== 'redo'
   // 処理中のまま長く止まっている（定期処理が途中で落ちた）ものは、取り消しや再試行ができるように
   const stuck = isStuck(job)
-  const st = escalated ? { label: 'Opus で精読待ち', cls: 'bg-plum-400/15 text-plum-400' } : stuck ? { label: '止まってるみたい', cls: 'bg-brick-500/15 text-brick-500' } : STATUS[job.status]
+  const st = escalated ? { label: 'じっくり読み中', cls: 'bg-plum-400/15 text-plum-400' } : stuck ? { label: '止まってるみたい', cls: 'bg-brick-500/15 text-brick-500' } : STATUS[job.status]
   const detail = payload.image_paths?.length ? `写真 ${payload.image_paths.length} 枚` : payload.text ? payload.text.slice(0, 40) : ''
   const result = (job.status === 'done' ? job.result ?? {} : {}) as AutoResult
   const link = result.clip_id ? { to: paths.clip(result.clip_id), label: '📌 ネタ帳に保存' } : result.recipe_ids?.[0] ? { to: paths.recipe(result.recipe_ids[0]), label: '📖 レシピの下書き' } : null
@@ -158,7 +158,7 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
         <p className="truncate text-[14px] font-bold">{KIND_LABEL[job.kind]}</p>
         <p className="truncate text-xs text-muted">{[payload.instruction ? `「${payload.instruction.slice(0, 30)}」` : detail, payload.hint, (payload as { question?: string }).question, relativeDay(job.created_at)].filter(Boolean).join(' ・ ')}</p>
         {job.status === 'failed' && job.error && <p className="mt-1 text-xs text-brick-500">{job.error}</p>}
-        {escalated && <p className="mt-1 text-xs text-plum-400">より正確に読むため Opus に回しました{payload.escalate_reason ? `（${payload.escalate_reason}）` : ''}。毎時 20 分ごろに処理します。</p>}
+        {escalated && <p className="mt-1 text-xs text-plum-400">もう少しじっくり読んでるよ{payload.escalate_reason ? `（${payload.escalate_reason}）` : ''}。次に見に来るときに届くね。</p>}
         {link && (
           <Link to={link.to} onClick={(e) => { if (onOpenResult) { e.preventDefault(); onOpenResult() } }} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-green-700">
             {link.label}{result.summary ? `: ${result.summary}` : ''} <IconChevronRight size={14} />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { SettingsChip } from '@/features/settings/SettingsChip'
 import { HomeModeChip } from '@/features/settings/HomeModeChip'
+import { LetterChip } from '@/features/home/LetterChip'
 import { cx } from '@/lib/cx'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -17,13 +18,14 @@ import { useLaraTalk } from '@/features/home/chat/useLaraTalk'
 import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 import { useMenuLogs } from '@/features/menu/hooks'
 import { useAgendaLine } from '@/features/planner/api'
+import { recordedLine, takeJustRecorded } from '@/features/game/justRecorded'
 import { FRIENDS, VISIT_CHANCE, getCharacter, markVisited, planVisit, takeFriendCall, type CharacterDef, type CharacterId } from '@/characters'
 
 type Place = Exclude<Hotspot, 'resident' | 'friend'>
 const HOT: Record<Place, { em: string; name: string; sub: string; to: string }> = {
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
   recipes: { em: '📖', name: 'レシピ図鑑', sub: 'ジャンル別のレシピカード', to: paths.recipes },
-  menu: { em: '🗓️', name: '今日のメニュー', sub: '日別の記録と、週・月の構成比', to: paths.menu },
+  menu: { em: '🗓️', name: 'きろく', sub: '今日出したメニューの記録と、週・月のふりかえり', to: paths.menu },
   inbox: { em: '📬', name: '受信トレイ', sub: 'AI が作ったカードが届く場所', to: paths.inbox },
   add: { em: '📝', name: 'すぐメモ', sub: 'ひらめき・URL・写真をサッと保存', to: paths.add },
 }
@@ -41,7 +43,7 @@ const friendHours = (h: number) => h >= 10 && h < 20
 const readSeen = () => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0 } catch { return 0 } }
 const writeSeen = () => { try { localStorage.setItem(SEEN_KEY, String(Date.now())) } catch { /* private mode */ } }
 
-export function ShopHome({ counts, streak, worried = false, onContextLost }: { counts: HomeCounts; streak: number; worried?: boolean; onContextLost?: () => void }) {
+export function ShopHome({ counts, streak, leaves = 0, worried = false, onContextLost }: { counts: HomeCounts; streak: number; leaves?: number; worried?: boolean; onContextLost?: () => void }) {
   const nav = useNavigate()
   const onContextLostRef = useRef(onContextLost)
   onContextLostRef.current = onContextLost
@@ -83,12 +85,12 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
   // セリフに使う今の数（レシピ・ネタ・確認待ち・連続記録）と、今日のメニューがもう記録されているか
   const [day, setDay] = useState(today)
   const menuToday = (useMenuLogs(day, day).data?.length ?? 0) > 0
-  const dataRef = useRef({ counts, streak, menuToday })
+  const dataRef = useRef({ counts, streak, leaves, menuToday })
   // 最初のあいさつをもう済ませたか（先にタップしたり話しかけたりしたら、それをあいさつ代わりにする）
   const greetedRef = useRef(false)
   // 続けてタップされた回数（数秒あくと 1 に戻る）
   const tapsRef = useRef({ n: 0, at: 0 })
-  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak, menuToday }
+  pickedRef.current = picked; bubbleRef.current = bubble; dataRef.current = { counts, streak, leaves, menuToday }
   // 服: 設定（おまかせ / 固定）と今日の日付で決まる。開いたまま日付が変わっても着替えるよう、日付はときどき見直す
   const { outfit: outfitPref } = useSettings()
   const outfit = outfitFor(outfitPref, day)
@@ -133,7 +135,7 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
     scene.setResident(true)
     // 省エネ設定の切り替えで作り直したときも、本・葉っぱ・心配顔は今の値のまま。友達は作り直したシーンにはいないので忘れる
     const d = dataRef.current
-    scene.setCounts({ books: Math.min(24, d.counts.recipes), cards: Math.min(12, d.counts.clips), leaves: Math.min(14, d.streak), chalk: Math.min(30, d.counts.menuLogs), inbox: d.counts.inbox })
+    scene.setCounts({ books: Math.min(24, d.counts.recipes), cards: Math.min(12, d.counts.clips), leaves: d.leaves, chalk: Math.min(30, d.counts.menuLogs), inbox: d.counts.inbox })
     scene.setResidentMood(worriedRef.current ? 'worried' : 'idle')
     friendRef.current = null
     for (const id of friendTimers.current) window.clearTimeout(id)
@@ -266,6 +268,7 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
     const last = readSeen(), gap = Date.now() - last
     const away = !last ? 'normal' : gap > 2 * 86400_000 ? 'long' : gap < 10 * 60_000 ? 'soon' : 'normal'
     const opened = Date.now()
+    const justRecorded = takeJustRecorded()
     let id = 0
     const speak = () => {
       const scene = sceneRef.current
@@ -277,10 +280,13 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
       // あいさつは開いてすぐのときだけ（遅れて出ると、来たばかりのように聞こえる）
       const greet = !greetedRef.current && Date.now() - opened < 12_000
       greetedRef.current = true
+      // 記録してから戻ってきたら、あいさつの代わりに黒板へ書きに行って、そのことを言う
+      const recorded = greet && justRecorded && !ctx.sleeping
+      if (recorded) scene.writeChalk()
       // 予定: まだ言っていなくて、開いてから 1 分以内なら言う（あいさつに間に合えば続けて、間に合わなければ届いたときに）
       const agendaNow = !agendaSaidRef.current && agendaRef.current && !ctx.sleeping && Date.now() - opened < 60_000 ? agendaRef.current : null
       if (agendaNow) agendaSaidRef.current = true
-      say(scene, greet ? [...greetLine(ctx, away), ...(agendaNow ? [agendaNow] : [])] : agendaNow ? [agendaNow] : monologue(ctx))
+      say(scene, greet ? [...(recorded ? recordedLine() : greetLine(ctx, away)), ...(agendaNow ? [agendaNow] : [])] : agendaNow ? [agendaNow] : monologue(ctx))
       id = window.setTimeout(speak, st.sleeping ? 40000 + Math.random() * 30000 : 20000 + Math.random() * 20000)
     }
     id = window.setTimeout(speak, 2500 + Math.random() * 1500)
@@ -319,8 +325,8 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
   useEffect(() => () => { window.clearTimeout(hideRef.current); for (const id of seqRef.current) window.clearTimeout(id) }, [])
 
   useEffect(() => {
-    sceneRef.current?.setCounts({ books: Math.min(24, counts.recipes), cards: Math.min(12, counts.clips), leaves: Math.min(14, streak), chalk: Math.min(30, counts.menuLogs), inbox: counts.inbox })
-  }, [counts, streak])
+    sceneRef.current?.setCounts({ books: Math.min(24, counts.recipes), cards: Math.min(12, counts.clips), leaves, chalk: Math.min(30, counts.menuLogs), inbox: counts.inbox })
+  }, [counts, leaves])
 
   useEffect(() => { worriedRef.current = worried; sceneRef.current?.setResidentMood(worried ? 'worried' : 'idle') }, [worried])
 
@@ -354,6 +360,7 @@ export function ShopHome({ counts, streak, worried = false, onContextLost }: { c
           <div className={cx('mt-1 text-[11px] font-bold tracking-widest', part === 'night' ? 'text-oat-200/80' : 'text-muted')}>{formatMD(today())}</div>
         </div>
         <div className="flex items-center gap-2">
+          <LetterChip />
           <HomeModeChip showing="3d" />
           <SettingsChip />
         </div>

@@ -2,6 +2,7 @@ import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { genreColor } from '@/lib/genreColors'
 import type { MenuLogWithItems } from './api'
 import { parseIso, today } from '@/lib/dates'
+import { familyKey, representativeOf } from '@/features/recipes/family'
 
 /** グラフ用の色（ブランド色より少し彩度高め）。ジャンル色ごとの対応は src/lib/genreColors.ts */
 export const CHART_NONE = '#9A8F85'
@@ -41,13 +42,24 @@ export function recipeFrequency(logs: MenuLogWithItems[], recipes: RecipeRow[], 
     .slice(0, limit)
 }
 
+/**
+ * しばらく出していないお店のメニュー。同じ料理の版（試作2 など）は 1 品として数える
+ * （新しい版を出していれば、古い版を「まだ一度も」と言わない）。代表の版が お店のメニュー のものだけ
+ */
 export function notServedRecently(allLogs: MenuLogWithItems[], recipes: RecipeRow[], thresholdDays = 14): NotServed[] {
+  const famOf = new Map(recipes.map((r) => [r.id, familyKey(r)]))
   const last = new Map<string, string>()
-  for (const l of allLogs) for (const it of l.menu_log_items) if (!last.has(it.recipe_id) || l.log_date > last.get(it.recipe_id)!) last.set(it.recipe_id, l.log_date)
+  for (const l of allLogs) for (const it of l.menu_log_items) {
+    const k = famOf.get(it.recipe_id) ?? it.recipe_id
+    if (!last.has(k) || l.log_date > last.get(k)!) last.set(k, l.log_date)
+  }
+  const fams = new Map<string, RecipeRow[]>()
+  for (const r of recipes) if (r.status === 'published') fams.set(familyKey(r), [...(fams.get(familyKey(r)) ?? []), r])
   const t = parseIso(today()).getTime()
-  return recipes
-    .filter((r) => r.status === 'published' && r.purpose === 'menu')
-    .map((r) => { const ls = last.get(r.id) ?? null; const daysSince = ls ? Math.round((t - parseIso(ls).getTime()) / 86_400_000) : null; return { recipe: r, lastServed: ls, daysSince } })
+  return [...fams.entries()]
+    .map(([k, fam]) => ({ k, rep: representativeOf(fam) }))
+    .filter(({ rep }) => rep.purpose === 'menu')
+    .map(({ k, rep }) => { const ls = last.get(k) ?? null; const daysSince = ls ? Math.round((t - parseIso(ls).getTime()) / 86_400_000) : null; return { recipe: rep, lastServed: ls, daysSince } })
     .filter((x) => x.daysSince === null || x.daysSince >= thresholdDays)
     .sort((a, b) => (b.daysSince ?? 9999) - (a.daysSince ?? 9999))
     .slice(0, 8)

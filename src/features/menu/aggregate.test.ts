@@ -39,4 +39,15 @@ describe('aggregate', () => {
     expect(n2[0].recipe.id).toBe('never')
     expect(n2[0].daysSince).toBeNull()
   })
+  it('notServedRecently は同じ料理の版を 1 品として数える', () => {
+    const v1 = { ...recipe('blt1', 'g1'), created_at: '2026-01-01' } as RecipeRow
+    const v2 = { ...recipe('blt2', 'g1'), family_id: 'blt1', is_main: true, created_at: '2026-02-01' } as RecipeRow
+    // 新しい版（blt2）だけ出していても、古い版（blt1）を「まだ一度も」と言わない
+    const n = notServedRecently([log(t, [['blt2', 3]])], [v1, v2])
+    expect(n).toEqual([])
+    // しばらく出していなければ、代表の版で 1 回だけ出る
+    const m = notServedRecently([log(addDays(t, -20), [['blt1', 1]])], [v1, v2])
+    expect(m.map((x) => x.recipe.id)).toEqual(['blt2'])
+    expect(m[0].daysSince).toBe(20)
+  })
 })
