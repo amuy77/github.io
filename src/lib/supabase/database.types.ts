@@ -55,6 +55,8 @@ export type RecipeRow = Timestamps & {
   is_main: boolean
   /** 確定メニューか参考レシピか */
   purpose: RecipePurpose
+  /** 価格（税込・円）。null は未設定。SQL を流す前の DB では返ってこない（undefined） */
+  price?: number | null
 }
 export type MenuLogRow = Timestamps & { id: string; user_id: string; log_date: string; note: string }
 export type MenuLogItemRow = { id: string; user_id: string; menu_log_id: string; recipe_id: string; sold_count: number | null; created_at: string }
@@ -64,6 +66,10 @@ export type AiJobRow = {
 }
 export type AiPreferenceRow = Timestamps & { id: string; user_id: string; rule: string; example: string; source_job_id: string | null; active: boolean }
 export type AiInsightRow = { id: string; user_id: string; week_start: string; insights: Insight[]; model: string; created_at: string }
+
+/** お店（段階 1）。データは人ごとのまま、同じお店の人を表すだけ */
+export type ShopRow = { id: string; name: string; created_at: string }
+export type ShopMemberRow = { shop_id: string; user_id: string; role: 'owner' | 'staff'; display_name: string; created_at: string }
 
 type GeneratedKeys = 'id' | 'user_id' | 'created_at' | 'updated_at'
 type Table<Row extends object, Required extends keyof Row> = {
@@ -85,6 +91,8 @@ export type Database = {
       ai_jobs: Table<AiJobRow, 'kind'>
       ai_insights: Table<AiInsightRow, 'week_start' | 'insights' | 'model'>
       ai_preferences: Table<AiPreferenceRow, 'rule'>
+      shops: Table<ShopRow, 'name'>
+      shop_members: Table<ShopMemberRow, 'shop_id'>
     }
     Views: { [_ in never]: never }
     Functions: {

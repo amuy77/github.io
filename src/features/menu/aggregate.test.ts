@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { genreShares, notServedRecently, recipeFrequency } from './aggregate'
+import { genreShares, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
 import type { MenuLogWithItems } from './api'
 import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { addDays, today } from '@/lib/dates'
@@ -49,5 +49,36 @@ describe('aggregate', () => {
     const m = notServedRecently([log(addDays(t, -20), [['blt1', 1]])], [v1, v2])
     expect(m.map((x) => x.recipe.id)).toEqual(['blt2'])
     expect(m[0].daysSince).toBe(20)
+  })
+})
+
+describe('sales and forecasts', () => {
+  const priced = (id: string, price: number | null, extra: Partial<RecipeRow> = {}) => ({ ...recipe(id, 'g1'), price, family_id: null, is_main: false, created_at: '2026-01-01', ...extra } as RecipeRow)
+  it('salesSummary multiplies sold by price and lists items without a price', () => {
+    const rs = [priced('blt', 900), priced('egg', null), priced('drip', 500)]
+    const s = salesSummary([log('2026-09-28', [['blt', 3], ['egg', 2], ['drip', null]]), log('2026-09-29', [['blt', 1]])], rs)
+    expect(s.total).toBe(3600)
+    expect(s.items).toBe(4)
+    expect(s.days).toBe(2)
+    expect(s.missingPrice.map((r) => r.id)).toEqual(['egg'])
+  })
+  it('salesSummary uses the current version\'s price for days recorded with an older version', () => {
+    const rs = [priced('v1', null), priced('v2', 1000, { family_id: 'v1', is_main: true } as Partial<RecipeRow>)]
+    expect(salesSummary([log('2026-09-28', [['v1', 2]])], rs).total).toBe(2000)
+  })
+  it('weekdayAverages averages sold per day by weekday (Monday first)', () => {
+    // 2026-09-28 と 10-05 は月曜、09-29 は火曜
+    const w = weekdayAverages([log('2026-09-28', [['a', 4], ['b', 2]]), log('2026-10-05', [['a', 2]]), log('2026-09-29', [['a', null]])])
+    expect(w[0]).toEqual({ day: '月', days: 2, avgSold: 4 })
+    expect(w[1].avgSold).toBeNull()
+  })
+  it('prepForecast uses the same weekday and puts versions of a dish together', () => {
+    const rs = [priced('v1', 900), priced('v2', 900, { family_id: 'v1', is_main: true, title: 'BLT' } as Partial<RecipeRow>), priced('egg', 500)]
+    const logs = [log('2026-09-21', [['v1', 6], ['egg', 1]]), log('2026-09-28', [['v2', 4]]), log('2026-09-29', [['egg', 99]])]
+    const f = prepForecast(logs, rs, '2026-10-05')
+    expect(f[0]).toMatchObject({ avg: 5, samples: 2 })
+    expect(f[0].recipe.id).toBe('v2')
+    expect(f[1]).toMatchObject({ avg: 0.5 })
+    expect(prepForecast(logs, rs, '2026-10-07')).toEqual([])
   })
 })

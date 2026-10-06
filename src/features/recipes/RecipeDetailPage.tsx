@@ -130,6 +130,7 @@ export function RecipeDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <PurposeBadge value={r.purpose} className="px-2.5 py-1 text-[12px]" />
             {genre && <Tag>{genreEmoji(genre)} {genre.name}</Tag>}
+            {r.price != null && <Tag>¥{r.price.toLocaleString()}</Tag>}
             <Tag>{SOURCE_LABEL[r.source_kind]}</Tag>
           </div>
           <SectionTitle className="mt-0">材料</SectionTitle>

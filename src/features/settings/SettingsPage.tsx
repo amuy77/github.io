@@ -9,6 +9,10 @@ import { LearnedRules } from './LearnedRules'
 import { FoldSection } from './FoldSection'
 import { FriendsCard } from './FriendsCard'
 import { BackupCard } from './BackupCard'
+import { ShopCard } from './ShopCard'
+import { useNavigate } from 'react-router'
+import { paths } from '@/app/routes'
+import { resetOnboarding } from '@/features/home/onboardingState'
 import { Chip } from '@/components/ui/Chip'
 import { OUTFITS, outfitFor, outfitInfo, type OutfitPref } from '@/features/home/shop3d/outfit'
 
@@ -20,11 +24,30 @@ const OUTFIT_CHOICES: { value: OutfitPref; label: string }[] = [
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const { home3d, outfit } = useSettings()
+  const nav = useNavigate()
   return (
     <>
       <PageHeader title="設定" />
       <div className="flex flex-col gap-4">
-        <SectionTitle>見た目</SectionTitle>
+        {/* よく使うもの → LaRa・見た目 → アカウント・バックアップ の順 */}
+        <SectionTitle>よく使う</SectionTitle>
+        <ShopCard />
+        {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
+        <FoldSection id="genres" title="ジャンル（ネタ帳・図鑑 共通）"><GenreManager /></FoldSection>
+        <FoldSection id="howto" title="使い方">
+        <Card className="flex flex-col gap-2 text-sm leading-relaxed">
+          <Button variant="secondary" size="sm" className="self-start" onClick={() => { resetOnboarding(); nav(paths.home) }}>LaRa の案内をもう一度見る</Button>
+          <hr className="receipt-line my-1" />
+          <p className="font-bold">iPhone のホーム画面に追加</p>
+          <p className="text-muted">Safari でこのページを開き、共有ボタン → 「ホーム画面に追加」。アプリのように全画面で使えます。</p>
+          <hr className="receipt-line my-1" />
+          <p className="font-bold">Mac</p>
+          <p className="text-muted">Safari の「ファイル」→「Dock に追加」、または Chrome のアドレスバー右のインストールアイコン。</p>
+        </Card>
+
+        </FoldSection>
+
+        <SectionTitle>LaRa・見た目</SectionTitle>
         <Card className="flex items-center gap-3">
           <div className="flex-1">
             <p className="font-bold">3D のお店ホーム</p>
@@ -47,13 +70,11 @@ export function SettingsPage() {
           <p className="text-sm">今日は <span className="font-bold">{outfitInfo(outfitFor(outfit)).label}</span> の日</p>
         </Card>
 
-        <SectionTitle>LaRa の友達</SectionTitle>
+        <p className="-mb-2 mt-1 text-[13px] font-bold text-espresso-700">LaRa の友達</p>
         <FriendsCard />
+        <FoldSection id="rules" title="LaRa が覚えたこと"><LearnedRules /></FoldSection>
 
-        {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
-        <FoldSection id="genres" title="ジャンル（ネタ帳・図鑑 共通）"><GenreManager /></FoldSection>
-
-        <SectionTitle>アカウント</SectionTitle>
+        <SectionTitle>アカウント・バックアップ</SectionTitle>
         <Card className="flex items-center gap-3">
           <div className="flex-1">
             <p className="font-bold">{user?.email ?? '—'}</p>
@@ -63,16 +84,6 @@ export function SettingsPage() {
         </Card>
         <BackupCard />
 
-        <SectionTitle>使い方</SectionTitle>
-        <Card className="flex flex-col gap-2 text-sm leading-relaxed">
-          <p className="font-bold">iPhone のホーム画面に追加</p>
-          <p className="text-muted">Safari でこのページを開き、共有ボタン → 「ホーム画面に追加」。アプリのように全画面で使えます。</p>
-          <hr className="receipt-line my-1" />
-          <p className="font-bold">Mac</p>
-          <p className="text-muted">Safari の「ファイル」→「Dock に追加」、または Chrome のアドレスバー右のインストールアイコン。</p>
-        </Card>
-
-        <FoldSection id="rules" title="LaRa が覚えたこと"><LearnedRules /></FoldSection>
       </div>
     </>
   )

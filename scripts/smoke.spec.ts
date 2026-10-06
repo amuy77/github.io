@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from '@playwright/test'
+import { test, expect, type Locator, type Page, type Route } from '@playwright/test'
 
 // ビルド時に VITE_SUPABASE_URL=https://lara-smoke.supabase.co を渡している前提
 const REF = 'lara-smoke'
@@ -9,6 +9,14 @@ function fakeJwt(payload: object) {
   return `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(payload)}.c2lnbmF0dXJl`
 }
 function iso(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }   // 端末ローカル（アプリの today() と同じ）
+/** 一覧の「しぼりこみ」シートを開いて、中の操作をして閉じる */
+async function inFilters(page: Page, fn: (sheet: Locator) => Promise<unknown>) {
+  await page.getByRole('button', { name: /^しぼりこみ/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'しぼりこみ・並び順' })
+  await fn(sheet)
+  await sheet.getByRole('button', { name: 'これで見る' }).click()
+  await expect(sheet).toBeHidden()
+}
 const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d }
 const ts = (n: number) => daysAgo(n).toISOString()
 
@@ -45,7 +53,7 @@ const fixtures: Record<string, object[]> = {
   ],
   recipes: [
     { ...base, id: 'd1000000-0000-4000-8000-000000000001', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '3枚' }, { name: 'レタス', amount: '2枚' }, { name: 'トマト', amount: '1/2個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストしてマヨを塗る', '具をはさんで半分に切る'], notes: '', source_clip_id: 'c1000000-0000-4000-8000-000000000001', source_kind: 'manual', source_job_id: null, status: 'published', favorite: true, rating: 2, family_id: null, variant_label: '', is_main: false, purpose: 'menu', created_at: ts(5), updated_at: ts(5) },
-    { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, purpose: 'menu', created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド', price: 980, genre_id: G.american, hero_image: null, ingredients: [{ name: '食パン', amount: '2枚' }, { name: 'ベーコン', amount: '4枚' }, { name: 'レタス', amount: '2枚' }, { name: 'アボカド', amount: '1/4個' }], steps: ['ベーコンをカリカリに焼く', 'パンをトーストして粒マスタードとマヨを塗る', '具をはさんで半分に切る'], notes: 'ベーコン増量、トマト→アボカド', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: 3, family_id: 'd1000000-0000-4000-8000-000000000001', variant_label: '試作2', is_main: true, purpose: 'menu', created_at: ts(1), updated_at: ts(1) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000002', title: 'エッグサラダ', genre_id: G.american, hero_image: null, ingredients: [{ name: '卵', amount: '2個' }, { name: 'マヨ', amount: '大さじ2' }], steps: ['ゆで卵を作る', '刻んで和える'], notes: 'ディル少々', source_clip_id: null, source_kind: 'text_paste', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'menu', created_at: ts(12), updated_at: ts(12) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000003', title: 'ハンドドリップ 深煎り', genre_id: G.coffee, hero_image: null, ingredients: [{ name: '豆', amount: '15g' }, { name: '湯', amount: '240ml' }], steps: ['92℃で蒸らし 30 秒', '3 回に分けて注ぐ'], notes: '', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'unsorted', created_at: ts(20), updated_at: ts(20) },
     { ...base, id: 'd1000000-0000-4000-8000-000000000006', title: '栗のカフェラテ 試作', genre_id: G.coffee, hero_image: null, ingredients: [{ name: 'エスプレッソ', amount: '30ml' }, { name: '栗ペースト', amount: '20g' }], steps: ['栗ペーストをミルクで伸ばす', 'エスプレッソを注ぐ'], notes: '甘さ控えめ', source_clip_id: null, source_kind: 'manual', source_job_id: null, status: 'published', favorite: false, rating: null, family_id: null, variant_label: '', is_main: false, purpose: 'idea', created_at: ts(3), updated_at: ts(3) },
@@ -65,6 +73,10 @@ const fixtures: Record<string, object[]> = {
     return { id: `f${i}000000-0000-4000-8000-00000000000a`, user_id: USER_ID, log_date: iso(d), note: i === 0 ? '雨。BLT 早めに売り切れ' : '', created_at: ts(i), updated_at: ts(i), menu_log_items: items }
   }),
   menu_log_items: [],
+  shop_members: [
+    { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: USER_ID, role: 'owner', display_name: '侑磨', created_at: ts(30), shops: { name: 'LaRa' } },
+    { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: 'u2000000-0000-4000-8000-000000000002', role: 'staff', display_name: '彩加', created_at: ts(20), shops: { name: 'LaRa' } },
+  ],
   ai_preferences: [
     { ...base, id: 'h1000000-0000-4000-8000-000000000001', rule: '手書きのレシピノートの写真は、写っているレシピを 1 つずつすべてレシピの下書きにする', example: 'レシピが書いてあるので、1つずつ文字起こししてレシピとして保存して', source_job_id: null, active: true },
   ],
@@ -88,6 +100,8 @@ async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean
     return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' }, body: JSON.stringify((opts.agenda ?? emptyAgenda)(date)) })
   })
   await page.addInitScript(([key, value]) => { localStorage.setItem(key, value) }, [`sb-${REF}-auth-token`, JSON.stringify(s)])
+  // はじめての案内は見たことにしておく（案内そのもののテストでは消す）
+  await page.addInitScript(() => { if (!sessionStorage.getItem('lara.smoke.keepOnboarding')) localStorage.setItem('lara.onboarded', '1') })
   await page.route(`https://${REF}.supabase.co/**`, async (route) => {
     const req = route.request()
     const url = new URL(req.url())
@@ -762,21 +776,22 @@ test('friends: settings lists LuRu and 今すぐ呼ぶ brings him to the shop', 
 test('lists: clips and recipes can switch between cards and a list, and remember it', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/clips')
-  await expect(page.getByRole('radio', { name: 'カード表示' })).toHaveAttribute('aria-checked', 'true')
-  await page.getByRole('radio', { name: 'リスト表示' }).click()
+  await inFilters(page, async (sheet) => {
+    await expect(sheet.getByRole('radio', { name: 'カード表示' })).toHaveAttribute('aria-checked', 'true')
+    await sheet.getByRole('radio', { name: 'リスト表示' }).click()
+  })
   await expect(page.getByTestId('clip-list').first()).toBeVisible()
   // 「すべて」ではジャンルごとの見出しで区切る（図鑑と同じジャンル）
   await expect(page.getByRole('heading', { name: /アメリカンサンド/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: /ジャンルなし/ })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-list.png`, fullPage: true })
   await page.goto('#/shop-menu')
-  await page.getByRole('radio', { name: 'リスト表示' }).click()
+  await inFilters(page, (sheet) => sheet.getByRole('radio', { name: 'リスト表示' }).click())
   await expect(page.getByTestId('recipe-list').first()).toBeVisible()
   await expect(page.getByTestId('recipe-list').first().getByText('BLT サンド').first()).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-recipes-list.png`, fullPage: true })
   // 開き直しても覚えている
   await page.reload()
-  await expect(page.getByRole('radio', { name: 'リスト表示' })).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByTestId('recipe-list').first()).toBeVisible()
 })
 
@@ -1180,14 +1195,14 @@ test('gaps: the clip list can be sorted by name or rating, and remembers it', as
   await page.goto('#/clips')
   const names = async () => (await page.locator('main a[href*="#/clips/"] p').allTextContents()).filter((t) => ['ぶどう', 'あか', 'しろ'].includes(t))
   await expect.poll(names).toEqual(['ぶどう', 'あか', 'しろ'])
-  await page.getByRole('combobox', { name: '並び順' }).selectOption('name')
+  await inFilters(page, (sheet) => sheet.getByRole('combobox', { name: '並び順' }).selectOption('name'))
   await expect.poll(names).toEqual(['あか', 'しろ', 'ぶどう'])
-  await page.getByRole('combobox', { name: '並び順' }).selectOption('rating')
+  await inFilters(page, (sheet) => sheet.getByRole('combobox', { name: '並び順' }).selectOption('rating'))
   await expect.poll(names).toEqual(['あか', 'しろ', 'ぶどう'])
-  await page.getByRole('combobox', { name: '並び順' }).selectOption('name')
+  await inFilters(page, (sheet) => sheet.getByRole('combobox', { name: '並び順' }).selectOption('name'))
   await page.goto('#/recipes')
   await page.goto('#/clips')
-  await expect(page.getByRole('combobox', { name: '並び順' })).toHaveValue('name')
+  await inFilters(page, (sheet) => expect(sheet.getByRole('combobox', { name: '並び順' })).toHaveValue('name'))
 })
 
 test('gaps: when the network is gone, the last-read lists still open from the device', async ({ page }) => {
@@ -1291,4 +1306,103 @@ test('step0: LaRa writes a letter at the start of the week, and it can be read a
   await page.reload()
   await expect(page.getByRole('button', { name: 'LaRa からの手紙', exact: true })).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('lara.letters'))).toBe(first)
+})
+
+// ---- 段階 1: 予定の連携・価格と売上・しぼりこみ・設定の整理・はじめての案内 ----
+
+test('stage1: 📅 opens today\'s and tomorrow\'s schedule and ToDo, tucked away until tapped', async ({ page }, info) => {
+  const todayIso = iso(daysAgo(0))
+  await stubSupabase(page, { agenda: (date) => date === todayIso
+    ? { ...emptyAgenda(date), events: [{ title: '仕入れ（パン）', all_day: false, start: '09:30', end: '10:00', location: '市場', calendar: 'Googleカレンダー' }], tasks: [{ title: '見積もり送る', due_date: date, due_time: null, overdue: false, starred: true, list: 'マイタスク' }] }
+    : { ...emptyAgenda(date), events: [{ title: '貸切', all_day: true, start: null, end: null, location: null, calendar: 'Googleカレンダー' }] } })
+  await page.addInitScript(() => localStorage.setItem('lara.settings', JSON.stringify({ home3d: false })))
+  await page.goto('#/')
+  const chip = page.getByRole('button', { name: /今日の予定と ToDo（2 件）/ })
+  await expect(chip).toBeVisible()
+  await chip.click()
+  const sheet = page.getByRole('dialog', { name: '予定と ToDo' })
+  await expect(sheet.getByText('仕入れ（パン）')).toBeVisible()
+  await expect(sheet.getByText('9:30')).toBeVisible()
+  await expect(sheet.getByText('⭐ 見積もり送る')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-agenda-sheet.png` })
+  await sheet.getByRole('tab', { name: '明日' }).click()
+  await expect(sheet.getByText('貸切')).toBeVisible()
+  await expect(sheet.getByRole('button', { name: /Planner で開く/ })).toBeVisible()
+})
+
+test('stage1: a menu dish has a price, and analysis shows sales, weekdays and tomorrow\'s prep', async ({ page }, info) => {
+  await stubSupabase(page)
+  const patches: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/recipes')) patches.push(r.postDataJSON()) })
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000002/edit')
+  const price = page.getByLabel('価格（税込・円）')
+  await price.fill('６５０円')
+  await expect(price).toHaveValue('')
+  await price.fill('650')
+  await page.getByRole('button', { name: '更新する' }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0]).toMatchObject({ price: 650 })
+  // 参考レシピでは価格の欄は出ない
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000003/edit')
+  await expect(page.getByLabel('価格（税込・円）')).toHaveCount(0)
+
+  await page.goto('#/menu/stats')
+  await page.getByRole('tab', { name: '4週間' }).click()
+  await expect(page.getByText(/^¥[\d,]+$/).first()).toBeVisible()
+  await expect(page.getByText('価格が入っていない品:')).toBeVisible()
+  await expect(page.getByText('曜日ごとの売れ方')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-stats-sales.png`, fullPage: true })
+})
+
+test('stage1: list filters live in one しぼりこみ sheet with a badge', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  await expect(page.getByRole('combobox', { name: '並び順' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'しぼりこみ', exact: true })).toBeVisible()
+  await inFilters(page, (sheet) => sheet.getByRole('button', { name: 'お気に入り' }).click())
+  await expect(page.getByRole('button', { name: 'しぼりこみ（1 件）' })).toBeVisible()
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+  await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toHaveCount(0)
+  await inFilters(page, (sheet) => sheet.getByRole('button', { name: '元に戻す' }).click())
+  await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toBeVisible()
+})
+
+test('stage1: ＋ has two big buttons and the other ways below', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/add')
+  await expect(page.getByRole('button', { name: /^撮る/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^書く/ })).toBeVisible()
+  const others = page.getByRole('region', { name: 'ほかの方法' })
+  for (const n of ['写真から選ぶ', 'クリップボードから', 'ひらめき', 'レシピを作る']) await expect(others.getByRole('button', { name: new RegExp(n) })).toBeVisible()
+})
+
+test('stage1: settings are grouped, show the shop members, and the first-run guide can be seen again', async ({ page }, info) => {
+  await stubSupabase(page)
+  const patches: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/shop_members')) patches.push(r.postDataJSON()) })
+  await page.goto('#/settings')
+  await expect(page.getByRole('heading', { name: 'よく使う' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'LaRa・見た目' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'アカウント・バックアップ' })).toBeVisible()
+  await expect(page.getByText('🏠 LaRa')).toBeVisible()
+  await expect(page.getByText('彩加')).toBeVisible()
+  const name = page.getByLabel('自分の呼び名')
+  await expect(name).toHaveValue('侑磨')
+  await name.fill('ゆうま')
+  await page.getByRole('button', { name: '保存', exact: true }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0]).toEqual({ display_name: 'ゆうま' })
+  await page.screenshot({ path: `screenshots/${info.project.name}-settings-groups.png`, fullPage: true })
+  // 使い方 → 案内をもう一度
+  await page.getByRole('button', { name: '使い方' }).click()
+  await page.evaluate(() => sessionStorage.setItem('lara.smoke.keepOnboarding', '1'))
+  await page.getByRole('button', { name: 'LaRa の案内をもう一度見る' }).click()
+  const guide = page.getByRole('dialog', { name: 'LaRa の使い方' })
+  await expect(guide.getByText('はじめまして、LaRa だよ')).toBeVisible()
+  for (let i = 0; i < 3; i++) await guide.getByRole('button', { name: 'つぎへ' }).click()
+  await expect(guide.getByText('「きろく」で今日を記録')).toBeVisible()
+  await guide.getByRole('button', { name: 'はじめる' }).click()
+  await expect(guide).toBeHidden()
+  await page.reload()
+  await expect(page.getByRole('dialog', { name: 'LaRa の使い方' })).toHaveCount(0)
 })

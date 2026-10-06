@@ -12,6 +12,7 @@ import { useClips, useUpdateClip } from './hooks'
 import { ClipCard, ClipListRow, clipTitle } from './ClipCard'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { SortSelect, sortRows, type SortKey } from '@/components/ui/SortSelect'
+import { FilterButton, FilterGroup } from '@/components/ui/FilterSheet'
 import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
@@ -94,14 +95,18 @@ export function ClipsPage() {
             <IconSearch size={18} className="text-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
           </label>
-          <SortSelect value={sort} onChange={setSort} />
-          <LayoutToggle value={layout} onChange={setLayout} />
+          <FilterButton active={(favOnly ? 1 : 0) + (minRating !== 0 ? 1 : 0)} onReset={() => { setFavOnly(false); setMinRating(0) }}>
+            <FilterGroup label="並び順"><SortSelect value={sort} onChange={setSort} /></FilterGroup>
+            <FilterGroup label="表示"><LayoutToggle value={layout} onChange={setLayout} /></FilterGroup>
+            <FilterGroup label="しぼりこみ">
+              <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
+              <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>
+              <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★をまだ付けていない</Chip>
+            </FilterGroup>
+          </FilterButton>
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <GenreChips value={genreId} onChange={setGenreId} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
-          <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
-          <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>
-          <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
           <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
         <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />

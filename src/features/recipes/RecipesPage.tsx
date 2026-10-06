@@ -12,6 +12,7 @@ import { genreEmoji } from '@/features/genres/api'
 import { useRecipes, useUpdateRecipe } from './hooks'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { SortSelect, sortRows } from '@/components/ui/SortSelect'
+import { FilterButton, FilterGroup } from '@/components/ui/FilterSheet'
 import { RecipeCard, RecipeListRow } from './RecipeCard'
 import { familyKey, representativeOf } from './family'
 import { PURPOSES } from './purpose'
@@ -105,15 +106,19 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
             <IconSearch size={18} className="text-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
           </label>
-          <SortSelect value={sort} onChange={setSort} />
-          <LayoutToggle value={layout} onChange={setLayout} />
+          <FilterButton active={(favOnly ? 1 : 0) + (minRating !== 0 ? 1 : 0)} onReset={() => { setFavOnly(false); setMinRating(0) }}>
+            <FilterGroup label="並び順"><SortSelect value={sort} onChange={setSort} /></FilterGroup>
+            <FilterGroup label="表示"><LayoutToggle value={layout} onChange={setLayout} /></FilterGroup>
+            <FilterGroup label="しぼりこみ">
+              <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
+              <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★★★</Chip>
+              <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★★以上</Chip>
+              <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★をまだ付けていない</Chip>
+            </FilterGroup>
+          </FilterButton>
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
           <GenreChips value={genreId} onChange={setGenreId} count={(id) => (id === 'all' ? total : reps.filter((r) => (id === 'none' ? r.genre_id === null : r.genre_id === id)).length)} />
-          <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
-          <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★★★</Chip>
-          <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★★以上</Chip>
-          <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>保留（未評価）</Chip>
           <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
 
