@@ -17,5 +17,12 @@ export const paths = {
   menuStats: '/menu/stats',
   inbox: '/inbox',
   settings: '/settings',
+  settingsProfile: '/settings/profile',
+  settingsOutfit: '/settings/outfit',
+  settingsFriends: '/settings/friends',
+  settingsRules: '/settings/rules',
+  settingsGenres: '/settings/genres',
+  settingsPrices: '/settings/prices',
+  settingsInstall: '/settings/install',
   devUi: '/dev/ui',
 } as const

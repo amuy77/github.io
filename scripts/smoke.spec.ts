@@ -288,9 +288,9 @@ test('home: the 2D / 3D button next to settings switches the home', async ({ pag
   await expect(page.getByRole('button', { name: '2D のホームにする' })).toBeVisible()
   // 設定画面のスイッチも同じ値
   await page.goto('#/settings')
-  await expect(page.getByRole('checkbox')).toBeChecked()
+  await expect(page.getByRole('switch', { name: '3D のお店ホーム' })).toBeChecked()
   await expect(page.getByText('ネタ帳のカテゴリ')).toHaveCount(0)
-  await expect(page.getByText('ジャンル（ネタ帳・図鑑 共通）')).toBeVisible()
+  await expect(page.getByRole('link', { name: /ジャンル/ })).toBeVisible()
 })
 
 test('home: only settings at the top, 聞く in the bottom card answers in a bubble and links to the ask page', async ({ page }, info) => {
@@ -387,8 +387,7 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   expect(body.payload.escalate).toBe('opus')
 
   await page.goto('#/settings')
-  // 長い一覧は畳まれているので、見出しを押して開く
-  await page.getByRole('button', { name: /LaRa が覚えたこと/ }).click()
+  await page.getByRole('link', { name: /LaRa が覚えたこと/ }).click()
   await expect(page.getByText('写っているレシピを 1 つずつすべてレシピの下書きにする')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
 })
@@ -771,7 +770,8 @@ test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', a
 test('friends: settings lists LuRu and 今すぐ呼ぶ brings him to the shop', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/settings')
-  await expect(page.getByText('LaRa の友達')).toBeVisible()
+  await page.getByRole('link', { name: /LaRa の友達/ }).click()
+  await expect(page).toHaveURL(/#\/settings\/friends$/)
   await expect(page.getByText(/LaRa の幼なじみ/)).toBeVisible()
   await page.getByRole('group', { name: 'LuRu が遊びに来る頻度' }).getByRole('button', { name: 'よく来る' }).click()
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lara.settings') ?? '{}').friends)).toEqual({ luru: 'often' })
@@ -808,8 +808,10 @@ test('lists: clips and recipes can switch between cards and a list, and remember
 
 test('navigation: switching screens starts at the top', async ({ page }, info) => {
   await stubSupabase(page)
-  await page.goto('#/settings')
-  await expect(page.getByText('使い方')).toBeVisible()
+  await page.goto('#/menu/stats')
+  await expect(page.getByRole('heading', { name: '分析' })).toBeVisible()
+  await page.getByRole('tab', { name: '4週間' }).click()
+  await expect(page.getByText('曜日ごとの売れ方')).toBeVisible()
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(200)
   const nav = info.project.name === 'phone' ? page.getByRole('navigation', { name: 'メイン' }).last() : page.getByRole('navigation', { name: 'メイン' }).first()
@@ -1171,7 +1173,7 @@ test('gaps: settings can export a backup file with everything in it', async ({ p
   await stubSupabase(page)
   await page.goto('#/settings')
   const dl = page.waitForEvent('download')
-  await page.getByRole('button', { name: '書き出す' }).click()
+  await page.getByRole('button', { name: '保存する' }).click()
   const file = await dl
   expect(file.suggestedFilename()).toMatch(/^lara-backup-\d{4}-\d{2}-\d{2}\.json$/)
   const text = await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8')
@@ -1387,15 +1389,25 @@ test('stage1: ＋ has two big buttons and the other ways below', async ({ page }
   for (const n of ['写真から選ぶ', 'クリップボードから', 'ひらめき', 'レシピを作る']) await expect(others.getByRole('button', { name: new RegExp(n) })).toBeVisible()
 })
 
-test('stage1: settings are grouped, show the shop members, and the first-run guide can be seen again', async ({ page }, info) => {
+test('settings: grouped rows like iPhone, sub-pages for each, profile on top, and logout asks first', async ({ page }, info) => {
   await stubSupabase(page)
   const patches: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/shop_members')) patches.push(r.postDataJSON()) })
   await page.goto('#/settings')
-  await expect(page.getByRole('heading', { name: 'よく使う' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'LaRa・見た目' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'アカウント・バックアップ' })).toBeVisible()
-  await expect(page.getByText('🏠 LaRa')).toBeVisible()
+  for (const g of ['LaRa', 'ネタ帳・レシピ', 'データ', 'ヘルプ']) await expect(page.getByRole('heading', { name: g, exact: true })).toBeVisible()
+  // 今の値が右に出る
+  await expect(page.getByRole('link', { name: /LaRa の服/ })).toContainText('おまかせ')
+  await expect(page.getByRole('link', { name: /ジャンル/ })).toContainText('4 個')
+  await expect(page.getByRole('link', { name: /LaRa の友達/ })).toContainText('LuRu: ときどき')
+  // 一番上は自分（呼び名・お店）
+  const profile = page.getByRole('link', { name: 'プロフィール' })
+  await expect(profile).toContainText('侑磨')
+  await expect(profile).toContainText('🏠 LaRa ・ オーナー')
+  await page.screenshot({ path: `screenshots/${info.project.name}-settings-groups.png`, fullPage: true })
+  // PC でも広がりすぎない
+  expect((await profile.boundingBox())!.width).toBeLessThanOrEqual(640)
+
+  await profile.click()
   await expect(page.getByText('彩加')).toBeVisible()
   const name = page.getByLabel('自分の呼び名')
   await expect(name).toHaveValue('侑磨')
@@ -1403,11 +1415,37 @@ test('stage1: settings are grouped, show the shop members, and the first-run gui
   await page.getByRole('button', { name: '保存', exact: true }).click()
   await expect.poll(() => patches.length).toBe(1)
   expect(patches[0]).toEqual({ display_name: 'ゆうま' })
-  await page.screenshot({ path: `screenshots/${info.project.name}-settings-groups.png`, fullPage: true })
-  // 使い方 → 案内をもう一度
-  await page.getByRole('button', { name: '使い方' }).click()
+  await page.getByRole('button', { name: '戻る' }).first().click()
+  await expect(page).toHaveURL(/#\/settings$/)
+
+  // 服: 選ぶと保存されて、トップの値も変わる
+  await page.getByRole('link', { name: /LaRa の服/ }).click()
+  await page.getByRole('radio', { name: /ガラスのくつ/ }).click()
+  await expect(page.getByRole('radio', { name: /ガラスのくつ/ })).toHaveAttribute('aria-checked', 'true')
+  await page.screenshot({ path: `screenshots/${info.project.name}-settings-outfit.png`, fullPage: true })
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lara.settings') ?? '{}').outfit)).toBe('glass')
+  await page.getByRole('button', { name: '戻る' }).first().click()
+  await expect(page.getByRole('link', { name: /LaRa の服/ })).toContainText('ガラスのくつ')
+
+  // ジャンル・ホーム画面に追加
+  await page.getByRole('link', { name: /ジャンル/ }).click()
+  await expect(page.getByRole('button', { name: 'ジャンルを追加' })).toBeVisible()
+  await page.goto('#/settings')
+  await page.getByRole('link', { name: /ホーム画面に追加するには/ }).click()
+  await expect(page.getByText('📱 iPhone')).toBeVisible()
+
+  // ログアウトは確認が出る（やめるで戻る）
+  await page.goto('#/settings')
+  await page.getByRole('button', { name: 'ログアウト' }).click()
+  const ask = page.getByRole('alertdialog', { name: 'ログアウトしますか？' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'やめる' }).click()
+  await expect(ask).toBeHidden()
+  await expect(page).toHaveURL(/#\/settings$/)
+
+  // 案内をもう一度
   await page.evaluate(() => sessionStorage.setItem('lara.smoke.keepOnboarding', '1'))
-  await page.getByRole('button', { name: 'LaRa の案内をもう一度見る' }).click()
+  await page.getByRole('button', { name: /LaRa の案内をもう一度見る/ }).click()
   const guide = page.getByRole('dialog', { name: 'LaRa の使い方' })
   await expect(guide.getByText('はじめまして、LaRa だよ')).toBeVisible()
   for (let i = 0; i < 3; i++) await guide.getByRole('button', { name: 'つぎへ' }).click()
@@ -1416,6 +1454,26 @@ test('stage1: settings are grouped, show the shop members, and the first-run gui
   await expect(guide).toBeHidden()
   await page.reload()
   await expect(page.getByRole('dialog', { name: 'LaRa の使い方' })).toHaveCount(0)
+})
+
+test('ask: every 聞く opens the same LaRa talk as the home, and くわしく探す goes to the ask page', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  const button = info.project.name === 'phone' ? page.getByRole('button', { name: 'LaRa に聞く' }).last() : page.getByRole('navigation', { name: 'メイン' }).first().getByRole('button', { name: '聞く' })
+  await button.click()
+  const sheet = page.getByRole('dialog', { name: 'LaRa に聞く' })
+  await expect(sheet.getByRole('status', { name: 'LaRa の返事' })).toBeVisible()
+  await sheet.getByRole('button', { name: '今日の予定は？' }).click()
+  await expect(sheet.getByRole('status', { name: 'LaRa の返事' })).toContainText(/予定/)
+  await expect(page).toHaveURL(/#\/clips$/)
+  await page.screenshot({ path: `screenshots/${info.project.name}-ask-sheet.png` })
+  await sheet.getByRole('link', { name: /くわしく探す/ }).click()
+  await expect(page).toHaveURL(/#\/ask/)
+  await expect(page.getByRole('dialog', { name: 'LaRa に聞く' })).toHaveCount(0)
+  // 分析には「今すぐ分析してもらう」は無い（週 1 の自動のふりかえりだけ）
+  await page.goto('#/menu/stats')
+  await expect(page.getByRole('heading', { name: '分析' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /今すぐ分析/ })).toHaveCount(0)
 })
 
 // ---- 段階 3（お店側）: LaRa のアルバム（服の図鑑・語録・たからもの） ----
@@ -1479,8 +1537,13 @@ test('stage4: a recipe shows its cost and margin, and a missing price can be add
 
   // 設定の「材料と仕入れ値」に一覧
   await page.goto('#/settings')
-  await page.getByRole('button', { name: '材料と仕入れ値' }).click()
+  await expect(page.getByRole('link', { name: /材料の仕入れ値/ })).toContainText('3 品')
+  await page.getByRole('link', { name: /材料の仕入れ値/ }).click()
   await expect(page.getByText('1g あたり ¥1.8')).toBeVisible()
+  await page.getByLabel('材料を探す').fill('パン')
+  await expect(page.getByText('1g あたり ¥1.8')).toHaveCount(0)
+  await expect(page.getByText('食パン')).toBeVisible()
+  await page.getByLabel('材料を探す').fill('')
   await expect(page.getByRole('button', { name: '＋ 材料を足す' })).toBeVisible()
 })
 

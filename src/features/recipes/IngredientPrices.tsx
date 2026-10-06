@@ -56,7 +56,7 @@ function PriceForm({ target, onDone }: { target: IngredientPriceRow | { name: st
 }
 
 /** 設定の「材料と仕入れ値」: 一覧と追加 */
-export function IngredientPriceList() {
+export function IngredientPriceList({ filter = '' }: { filter?: string }) {
   const prices = useIngredientPrices()
   const [target, setTarget] = useState<IngredientPriceRow | { name: string } | null>(null)
   if (!prices.data) return null
@@ -64,7 +64,7 @@ export function IngredientPriceList() {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-muted">仕入れ値を入れておくと、レシピの原価と、分析の粗利が出るよ。名前はレシピの材料名と同じにしてね</p>
-      {prices.data.rows.map((p) => (
+      {prices.data.rows.filter((p) => !filter.trim() || p.name.toLowerCase().includes(filter.trim().toLowerCase())).map((p) => (
         <button key={p.id} type="button" onClick={() => setTarget(p)} className="flex items-center gap-3 rounded-[12px] border border-line bg-paper px-3 py-2.5 text-left">
           <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{p.name}</span>
           <span className="text-xs text-muted">{p.buy_amount}{p.buy_unit} {yen(p.buy_price)}</span>

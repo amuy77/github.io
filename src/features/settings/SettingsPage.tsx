@@ -1,92 +1,85 @@
-import { PageHeader, SectionTitle } from '@/components/ui/Page'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { PageHeader } from '@/components/ui/Page'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { Confirm } from '@/components/ui/Sheet'
+import { SettingsGroup, SettingsRow } from '@/components/ui/Settings'
+import { Toggle } from '@/components/ui/Toggle'
+import { IconChevronRight } from '@/components/ui/icons'
+import { Mascot } from '@/components/mascot/Mascot'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { updateSettings, useSettings } from './useSettings'
-import { IconLogout } from '@/components/ui/icons'
-import { GenreManager } from '@/features/genres/GenreManager'
-import { LearnedRules } from './LearnedRules'
-import { FoldSection } from './FoldSection'
-import { FriendsCard } from './FriendsCard'
-import { BackupCard } from './BackupCard'
-import { ShopCard } from './ShopCard'
-import { IngredientPriceList } from '@/features/recipes/IngredientPrices'
-import { useNavigate } from 'react-router'
+import { useSession } from '@/features/auth/useSession'
 import { paths } from '@/app/routes'
+import { FRIENDS, VISIT_FREQS } from '@/characters'
+import { useGenres } from '@/features/genres/hooks'
+import { useIngredientPrices } from '@/features/recipes/priceHooks'
+import { usePreferences } from '@/features/ai/hooks'
 import { resetOnboarding } from '@/features/home/onboardingState'
-import { Chip } from '@/components/ui/Chip'
-import { OUTFITS, outfitFor, outfitInfo, type OutfitPref } from '@/features/home/shop3d/outfit'
+import { outfitFor, outfitInfo } from '@/features/home/shop3d/outfit'
+import { updateSettings, useSettings } from './useSettings'
+import { useShopMembers } from './shopHooks'
+import { BackupRow } from './BackupCard'
 
-const OUTFIT_CHOICES: { value: OutfitPref; label: string }[] = [
-  { value: 'auto', label: '🎲 おまかせ（日替わり）' },
-  ...OUTFITS.map((o) => ({ value: o.id, label: `${o.emoji} ${o.label}` })),
-]
-
+/**
+ * 設定のトップ。iPhone の設定アプリと同じ形: 一番上に自分（呼び名・お店）、グループごとの箱に 1 行 1 項目、
+ * 右に今の値、押すと下の画面へ。長い一覧や選ぶものは下の画面（/settings/…）に置き、ここは 1 画面強に収める
+ */
 export function SettingsPage() {
   const { user, signOut } = useAuth()
-  const { home3d, outfit } = useSettings()
+  const { userId } = useSession()
+  const { home3d, outfit, friends } = useSettings()
   const nav = useNavigate()
+  const members = useShopMembers().data
+  const me = members?.find((m) => m.user_id === userId)
+  const genres = useGenres().data
+  const prices = useIngredientPrices().data
+  const rules = usePreferences().data
+  const [leaving, setLeaving] = useState(false)
+  const today = outfitInfo(outfitFor(outfit))
+  const friendValue = FRIENDS.map((f) => `${f.name}: ${VISIT_FREQS.find((v) => v.value === (friends[f.id] ?? 'sometimes'))?.label ?? ''}`).join('、')
+
   return (
-    <>
+    <div className="mx-auto w-full max-w-[640px]">
       <PageHeader title="設定" />
-      <div className="flex flex-col gap-4">
-        {/* よく使うもの → LaRa・見た目 → アカウント・バックアップ の順 */}
-        <SectionTitle>よく使う</SectionTitle>
-        <ShopCard />
-        {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
-        <FoldSection id="genres" title="ジャンル（ネタ帳・図鑑 共通）"><GenreManager /></FoldSection>
-        <FoldSection id="prices" title="材料と仕入れ値"><IngredientPriceList /></FoldSection>
-        <FoldSection id="howto" title="使い方">
-        <Card className="flex flex-col gap-2 text-sm leading-relaxed">
-          <Button variant="secondary" size="sm" className="self-start" onClick={() => { resetOnboarding(); nav(paths.home) }}>LaRa の案内をもう一度見る</Button>
-          <hr className="receipt-line my-1" />
-          <p className="font-bold">iPhone のホーム画面に追加</p>
-          <p className="text-muted">Safari でこのページを開き、共有ボタン → 「ホーム画面に追加」。アプリのように全画面で使えます。</p>
-          <hr className="receipt-line my-1" />
-          <p className="font-bold">Mac</p>
-          <p className="text-muted">Safari の「ファイル」→「Dock に追加」、または Chrome のアドレスバー右のインストールアイコン。</p>
+      <div className="flex flex-col gap-6">
+        {/* 自分（呼び名・お店・メール）。押すとプロフィールへ */}
+        <Link to={paths.settingsProfile} className="flex items-center gap-3 rounded-card border border-line bg-paper p-4 shadow-card active:bg-oat-50" aria-label="プロフィール">
+          <Mascot size={52} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-display text-[19px] font-bold">{me?.display_name || 'わたし'}</span>
+            <span className="block truncate text-[13px] text-muted">{me ? `🏠 ${me.shops?.name ?? 'お店'} ・ ${me.role === 'owner' ? 'オーナー' : 'スタッフ'}` : user?.email ?? ''}</span>
+          </span>
+          <IconChevronRight size={18} className="shrink-0 text-muted" aria-hidden />
+        </Link>
+
+        <SettingsGroup title="LaRa">
+          <SettingsRow icon="🧊" title="3D のお店ホーム" sub={home3d ? 'LaRa のお店が 3D で動きます' : 'オフ: ボタンが並ぶ画面になります'}
+            trailing={<Toggle checked={home3d} onChange={(v) => updateSettings({ home3d: v })} label="3D のお店ホーム" />} />
+          <SettingsRow icon="👗" title="LaRa の服" value={outfit === 'auto' ? `おまかせ（今日: ${today.label}）` : today.label} to={paths.settingsOutfit} />
+          <SettingsRow icon="🐾" title="LaRa の友達" value={friendValue} to={paths.settingsFriends} />
+          <SettingsRow icon="💡" title="LaRa が覚えたこと" value={rules ? `${rules.length} 件` : undefined} to={paths.settingsRules} />
+        </SettingsGroup>
+
+        <SettingsGroup title="ネタ帳・レシピ" footer="ジャンルは、ネタ帳と図鑑で同じものを使います。仕入れ値を入れると、レシピの原価と利益が出ます">
+          <SettingsRow icon="🏷️" title="ジャンル" value={genres ? `${genres.length} 個` : undefined} to={paths.settingsGenres} />
+          <SettingsRow icon="🧾" title="材料の仕入れ値" value={prices?.ready ? `${prices.rows.length} 品` : undefined} to={paths.settingsPrices} />
+        </SettingsGroup>
+
+        <SettingsGroup title="データ">
+          <BackupRow />
+        </SettingsGroup>
+
+        <SettingsGroup title="ヘルプ">
+          <SettingsRow icon="🔰" title="LaRa の案内をもう一度見る" onClick={() => { resetOnboarding(); nav(paths.home) }} />
+          <SettingsRow icon="📱" title="ホーム画面に追加するには" to={paths.settingsInstall} />
+        </SettingsGroup>
+
+        <Card padded={false} className="overflow-hidden">
+          <SettingsRow title="ログアウト" danger onClick={() => setLeaving(true)} />
         </Card>
-
-        </FoldSection>
-
-        <SectionTitle>LaRa・見た目</SectionTitle>
-        <Card className="flex items-center gap-3">
-          <div className="flex-1">
-            <p className="font-bold">3D のお店ホーム</p>
-            <p className="text-xs text-muted">オフにするとタイル型のホームになります（軽い）</p>
-          </div>
-          <label className="relative inline-flex cursor-pointer items-center">
-            <input type="checkbox" className="peer sr-only" checked={home3d} onChange={(e) => updateSettings({ home3d: e.target.checked })} />
-            <span className="h-7 w-12 rounded-full bg-line transition-colors peer-checked:bg-green-600 peer-focus-visible:outline-2 peer-focus-visible:outline-mustard-400" />
-            <span className="absolute left-1 top-1 size-5 rounded-full bg-paper shadow transition-transform peer-checked:translate-x-5" />
-          </label>
-        </Card>
-        <Card className="flex flex-col gap-3">
-          <div>
-            <p className="font-bold">LaRa の服</p>
-            <p className="text-xs text-muted">3D のお店にいる LaRa の服。おまかせにすると日によって着替えます（同じ服は 3 日まで）。かぼちゃは 10 月だけ日替わりに入ります</p>
-          </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="LaRa の服">
-            {OUTFIT_CHOICES.map((c) => <Chip key={c.value} active={outfit === c.value} onClick={() => updateSettings({ outfit: c.value })}>{c.label}</Chip>)}
-          </div>
-          <p className="text-sm">今日は <span className="font-bold">{outfitInfo(outfitFor(outfit)).label}</span> の日</p>
-        </Card>
-
-        <p className="-mb-2 mt-1 text-[13px] font-bold text-espresso-700">LaRa の友達</p>
-        <FriendsCard />
-        <FoldSection id="rules" title="LaRa が覚えたこと"><LearnedRules /></FoldSection>
-
-        <SectionTitle>アカウント・バックアップ</SectionTitle>
-        <Card className="flex items-center gap-3">
-          <div className="flex-1">
-            <p className="font-bold">{user?.email ?? '—'}</p>
-            <p className="text-xs text-muted">ログイン中</p>
-          </div>
-          <Button variant="secondary" size="sm" icon={<IconLogout size={16} />} onClick={() => signOut()}>ログアウト</Button>
-        </Card>
-        <BackupCard />
-
+        <p className="-mt-3 text-center text-[12px] text-muted">{user?.email ?? ''}</p>
       </div>
-    </>
+      <Confirm open={leaving} onClose={() => setLeaving(false)} title="ログアウトしますか？" body="もう一度使うときは、メールアドレスとパスワードでログインします" confirmLabel="ログアウト" danger onConfirm={() => signOut()} />
+    </div>
   )
 }

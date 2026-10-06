@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigationType } from 'react-router'
 import { IconCalendar, IconHome, IconInbox, IconNote, IconPlanner, IconPlus, IconSettings } from '@/components/ui/icons'
 import { paths } from './routes'
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/Page'
 import { Mascot } from '@/components/mascot/Mascot'
 import { isNotesPath, notesPath } from '@/features/notes/notes'
 import { PLANNER_URL } from '@/features/planner/api'
+import { AskSheet } from '@/features/home/chat/AskSheet'
 
 // 下のタブ: ホーム / ノート（ネタ帳・図鑑・メニュー。最後に見たものを開く）/ ＋ / きろく（日々のメニュー記録と分析）/ Planner（別アプリ）
 type TabDef = { key: string; label: string; Icon: typeof IconHome; to: (pathname: string) => string; active: (pathname: string) => boolean; external?: boolean }
@@ -28,8 +29,12 @@ export function AppShell() {
   const inbox = counts.data?.inbox ?? 0
   const isHome = loc.pathname === paths.home
   useScrollMemory()
+  // 「聞く」のシート。開いた画面を覚えておき、画面を移ったら閉じたことにする（シートの中のリンクで移ったときなど）
+  const [askAt, setAskAt] = useState<string | null>(null)
+  const asking = askAt === loc.pathname
+  const setAsking = (v: boolean) => setAskAt(v ? loc.pathname : null)
   // ホームは下の案内カードに「聞く」を置くので、浮かぶボタンは出さない
-  const showAsk = !isHome && !/^\/(ask|add|login)|\/(edit|new|compare)$/.test(loc.pathname)
+  const showAsk = !isHome && !/^\/(ask|add|login|settings)|\/(edit|new|compare)$/.test(loc.pathname)
   return (
     <div className="min-h-full">
       <OfflineBanner />
@@ -38,9 +43,9 @@ export function AppShell() {
         <div className="font-display mb-4 text-xl font-extrabold">LaRa</div>
         {tabs.map((t) => <RailTab key={t.key} tab={t} pathname={loc.pathname} />)}
         <NavLink to={paths.add} className="mt-2 grid size-12 place-items-center rounded-full bg-green-600 text-white shadow-card" aria-label="すぐメモ"><IconPlus /></NavLink>
-        <NavLink to={paths.ask} className={({ isActive }) => cx('mt-2 flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', isActive ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
+        <button type="button" onClick={() => setAsking(true)} className={cx('mt-2 flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', loc.pathname.startsWith(paths.ask) ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
           <Mascot size={28} /> 聞く
-        </NavLink>
+        </button>
         <div className="mt-auto mb-6 flex flex-col items-center gap-1">
           <NavLink to={paths.inbox} className={({ isActive }) => cx('relative flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', isActive ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
             <IconInbox /> トレイ
@@ -67,10 +72,12 @@ export function AppShell() {
       </nav>
       {/* モバイル: どの画面からでも LaRa に聞ける丸ボタン（入力中の画面では出さない） */}
       {showAsk && (
-        <NavLink to={paths.ask} aria-label="LaRa に聞く" className="fixed right-4 z-30 flex items-center gap-1 rounded-full border border-line bg-paper py-1 pl-1 pr-3 text-[12px] font-bold shadow-sheet md:hidden" style={{ bottom: 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)' }}>
+        <button type="button" onClick={() => setAsking(true)} aria-label="LaRa に聞く" className="fixed right-4 z-30 flex items-center gap-1 rounded-full border border-line bg-paper py-1 pl-1 pr-3 text-[12px] font-bold shadow-sheet md:hidden" style={{ bottom: 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)' }}>
           <Mascot size={34} /> 聞く
-        </NavLink>
+        </button>
       )}
+      {/* どの画面の「聞く」も、ホームの「聞く」と同じ会話をシートで */}
+      <AskSheet open={asking} onClose={() => setAsking(false)} />
       {/* ボトムの積み重ね: 更新の案内・タブ置き場の案内。聞くボタンの上に並べて、重ならないように */}
       <div className="pointer-events-none fixed inset-x-4 z-40 flex flex-col gap-2 *:pointer-events-auto md:left-auto md:right-6 md:bottom-6 md:w-80" style={{ bottom: 'calc(var(--tabbar-h) + var(--safe-bottom) + 68px)' }}>
         <UpdateToast />

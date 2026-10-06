@@ -22,6 +22,14 @@ const MenuDayPage = page(() => import('@/features/menu/MenuDayPage'), 'MenuDayPa
 const MenuStatsPage = page(() => import('@/features/menu/MenuStatsPage'), 'MenuStatsPage')
 const InboxPage = page(() => import('@/features/ai/InboxPage'), 'InboxPage')
 const SettingsPage = page(() => import('@/features/settings/SettingsPage'), 'SettingsPage')
+const subPages = () => import('@/features/settings/SettingsSubPages')
+const SettingsProfilePage = page(subPages, 'SettingsProfilePage')
+const SettingsOutfitPage = page(subPages, 'SettingsOutfitPage')
+const SettingsFriendsPage = page(subPages, 'SettingsFriendsPage')
+const SettingsRulesPage = page(subPages, 'SettingsRulesPage')
+const SettingsGenresPage = page(subPages, 'SettingsGenresPage')
+const SettingsPricesPage = page(subPages, 'SettingsPricesPage')
+const SettingsInstallPage = page(subPages, 'SettingsInstallPage')
 const DevUiPage = page(() => import('@/features/dev/DevUiPage'), 'DevUiPage')
 
 function Loading() {
@@ -51,6 +59,13 @@ export function App() {
             <Route path="/menu/:date" element={<MenuDayPage />} />
             <Route path={paths.inbox} element={<InboxPage />} />
             <Route path={paths.settings} element={<SettingsPage />} />
+            <Route path={paths.settingsProfile} element={<SettingsProfilePage />} />
+            <Route path={paths.settingsOutfit} element={<SettingsOutfitPage />} />
+            <Route path={paths.settingsFriends} element={<SettingsFriendsPage />} />
+            <Route path={paths.settingsRules} element={<SettingsRulesPage />} />
+            <Route path={paths.settingsGenres} element={<SettingsGenresPage />} />
+            <Route path={paths.settingsPrices} element={<SettingsPricesPage />} />
+            <Route path={paths.settingsInstall} element={<SettingsInstallPage />} />
             {import.meta.env.DEV && <Route path={paths.devUi} element={<DevUiPage />} />}
             <Route path="*" element={<Navigate to={paths.home} replace />} />
           </Route>
