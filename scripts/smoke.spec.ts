@@ -73,6 +73,11 @@ const fixtures: Record<string, object[]> = {
     return { id: `f${i}000000-0000-4000-8000-00000000000a`, user_id: USER_ID, log_date: iso(d), note: i === 0 ? '雨。BLT 早めに売り切れ' : '', created_at: ts(i), updated_at: ts(i), menu_log_items: items }
   }),
   menu_log_items: [],
+  ingredient_prices: [
+    { ...base, id: 'p1000000-0000-4000-8000-000000000001', name: 'ベーコン', buy_amount: 1, buy_unit: 'kg', buy_price: 1800 },
+    { ...base, id: 'p1000000-0000-4000-8000-000000000002', name: '食パン', buy_amount: 8, buy_unit: '枚', buy_price: 400 },
+    { ...base, id: 'p1000000-0000-4000-8000-000000000003', name: '卵', buy_amount: 10, buy_unit: '個', buy_price: 300 },
+  ],
   shop_members: [
     { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: USER_ID, role: 'owner', display_name: '侑磨', created_at: ts(30), shops: { name: 'LaRa' } },
     { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: 'u2000000-0000-4000-8000-000000000002', role: 'staff', display_name: '彩加', created_at: ts(20), shops: { name: 'LaRa' } },
@@ -1440,4 +1445,41 @@ test('stage3: pick today\'s treasure on the home, and the album shows treasures,
   await expect(sheet.getByText('？？？').first()).toBeVisible()
   await sheet.getByRole('tab', { name: /語録/ }).click()
   await expect(sheet.getByRole('listitem').first()).toBeVisible()
+})
+
+// ---- 段階 4（お店側）: 原価・粗利 ----
+
+test('stage4: a recipe shows its cost and margin, and a missing price can be added right there', async ({ page }, info) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/ingredient_prices')) posts.push(r.postDataJSON()) })
+  // エッグサラダ: 卵 2個（¥60）＋ マヨ（仕入れ値なし）
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000002')
+  await expect(page.getByRole('heading', { name: '原価' })).toBeVisible()
+  await expect(page.getByText('¥60', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('わかった材料 1 / 2')).toBeVisible()
+  await page.getByRole('button', { name: '仕入れ値を入れる' }).click()
+  const sheet = page.getByRole('dialog', { name: '仕入れ値を入れる' })
+  await expect(sheet.getByLabel('材料の名前')).toHaveValue('マヨ')
+  await sheet.getByLabel('仕入れの量').fill('450')
+  await sheet.getByLabel('単位').selectOption('g')
+  await sheet.getByLabel('値段（円）').fill('350')
+  await expect(sheet.getByText(/1g あたり ¥0\.78/)).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-cost-sheet.png` })
+  await sheet.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0]).toMatchObject({ name: 'マヨ', buy_amount: 450, buy_unit: 'g', buy_price: 350 })
+  await expect(sheet).toBeHidden()
+
+  // 価格のある BLT（試作2・¥980）は原価率と粗利も出る
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000005')
+  await expect(page.getByText('原価率')).toBeVisible()
+  await expect(page.getByText('粗利')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-cost-card.png`, fullPage: true })
+
+  // 設定の「材料と仕入れ値」に一覧
+  await page.goto('#/settings')
+  await page.getByRole('button', { name: '材料と仕入れ値' }).click()
+  await expect(page.getByText('1g あたり ¥1.8')).toBeVisible()
+  await expect(page.getByRole('button', { name: '＋ 材料を足す' })).toBeVisible()
 })

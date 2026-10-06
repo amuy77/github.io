@@ -131,3 +131,29 @@ export function prepForecast(logs: MenuLogWithItems[], recipes: RecipeRow[], dat
     .sort((a, b) => b.avg - a.avg)
     .slice(0, limit)
 }
+
+export interface GrossProfit { profit: number; sales: number; items: number }
+/**
+ * 粗利: 売数 ×（価格 − 原価）。価格があって、原価が材料すべてわかる品だけで数える（わからない品は入れない）。
+ * costOf はレシピ → 原価（材料が全部わかれば円、そうでなければ null）
+ */
+export function grossProfit(logs: MenuLogWithItems[], recipes: RecipeRow[], costOf: (r: RecipeRow) => number | null): GrossProfit {
+  const byId = new Map(recipes.map((r) => [r.id, r]))
+  const repOf = new Map<string, RecipeRow>()
+  for (const r of recipes) { const k = familyKey(r); if (!repOf.has(k)) repOf.set(k, representativeOf(recipes.filter((x) => familyKey(x) === k))) }
+  const cache = new Map<string, number | null>()
+  let profit = 0, sales = 0, items = 0
+  for (const l of logs) for (const it of l.menu_log_items) {
+    if (!it.sold_count) continue
+    const r = byId.get(it.recipe_id)
+    if (!r) continue
+    // 古い版で記録した日も、今の版（代表）の価格と原価で数える
+    const rep = r.price != null ? r : repOf.get(familyKey(r)) ?? r
+    if (rep.price == null) continue
+    if (!cache.has(rep.id)) cache.set(rep.id, costOf(rep))
+    const cost = cache.get(rep.id)
+    if (cost == null) continue
+    profit += it.sold_count * (rep.price - cost); sales += it.sold_count * rep.price; items += it.sold_count
+  }
+  return { profit, sales, items }
+}

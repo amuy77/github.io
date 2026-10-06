@@ -27,6 +27,7 @@ import { useDeleteRecipe, useRecipe, useRecipes, useSetMain, useUpdateRecipe } f
 import { familyOf, latestOf, versionName } from './family'
 import { cx } from '@/lib/cx'
 import { PurposeBadge, PurposePicker } from './purpose'
+import { CostCard } from './CostCard'
 import { PURPOSE_NAME, PURPOSE_TAB_LABEL, readListView } from './listView'
 
 const SOURCE_LABEL = { manual: '手入力', ai_image: 'AI（写真から）', ai_text: 'AI（テキストから）', text_paste: 'テキスト貼り付け' } as const
@@ -145,6 +146,7 @@ export function RecipeDetailPage() {
             </ul>
           )}
         </Card>
+        <CostCard recipe={r} />
         <Card className="flex flex-col gap-3">
           <SectionTitle className="mt-0">作り方</SectionTitle>
           {r.steps.length === 0 ? <p className="text-sm text-muted">手順はまだ書かれていません</p> : (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { genreShares, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
+import { genreShares, grossProfit, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
 import type { MenuLogWithItems } from './api'
 import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { addDays, today } from '@/lib/dates'
@@ -80,5 +80,15 @@ describe('sales and forecasts', () => {
     expect(f[0].recipe.id).toBe('v2')
     expect(f[1]).toMatchObject({ avg: 0.5 })
     expect(prepForecast(logs, rs, '2026-10-07')).toEqual([])
+  })
+})
+
+describe('grossProfit', () => {
+  const r = (id: string, price: number | null) => ({ ...recipe(id, 'g1'), price, family_id: null, is_main: false, created_at: '2026-01-01' } as RecipeRow)
+  it('counts only dishes with a price and a fully known cost', () => {
+    const rs = [r('a', 1000), r('b', 500), r('c', null)]
+    const costs: Record<string, number | null> = { a: 300, b: null, c: 100 }
+    const g = grossProfit([log('2026-09-28', [['a', 2], ['b', 5], ['c', 3]])], rs, (x) => costs[x.id])
+    expect(g).toEqual({ profit: 1400, sales: 2000, items: 2 })
   })
 })

@@ -13,7 +13,9 @@ import { useGenres } from '@/features/genres/hooks'
 import { useEnqueueJob } from '@/features/ai/hooks'
 import { nextWorkerTime } from '@/features/ai/api'
 import { useInsights, useMenuLogs } from './hooks'
-import { genreShares, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
+import { genreShares, grossProfit, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
+import { useIngredientPrices } from '@/features/recipes/priceHooks'
+import { recipeCost } from '@/features/recipes/cost'
 import { FrequencyRanking, GenreDonut } from './charts'
 import { cx } from '@/lib/cx'
 
@@ -37,6 +39,13 @@ export function MenuStatsPage() {
   const ranking = useMemo(() => recipeFrequency(logs.data ?? [], recipes.data ?? []), [logs.data, recipes.data])
   const notServed = useMemo(() => notServedRecently(allLogs.data ?? [], recipes.data ?? []), [allLogs.data, recipes.data])
   const sales = useMemo(() => salesSummary(logs.data ?? [], recipes.data ?? []), [logs.data, recipes.data])
+  const prices = useIngredientPrices()
+  // 粗利は、材料の原価が全部わかる品だけで（わからない品は入れない）
+  const gross = useMemo(() => {
+    const rows = prices.data?.ready ? prices.data.rows : null
+    if (!rows?.length) return null
+    return grossProfit(logs.data ?? [], recipes.data ?? [], (r) => { const c = recipeCost(r.ingredients, rows); return c.unknown === 0 && c.known > 0 ? c.total : null })
+  }, [logs.data, recipes.data, prices.data])
   const weekdays = useMemo(() => weekdayAverages(allLogs.data ?? []), [allLogs.data])
   const tomorrow = addDays(t, 1)
   const prep = useMemo(() => prepForecast(allLogs.data ?? [], recipes.data ?? [], tomorrow), [allLogs.data, recipes.data, tomorrow])
@@ -77,6 +86,10 @@ export function MenuStatsPage() {
                   <p className="pb-0.5 text-xs text-muted">{sales.items} 個 ・ 1 日あたり ¥{Math.round(sales.total / Math.max(1, sales.days)).toLocaleString()}</p>
                 </div>
               ) : <p className="text-sm text-muted">売れた数と価格が入ると、ここに売上が出るよ</p>}
+              {gross && gross.items > 0 && (
+                <p className="text-sm">粗利 <b className="text-[18px] tabular-nums text-green-700">¥{Math.round(gross.profit).toLocaleString()}</b>
+                  <span className="ml-2 text-xs text-muted">原価率 {Math.round((1 - gross.profit / gross.sales) * 100)}%（材料の原価が全部わかる品 {gross.items} 個ぶん）</span></p>
+              )}
               {sales.missingPrice.length > 0 && (
                 <p className="rounded-[10px] bg-mustard-300/20 px-3 py-2 text-xs">
                   価格が入っていない品: {sales.missingPrice.slice(0, 4).map((r, i) => <span key={r.id}>{i > 0 && '、'}<Link to={paths.recipeEdit(r.id)} className="font-bold underline underline-offset-2">{r.title}</Link></span>)}{sales.missingPrice.length > 4 && ` ほか ${sales.missingPrice.length - 4} 品`}。価格を入れると売上に入るよ
