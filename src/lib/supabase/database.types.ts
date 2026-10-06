@@ -68,6 +68,8 @@ export type AiPreferenceRow = Timestamps & { id: string; user_id: string; rule: 
 export type AiInsightRow = { id: string; user_id: string; week_start: string; insights: Insight[]; model: string; created_at: string }
 
 /** お店（段階 1）。データは人ごとのまま、同じお店の人を表すだけ */
+/** 材料の仕入れ値（原価の計算用）。例: ベーコン 1 kg 1800 円 */
+export type IngredientPriceRow = Timestamps & { id: string; user_id: string; name: string; buy_amount: number; buy_unit: string; buy_price: number }
 export type ShopRow = { id: string; name: string; created_at: string }
 export type ShopMemberRow = { shop_id: string; user_id: string; role: 'owner' | 'staff'; display_name: string; created_at: string }
 
@@ -92,6 +94,7 @@ export type Database = {
       ai_insights: Table<AiInsightRow, 'week_start' | 'insights' | 'model'>
       ai_preferences: Table<AiPreferenceRow, 'rule'>
       shops: Table<ShopRow, 'name'>
+      ingredient_prices: Table<IngredientPriceRow, 'name' | 'buy_amount' | 'buy_unit' | 'buy_price'>
       shop_members: Table<ShopMemberRow, 'shop_id'>
     }
     Views: { [_ in never]: never }

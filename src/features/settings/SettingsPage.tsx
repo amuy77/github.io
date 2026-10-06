@@ -10,6 +10,7 @@ import { FoldSection } from './FoldSection'
 import { FriendsCard } from './FriendsCard'
 import { BackupCard } from './BackupCard'
 import { ShopCard } from './ShopCard'
+import { IngredientPriceList } from '@/features/recipes/IngredientPrices'
 import { useNavigate } from 'react-router'
 import { paths } from '@/app/routes'
 import { resetOnboarding } from '@/features/home/onboardingState'
@@ -34,6 +35,7 @@ export function SettingsPage() {
         <ShopCard />
         {/* 長い一覧は畳んでおく（押すと開く。開いたかどうかは端末に覚える） */}
         <FoldSection id="genres" title="ジャンル（ネタ帳・図鑑 共通）"><GenreManager /></FoldSection>
+        <FoldSection id="prices" title="材料と仕入れ値"><IngredientPriceList /></FoldSection>
         <FoldSection id="howto" title="使い方">
         <Card className="flex flex-col gap-2 text-sm leading-relaxed">
           <Button variant="secondary" size="sm" className="self-start" onClick={() => { resetOnboarding(); nav(paths.home) }}>LaRa の案内をもう一度見る</Button>

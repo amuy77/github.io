@@ -98,6 +98,12 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 追加（2026-10-09）: 材料の仕入れ値（原価・粗利）
+
+- マイグレーション `20261009000000_ingredient_prices.sql` を **SQL エディタで実行する**。
+  `ingredient_prices`（材料名・仕入れの量と単位・値段）を追加。データは人ごと。レシピの原価・原価率・粗利と、分析の粗利に使う。
+  流す前は原価の欄が出ないだけ（アプリは今まで通り動く）。
+
 ## 追加（2026-10-08）: 段階 1（価格・お店とメンバー）
 
 - マイグレーション `20261008000000_stage1_price_shop.sql` を **SQL エディタで実行する**（アプリの更新より先に）。
