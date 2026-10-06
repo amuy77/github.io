@@ -356,7 +356,7 @@ test('ask LaRa: local search, chat answer links, and no-key fallback', async ({ 
   await box.fill('ベーコン')
   await expect(page.getByText('手元で見つかったもの')).toBeVisible()
   await box.fill('さっぱりしたい')
-  await page.getByRole('button', { name: '聞く' }).click()
+  await page.getByRole('button', { name: '聞く', exact: true }).click()
   await expect(page.getByRole('link', { name: /BLT サンド（試作2）/ })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-ask.png`, fullPage: true })
 
@@ -365,7 +365,7 @@ test('ask LaRa: local search, chat answer links, and no-key fallback', async ({ 
   await p2.goto('#/ask')
   await p2.evaluate(() => sessionStorage.clear())
   await p2.getByRole('textbox', { name: 'LaRa に聞く' }).fill('BLT をもっと美味しくしたい')
-  await p2.getByRole('button', { name: '聞く' }).click()
+  await p2.getByRole('button', { name: '聞く', exact: true }).click()
   await expect(p2.getByRole('button', { name: 'トレイに入れて答えてもらう' })).toBeVisible()
 })
 
