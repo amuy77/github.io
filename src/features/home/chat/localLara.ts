@@ -104,7 +104,7 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
   // --- おすすめ
   if (has(t, 'おすすめ', 'オススメ', 'なに作', '何作', '気分', '迷う')) {
     const menu = ctx.recipes.filter((x) => x.status === 'published' && x.purpose === 'menu')
-    if (!menu.length) return { text: say('recommendNone'), links: [{ label: 'レシピ図鑑', to: paths.recipes }] }
+    if (!menu.length) return { text: say('recommendNone'), links: [{ label: 'レシピ', to: paths.recipes }] }
     const top = [...menu].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0]
     const old = ctx.notServed.find((x) => x.id !== top.id)
     const lines = [say('recommendTop', { title: top.title }), old ? say('recommendOld', { title: old.title }) : ''].filter(Boolean)

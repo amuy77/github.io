@@ -392,7 +392,7 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
 })
 
-test('recipes: お店のメニュー lives in its own ノート tab, 図鑑 is アイデア / 参考 / 未分類, and a recipe can switch sides', async ({ page }, info) => {
+test('recipes: お店のメニュー lives in its own ノート tab, レシピ has アイデア as a genre chip, and a recipe can switch sides', async ({ page }, info) => {
   await stubSupabase(page)
   const patches: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/recipes')) patches.push(r.postDataJSON()) })
@@ -404,7 +404,7 @@ test('recipes: お店のメニュー lives in its own ノート tab, 図鑑 is �
   // ノートの「メニュー」: お店のメニューだけ。種類の段は無い
   await page.goto('#/recipes')
   const notes = page.getByRole('tablist', { name: 'ノート' })
-  await expect(notes.getByRole('tab')).toHaveText(['📌 ネタ帳', '📖 図鑑', '🍽️ メニュー'])
+  await expect(notes.getByRole('tab')).toHaveText(['📌 ネタ帳', '📖 レシピ', '🍽️ メニュー'])
   await notes.getByRole('tab', { name: /メニュー/ }).click()
   await expect(page).toHaveURL(/#\/shop-menu$/)
   await expect(page.getByRole('heading', { name: 'お店のメニュー', level: 1 })).toBeVisible()
@@ -412,23 +412,29 @@ test('recipes: お店のメニュー lives in its own ノート tab, 図鑑 is �
   await expect(page.getByText('BLT サンド').first()).toBeVisible()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
   await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /アイデア/ })).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-shop-menu.png`, fullPage: true })
 
-  // 図鑑: アイデア／参考／未分類／すべて。アイデアがあるので最初はアイデア。お店のメニューは出ない
-  await notes.getByRole('tab', { name: /図鑑/ }).click()
-  const tabs = page.getByRole('tablist', { name: 'レシピの種類' })
-  await expect(tabs.getByRole('tab')).toHaveText([/💡 アイデア/, /📚 参考/, /❔ 未分類/, /すべて/])
-  await expect(tabs.getByRole('tab', { name: /アイデア/ })).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
-  await expect(page.getByText('エッグサラダ')).toHaveCount(0)
-  await tabs.getByRole('tab', { name: /すべて/ }).click()
+  // レシピ: 種類の段は無く、💡 アイデアはジャンルのチップと並ぶ。お店のメニューは出ない
+  await notes.getByRole('tab', { name: /レシピ/ }).click()
+  await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: /未分類/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /すべて/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
   await expect(page.getByText('BLT サンド')).toHaveCount(0)
-  await tabs.getByRole('tab', { name: /参考/ }).click()
-  await expect(page.getByText('参考レシピはまだありません')).toBeVisible()
-  await tabs.getByRole('tab', { name: /未分類/ }).click()
-  await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
-  await page.screenshot({ path: `screenshots/${info.project.name}-recipes-reference.png`, fullPage: true })
+  const idea = page.getByRole('button', { name: /💡 アイデア/ })
+  await expect(idea).toContainText('1')
+  await idea.click()
+  await expect(idea).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
+  await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-recipes-idea.png`, fullPage: true })
+  // メニューに行ってもアイデアは無いので全部、レシピに戻るとアイデアのまま
+  await notes.getByRole('tab', { name: /メニュー/ }).click()
+  await expect(page.getByText('エッグサラダ')).toBeVisible()
+  await notes.getByRole('tab', { name: /レシピ/ }).click()
+  await expect(page.getByRole('button', { name: /💡 アイデア/ })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: /すべて/ }).click()
 
   await page.getByText('ハンドドリップ 深煎り').click()
   await expect(page.getByRole('radiogroup', { name: 'レシピの種類' }).getByRole('radio')).toHaveCount(3)
@@ -440,7 +446,7 @@ test('recipes: お店のメニュー lives in its own ノート tab, 図鑑 is �
   expect(patches[1]).toMatchObject({ purpose: 'idea' })
 })
 
-test('recipes: 作る starts as お店のメニュー from メニュー, and as アイデア from 図鑑', async ({ page }) => {
+test('recipes: 作る starts as お店のメニュー from メニュー, and as アイデア from レシピ', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/shop-menu')
   await page.getByRole('button', { name: '作る' }).click()
@@ -487,16 +493,14 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
   expect(writes[1]).toMatchObject({ method: 'POST', body: { name: 'デザート', emoji: '' } })
 })
 
-test('recipes: the list keeps its tab after opening a recipe, and the detail page steps to the next one', async ({ page }) => {
+test('recipes: the list keeps its genre after opening a recipe, and the detail page steps to the next one', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/recipes')
-  const tabs = page.getByRole('tablist', { name: 'レシピの種類' })
-  await tabs.getByRole('tab', { name: /未分類/ }).click()
-  await page.getByText('ハンドドリップ 深煎り').click()
-  await page.getByRole('radio', { name: /お店のメニュー/ }).click()
+  await page.getByRole('button', { name: /💡 アイデア/ }).click()
+  await page.getByText('栗のカフェラテ 試作').click()
   await page.goBack()
-  // 戻っても未分類のまま
-  await expect(page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /未分類/ })).toHaveAttribute('aria-selected', 'true')
+  // 戻ってもアイデアのまま
+  await expect(page.getByRole('button', { name: /💡 アイデア/ })).toHaveAttribute('aria-pressed', 'true')
 
   // お店のメニューから開くと、その並びで「次へ」
   await page.goto('#/shop-menu')
@@ -510,7 +514,7 @@ test('recipes: the list keeps its tab after opening a recipe, and the detail pag
   await expect(page).toHaveURL(/#\/shop-menu$/)
 })
 
-test('clip genres: the clip list shares the genres with 図鑑, and the editor saves genre_id', async ({ page }, info) => {
+test('clip genres: the clip list shares the genres with レシピ, and the editor saves genre_id', async ({ page }, info) => {
   await stubSupabase(page)
   const genrePosts: unknown[] = []
   const clipPosts: unknown[] = []
@@ -547,10 +551,9 @@ test('clip genres: the clip list shares the genres with 図鑑, and the editor s
   expect(clipPosts[0]).toMatchObject({ title: 'エスプレッソトニック', genre_id: G.bev })
 })
 
-test('notes: the genre you pick stays picked when you switch between ネタ帳 and 図鑑', async ({ page }, info) => {
+test('notes: the genre you pick stays picked when you switch between ネタ帳 and レシピ', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/recipes')
-  await page.getByRole('tablist', { name: 'レシピの種類' }).getByRole('tab', { name: /すべて/ }).click()
   await page.getByRole('button', { name: /アメリカンサンド/ }).first().click()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
@@ -560,23 +563,31 @@ test('notes: the genre you pick stays picked when you switch between ネタ帳 a
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
   await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-notes-genre.png` })
-  // ネタ帳で変えると、図鑑に戻っても同じ
+  // ネタ帳で変えると、レシピに戻っても同じ
   await page.getByRole('button', { name: /ベバレッジ/ }).first().click()
-  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /図鑑/ }).click()
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /レシピ/ }).click()
   await expect(page.getByRole('button', { name: /ベバレッジ/ }).first()).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText('BLT サンド')).toHaveCount(0)
+  // 💡 アイデアも、ネタ帳とレシピで同じ
+  await page.getByRole('button', { name: /💡 アイデア/ }).click()
+  await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
+  await expect(page.getByRole('button', { name: /💡 アイデア/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('秋メニュー案')).toBeVisible()
+  await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
 })
 
-test('clips: idea / reference tabs, and the review sheet sets purpose and favourite', async ({ page }, info) => {
+test('clips: アイデア is a chip next to the genres (no kind tabs), and the review sheet sets purpose and favourite', async ({ page }, info) => {
   await stubSupabase(page)
   const patches: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/clips')) patches.push(r.postDataJSON()) })
   await page.goto('#/clips')
-  const tabs = page.getByRole('tablist', { name: 'ネタの種類' })
-  await tabs.getByRole('tab', { name: /アイデア/ }).click()
+  await expect(page.getByRole('tablist', { name: 'ネタの種類' })).toHaveCount(0)
+  await page.getByRole('button', { name: /💡 アイデア/ }).click()
   await expect(page.getByText('秋メニュー案')).toBeVisible()
   await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
-  await tabs.getByRole('tab', { name: /参考/ }).click()
+  await page.screenshot({ path: `screenshots/${info.project.name}-clips-idea.png`, fullPage: true })
+  await page.getByRole('button', { name: /すべて/ }).click()
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
 
   await page.goto('#/inbox')
@@ -792,7 +803,7 @@ test('lists: clips and recipes can switch between cards and a list, and remember
     await sheet.getByRole('radio', { name: 'リスト表示' }).click()
   })
   await expect(page.getByTestId('clip-list').first()).toBeVisible()
-  // 「すべて」ではジャンルごとの見出しで区切る（図鑑と同じジャンル）
+  // 「すべて」ではジャンルごとの見出しで区切る（レシピと同じジャンル）
   await expect(page.getByRole('heading', { name: /アメリカンサンド/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: /ジャンルなし/ })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-list.png`, fullPage: true })
@@ -1089,8 +1100,8 @@ test('battery: when WebGL is taken away and not given back, the home falls back 
   await page.goto('#/')
   await expect.poll(() => page.evaluate(() => !!(window as unknown as { __lara?: unknown }).__lara), { timeout: 40_000 }).toBe(true)   // 全件実行中は 3D の立ち上がりが遅い
   await page.evaluate(() => (window as unknown as { __lara: { debugLoseContext: () => void } }).__lara.debugLoseContext())
-  // 2 秒待っても戻らなければタイル版（レシピ図鑑のタイルが出る）
-  await expect(page.getByRole('link', { name: /レシピ図鑑/ })).toBeVisible({ timeout: 20_000 })
+  // 2 秒待っても戻らなければタイル版（レシピのタイルが出る）
+  await expect(page.getByRole('link', { name: /レシピ/ }).first()).toBeVisible({ timeout: 20_000 })
   await expect.poll(() => page.evaluate(() => !!(window as unknown as { __lara?: unknown }).__lara)).toBe(false)
 })
 
@@ -1232,7 +1243,7 @@ test('gaps: when the network is gone, the last-read lists still open from the de
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
 })
 
-// ---- タブバー: ノート（ネタ帳＋図鑑）と Planner、ホームの下は「聞く」「今日を記録」だけ ----
+// ---- タブバー: ノート（ネタ帳＋レシピ）と Planner、ホームの下は「聞く」「今日を記録」だけ ----
 
 test('tabs: ノート opens the side you saw last, switches between clips and recipes, and Planner is an outside link', async ({ page }, info) => {
   await stubSupabase(page)
@@ -1243,9 +1254,9 @@ test('tabs: ノート opens the side you saw last, switches between clips and re
   await expect(page).toHaveURL(/#\/clips$/)
   const sw = page.getByRole('tablist', { name: 'ノート' })
   await expect(sw.getByRole('tab', { name: /ネタ帳/ })).toHaveAttribute('aria-selected', 'true')
-  await sw.getByRole('tab', { name: /図鑑/ }).click()
+  await sw.getByRole('tab', { name: /レシピ/ }).click()
   await expect(page).toHaveURL(/#\/recipes$/)
-  await expect(page.getByRole('heading', { name: 'レシピ図鑑' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'レシピ', exact: true })).toBeVisible()
   await nav.getByRole('link', { name: 'ホーム' }).click()
   await nav.getByRole('link', { name: 'ノート' }).click()
   await expect(page).toHaveURL(/#\/recipes$/)

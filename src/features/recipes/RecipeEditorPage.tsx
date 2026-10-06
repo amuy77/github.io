@@ -162,12 +162,12 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
       if (recipe) {
         const saved = await update.mutateAsync({ id: recipe.id, patch: row })
         if (oldHero) void deleteUnusedPhotos([oldHero])
-        toast(recipe.status === 'draft' ? '図鑑に載せました！' : '更新しました', 'success')
+        toast(recipe.status === 'draft' ? 'レシピに載せました！' : '更新しました', 'success')
         nav(paths.recipe(saved.id), { replace: true })
       } else {
         const saved = await create.mutateAsync(row)
         celebrateFrom(saveBtn.current)
-        toast('図鑑に登録！', 'success')
+        toast('レシピに登録！', 'success')
         nav(paths.recipe(saved.id), { replace: true })
       }
     } catch (e) {
@@ -289,7 +289,7 @@ function Editor({ recipe, from, initialTab, newPurpose }: { recipe: RecipeRow | 
 
           <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] -mx-4 flex gap-2 border-t border-line bg-oat-50/95 px-4 py-3 backdrop-blur md:bottom-0">
             <Button variant="secondary" onClick={() => requestLeave(() => nav(backTo))} disabled={saving}>やめる</Button>
-            <Button ref={saveBtn} full size="lg" loading={saving} onClick={save}>{recipe ? (recipe.status === 'draft' ? '図鑑に載せる' : '更新する') : '図鑑に登録'}</Button>
+            <Button ref={saveBtn} full size="lg" loading={saving} onClick={save}>{recipe ? (recipe.status === 'draft' ? 'レシピに載せる' : '更新する') : 'レシピに登録'}</Button>
           </div>
         </div>
       )}

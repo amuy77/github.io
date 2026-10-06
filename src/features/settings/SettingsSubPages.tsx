@@ -74,7 +74,7 @@ export function SettingsRulesPage() {
 }
 
 export function SettingsGenresPage() {
-  return <SubPage title="ジャンル" sub="ネタ帳と図鑑で同じものを使います"><GenreManager /></SubPage>
+  return <SubPage title="ジャンル" sub="ネタ帳とレシピで同じものを使います"><GenreManager /></SubPage>
 }
 
 /** 材料の仕入れ値。数が増えたとき用に、名前で探せる */

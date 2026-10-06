@@ -63,7 +63,7 @@ export function SettingsPage() {
           <SettingsRow icon="💡" title="LaRa が覚えたこと" value={rules ? `${rules.length} 件` : undefined} to={paths.settingsRules} />
         </SettingsGroup>
 
-        <SettingsGroup title="ネタ帳・レシピ" footer="ジャンルは、ネタ帳と図鑑で同じものを使います。仕入れ値を入れると、レシピの原価と利益が出ます">
+        <SettingsGroup title="ネタ帳・レシピ" footer="ジャンルは、ネタ帳とレシピで同じものを使います。仕入れ値を入れると、レシピの原価と利益が出ます">
           <SettingsRow icon="🏷️" title="ジャンル" value={genres ? `${genres.length} 個` : undefined} to={paths.settingsGenres} />
           <SettingsRow icon="🧾" title="材料の仕入れ値" value={prices?.ready ? `${prices.rows.length} 品` : undefined} to={paths.settingsPrices} />
         </SettingsGroup>

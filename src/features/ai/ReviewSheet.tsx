@@ -167,7 +167,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
         <Link to={paths.recipeEdit(recipe.id)} onClick={onClose} className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-green-700">材料・手順を直す <IconChevronRight size={14} /></Link>
       </div>
       <Tag className="self-start">あとからいつでも編集できます</Tag>
-      <Footer okLabel="図鑑に載せる" busy={busy} onOk={ok} onLater={later} onDiscard={discard} />
+      <Footer okLabel="レシピに載せる" busy={busy} onOk={ok} onLater={later} onDiscard={discard} />
     </div>
   )
 }
