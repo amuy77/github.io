@@ -98,6 +98,10 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 追加（2026-10-10）: 2 人ともオーナーに
+
+- `20261010000000_both_owners.sql` を **SQL エディタで実行する**。今いるお店のメンバー（侑磨・彩加）を全員オーナーにする。これから登録する人はスタッフのまま。
+
 ## 追加（2026-10-09）: 材料の仕入れ値（原価・粗利）
 
 - マイグレーション `20261009000000_ingredient_prices.sql` を **SQL エディタで実行する**。

@@ -13,3 +13,9 @@ async function listMembers(): Promise<Member[] | null> {
 export function useShopMembers() {
   return useQuery({ queryKey: ['shop-members'], queryFn: listMembers, enabled: isSupabaseConfigured, staleTime: 5 * 60_000 })
 }
+
+/** 自分の呼び名を保存する（表示名は本人だけが変えられる） */
+export async function saveDisplayName(shopId: string, userId: string, displayName: string) {
+  const { error } = await getSupabase().from('shop_members').update({ display_name: displayName }).eq('shop_id', shopId).eq('user_id', userId)
+  if (error) throw error
+}

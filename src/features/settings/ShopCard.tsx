@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { friendlyError } from '@/lib/errors'
-import { getSupabase } from '@/lib/supabase/client'
-import { useShopMembers } from './shopHooks'
+import { saveDisplayName, useShopMembers } from './shopHooks'
 import { useSession } from '@/features/auth/useSession'
 
 /**
@@ -20,10 +19,7 @@ export function ShopCard() {
   const me = members.data?.find((m) => m.user_id === userId)
   const [name, setName] = useState<string | null>(null)
   const save = useMutation({
-    mutationFn: async (display_name: string) => {
-      const { error } = await getSupabase().from('shop_members').update({ display_name }).eq('shop_id', me!.shop_id).eq('user_id', me!.user_id)
-      if (error) throw error
-    },
+    mutationFn: (display_name: string) => saveDisplayName(me!.shop_id, me!.user_id, display_name),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['shop-members'] }); setName(null); toast('呼び名を保存したよ', 'success') },
     onError: (e) => toast(friendlyError(e), 'error'),
   })
@@ -38,12 +34,13 @@ export function ShopCard() {
       <ul className="flex flex-wrap gap-2">
         {members.data.map((m) => (
           <li key={m.user_id} className="rounded-chip border border-line bg-paper px-3 py-1.5 text-[13px] font-bold">
-            {m.display_name || (m.user_id === userId ? 'わたし' : 'メンバー')}{m.role === 'owner' && <span className="ml-1 text-[11px] text-muted">オーナー</span>}{m.user_id === userId && <span className="ml-1 text-[11px] text-green-700">（自分）</span>}
+            {m.display_name || (m.user_id === userId ? 'わたし（名前がまだ）' : '名前がまだの人')}{m.role === 'owner' && <span className="ml-1 text-[11px] text-muted">オーナー</span>}{m.user_id === userId && <span className="ml-1 text-[11px] text-green-700">（自分）</span>}
           </li>
         ))}
       </ul>
+      {members.data.some((m) => !m.display_name) && <p className="text-[13px] text-muted">それぞれ自分の 設定 → プロフィール で呼び名を入れると、ここに名前が出るよ</p>}
       <div className="flex items-end gap-2">
-        <div className="min-w-0 flex-1"><Input label="自分の呼び名" placeholder="例: 侑磨" maxLength={20} value={value} onChange={(e) => setName(e.target.value)} /></div>
+        <div className="min-w-0 flex-1"><Input label="自分の呼び名" placeholder="例: 侑磨" maxLength={20} value={value} onChange={(e) => setName(e.target.value)} autoFocus={!me.display_name} /></div>
         <Button variant="secondary" disabled={name === null || name.trim() === me.display_name} loading={save.isPending} onClick={() => save.mutate((name ?? '').trim())}>保存</Button>
       </div>
     </Card>
