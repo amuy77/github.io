@@ -16,6 +16,8 @@ import { useInsights, useMenuLogs } from './hooks'
 import { genreShares, grossProfit, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
 import { useIngredientPrices } from '@/features/recipes/priceHooks'
 import { recipeCost } from '@/features/recipes/cost'
+import { familyKey, representativeOf } from '@/features/recipes/family'
+import { PrepSheet } from './PrepSheet'
 import { FrequencyRanking, GenreDonut } from './charts'
 import { cx } from '@/lib/cx'
 
@@ -50,6 +52,12 @@ export function MenuStatsPage() {
   const tomorrow = addDays(t, 1)
   const prep = useMemo(() => prepForecast(allLogs.data ?? [], recipes.data ?? [], tomorrow), [allLogs.data, recipes.data, tomorrow])
   const maxDay = Math.max(1, ...weekdays.map((w) => w.avgSold ?? 0))
+  // お店のメニュー（同じ料理の版は代表だけ）。仕込み表で品を足すときの候補
+  const shopMenu = useMemo(() => {
+    const pub = (recipes.data ?? []).filter((r) => r.status === 'published')
+    return [...new Set(pub.map(familyKey))].map((k) => representativeOf(pub.filter((r) => familyKey(r) === k))).filter((r) => r.purpose === 'menu').sort((a, b) => a.title.localeCompare(b.title, 'ja'))
+  }, [recipes.data])
+  const [prepOpen, setPrepOpen] = useState(false)
   const days = logs.data?.length ?? 0
   const latest = insights.data?.[0]
 
@@ -59,20 +67,27 @@ export function MenuStatsPage() {
       <div className="flex flex-col gap-4">
         <SegmentedTabs value={period} onChange={setPeriod} options={[{ value: 'week', label: '今週' }, { value: 'month', label: '今月' }, { value: '4w', label: '4週間' }]} />
 
-        {prep.length > 0 && (
+        {shopMenu.length > 0 && (
           <Card className="flex flex-col gap-2">
-            <SectionTitle className="mt-0" count={`${formatMD(tomorrow)}`}>明日の仕込みの目安</SectionTitle>
-            <p className="text-xs text-muted">同じ曜日の、これまでの売れた数の平均だよ（{prep[0].samples} 回分）</p>
-            <ul className="flex flex-col divide-y divide-dashed divide-line">
-              {prep.map((p) => (
-                <li key={p.recipe.id} className="flex items-center gap-2 py-2 text-[14px]">
-                  <Link to={paths.recipe(p.recipe.id)} className="min-w-0 flex-1 truncate font-bold">{p.recipe.title}</Link>
-                  <span className="tabular-nums">約 <b className="text-[16px]">{Math.round(p.avg)}</b> 個</span>
-                </li>
-              ))}
-            </ul>
+            <SectionTitle className="mt-0" count={`${formatMD(tomorrow)}`}>明日の仕込み</SectionTitle>
+            {prep.length > 0 ? (
+              <>
+                <p className="text-xs text-muted">同じ曜日の、これまでの売れた数の平均だよ（{prep[0].samples} 回分）</p>
+                <ul className="flex flex-col divide-y divide-dashed divide-line">
+                  {prep.map((p) => (
+                    <li key={p.recipe.id} className="flex items-center gap-2 py-2 text-[14px]">
+                      <Link to={paths.recipe(p.recipe.id)} className="min-w-0 flex-1 truncate font-bold">{p.recipe.title}</Link>
+                      <span className="tabular-nums">約 <b className="text-[16px]">{Math.round(p.avg)}</b> 個</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : <p className="text-xs text-muted">売れた数の記録がたまると、同じ曜日の平均から目安が出るよ。今は作る数を自分で決めて作れるよ</p>}
+            <Button variant="secondary" onClick={() => setPrepOpen(true)}>📝 仕込み表・買い物リスト</Button>
           </Card>
         )}
+        <PrepSheet open={prepOpen} onClose={() => setPrepOpen(false)} date={tomorrow} menu={shopMenu}
+          initial={prep.map((p) => ({ recipe: p.recipe, count: Math.max(1, Math.ceil(p.avg)) }))} />
 
         {loading ? <Skeleton className="h-48" /> : days === 0 ? (
           <EmptyState emoji="📊" title="この期間の記録がありません" body="メニューを記録すると、ジャンルの構成比や人気の品がここに出ます。" action={<Link to={paths.menuDay(t)} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">今日を記録する</Link>} />

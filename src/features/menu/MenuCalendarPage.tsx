@@ -47,7 +47,7 @@ export function MenuCalendarPage() {
   return (
     <>
       <PageHeader title="きろく" sub={`${formatYM(month)} ・ ${loggedDays}日分`}
-        actions={<Link to={paths.menuStats} className="inline-flex h-9 items-center gap-1 rounded-chip border border-line bg-paper px-3 text-[13px] font-bold"><IconChart size={16} /> 分析</Link>} />
+        actions={<Link to={paths.menuStats} className="inline-flex h-9 items-center gap-1 rounded-chip border border-line bg-paper px-3 text-[13px] font-bold"><IconChart size={16} /> 分析・仕込み</Link>} />
       <div className="flex flex-col gap-4">
         <MascotSays mood={todayLogged ? 'happy' : 'idle'}>{todayLogged ? '今日の記録、ばっちり。' : '今日は何を出した？タップで記録できるよ。'}</MascotSays>
         {!todayLogged && <Button size="lg" full icon={<IconPlus />} onClick={() => nav(paths.menuDay(t))}>今日を記録する</Button>}
