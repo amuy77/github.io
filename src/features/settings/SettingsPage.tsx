@@ -46,7 +46,10 @@ export function SettingsPage() {
         <Link to={paths.settingsProfile} className="flex items-center gap-3 rounded-card border border-line bg-paper p-4 shadow-card active:bg-oat-50" aria-label="プロフィール">
           <Mascot size={52} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-display text-[19px] font-bold">{me?.display_name || 'わたし'}</span>
+            {/* お店のメンバーで呼び名がまだなら、入れてもらうよう知らせる */}
+            {me && !me.display_name
+              ? <span className="block truncate text-[17px] font-bold text-green-700">呼び名を入れてね</span>
+              : <span className="block truncate font-display text-[19px] font-bold">{me?.display_name || 'わたし'}</span>}
             <span className="block truncate text-[13px] text-muted">{me ? `🏠 ${me.shops?.name ?? 'お店'} ・ ${me.role === 'owner' ? 'オーナー' : 'スタッフ'}` : user?.email ?? ''}</span>
           </span>
           <IconChevronRight size={18} className="shrink-0 text-muted" aria-hidden />

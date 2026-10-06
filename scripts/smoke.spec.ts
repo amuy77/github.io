@@ -1588,3 +1588,38 @@ test('stage3: the 3D shop has this month\'s decoration and grows decorations wit
   await page.waitForTimeout(800)
   await page.screenshot({ path: `screenshots/${info.project.name}-home-season.png` })
 })
+
+test('settings: a member without a name is easy to spot, and the guide asks for your name', async ({ page }) => {
+  await stubSupabase(page)
+  const patches: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/shop_members')) patches.push(r.postDataJSON()) })
+  // 自分の呼び名がまだ（彩加さんが登録したばかりのとき）
+  const rows = [
+    { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: USER_ID, role: 'owner', display_name: '', created_at: ts(30), shops: { name: 'LaRa' } },
+    { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: 'u2000000-0000-4000-8000-000000000002', role: 'owner', display_name: '侑磨', created_at: ts(20), shops: { name: 'LaRa' } },
+  ]
+  await page.route(`https://${REF}.supabase.co/rest/v1/shop_members**`, (route) => route.request().method() === 'GET'
+    ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) })
+    : route.fulfill({ status: 204, body: '' }))
+  await page.goto('#/settings')
+  await expect(page.getByRole('link', { name: 'プロフィール' })).toContainText('呼び名を入れてね')
+  await page.getByRole('link', { name: 'プロフィール' }).click()
+  await expect(page.getByText('わたし（名前がまだ）')).toBeVisible()
+  await expect(page.getByText(/呼び名を入れると、ここに名前が出るよ/)).toBeVisible()
+  await expect(page.getByLabel('自分の呼び名')).toBeFocused()
+
+  // はじめての案内: 2 枚目で呼び名を聞いて、保存する
+  await page.evaluate(() => sessionStorage.setItem('lara.smoke.keepOnboarding', '1'))
+  await page.evaluate(() => localStorage.removeItem('lara.onboarded'))
+  await page.goto('#/')
+  const guide = page.getByRole('dialog', { name: 'LaRa の使い方' })
+  await guide.getByRole('button', { name: 'つぎへ' }).click()
+  await expect(guide.getByText('なんて呼んだらいい？')).toBeVisible()
+  await guide.getByLabel('呼び名').fill('彩加')
+  await guide.getByRole('button', { name: 'つぎへ' }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0]).toEqual({ display_name: '彩加' })
+  await expect(guide.getByText('彩加 さん、よろしくね！')).toBeVisible()
+  await expect(guide.getByLabel('2 / 5')).toHaveCount(0)
+  await expect(guide.getByLabel('3 / 5')).toBeVisible()
+})
