@@ -27,11 +27,11 @@ const KIND_LABEL: Record<AiJobRow['kind'], string> = { recipe_from_image: '📷 
 
 type ReviewItem = { kind: 'clip'; clip: ClipRow; at: string } | { kind: 'recipe'; recipe: RecipeRow; at: string }
 const STATUS: Record<AiJobRow['status'], { label: string; cls: string }> = {
-  pending: { label: '順番待ち', cls: 'bg-mustard-300/40 text-mustard-500' },
-  processing: { label: '処理中', cls: 'bg-green-600/15 text-green-700' },
-  done: { label: '完了', cls: 'bg-oat-100 text-muted' },
-  failed: { label: '失敗', cls: 'bg-brick-500/15 text-brick-500' },
-  cancelled: { label: '取り消し', cls: 'bg-oat-100 text-muted' },
+  pending: { label: 'まだ読んでない', cls: 'bg-mustard-300/40 text-mustard-500' },
+  processing: { label: '読んでるよ', cls: 'bg-green-600/15 text-green-700' },
+  done: { label: '読めたよ', cls: 'bg-oat-100 text-muted' },
+  failed: { label: '読めなかった', cls: 'bg-brick-500/15 text-brick-500' },
+  cancelled: { label: 'やめた', cls: 'bg-oat-100 text-muted' },
 }
 
 export function InboxPage() {
@@ -71,7 +71,7 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="受信トレイ" sub={`LaRa が ${WORKER_SCHEDULE_LABEL}に見に来るよ（次は ${nextWorkerTime()} ごろ）`} />
+      <PageHeader title="トレイ" back={paths.home} sub={`LaRa が ${WORKER_SCHEDULE_LABEL}に見に来るよ（次は ${nextWorkerTime()} ごろ）`} />
       <div className="flex flex-col gap-4">
         {reviews.length > 0 ? (
           <MascotSays mood="party">{reviews.length} 件読んでおいたよ！タップして中身を確認してね。</MascotSays>
@@ -100,7 +100,7 @@ export function InboxPage() {
             {active.length > 0 && (
               <section className="flex flex-col gap-2">
                 <SectionTitle count={`${active.length}件`}>トレイの中</SectionTitle>
-                {active.map((j) => <JobRow key={j.id} job={j} onCancel={() => cancel.mutate(j.id, { onSuccess: () => toast('取り消したよ', 'info', { action: { label: '元に戻す', onClick: () => retry.mutate(j.id) } }) })} onRetry={() => retry.mutate(j.id)} />)}
+                {active.map((j) => <JobRow key={j.id} job={j} onCancel={() => cancel.mutate(j.id, { onSuccess: () => toast('読むのをやめたよ', 'info', { action: { label: '元に戻す', onClick: () => retry.mutate(j.id) } }) })} onRetry={() => retry.mutate(j.id)} />)}
               </section>
             )}
 
@@ -168,8 +168,8 @@ function JobRow({ job, onCancel, onRetry, onOpenResult }: { job: AiJobRow; onCan
         {answer && <p className="mt-2 whitespace-pre-wrap rounded-[10px] bg-oat-50 px-3 py-2 text-[13px] leading-relaxed text-espresso-900">{answer}</p>}
       </div>
       <Tag className={cx('border-0', st.cls)}>{st.label}</Tag>
-      {(job.status === 'pending' || stuck) && onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>取消</Button>}
-      {(job.status === 'failed' || stuck) && onRetry && <Button size="sm" variant="secondary" onClick={onRetry}>再試行</Button>}
+      {(job.status === 'pending' || stuck) && onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>やめる</Button>}
+      {(job.status === 'failed' || stuck) && onRetry && <Button size="sm" variant="secondary" onClick={onRetry}>もう一度</Button>}
     </Card>
   )
 }

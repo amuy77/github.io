@@ -4,7 +4,9 @@ import { PageHeader } from '@/components/ui/Page'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
-import { IconBook, IconBulb, IconCamera, IconClipboard, IconImage, IconLink, IconNote, IconSparkles, IconX } from '@/components/ui/icons'
+import { IconBook, IconCamera, IconChevronRight, IconClipboard, IconEdit, IconImage, IconSparkles, IconX } from '@/components/ui/icons'
+import { Confirm } from '@/components/ui/Sheet'
+import { today } from '@/lib/dates'
 import { useToast } from '@/components/ui/Toast'
 import { friendlyError } from '@/lib/errors'
 import { MascotSays } from '@/components/mascot/Mascot'
@@ -27,8 +29,8 @@ function draftFromText(text: string, title = ''): ClipDraft {
 type Pending = { file: File; url: string }
 
 /**
- * 「＋」の入口。写真 / URL / メモ / ひらめき / レシピ。
- * 写真は AI に渡すのが既定（ネタ帳かレシピかを AI が判断して保存する）。
+ * 「＋」の入口。何を足すかで 3 つ: ネタ（撮る／書く）・お店・今日を記録。
+ * 写真は LaRa に渡す（ネタ帳かレシピかを LaRa が決めて保存し、トレイで確認）。
  * iOS ショートカットからは #/add?url=…&text=… で開かれる。
  */
 export function QuickAddPage() {
@@ -45,6 +47,7 @@ export function QuickAddPage() {
   const [photos, setPhotos] = useState<Pending[]>([])
   const [hint, setHint] = useState('')
   const [sending, setSending] = useState(false)
+  const [askClear, setAskClear] = useState(false)
   const cam = useRef<HTMLInputElement>(null)
   const lib = useRef<HTMLInputElement>(null)
 
@@ -76,7 +79,7 @@ export function QuickAddPage() {
       for (const p of photos) refs.push(await uploadPhoto(p.file, userId))
       await enqueue.mutateAsync({ kind: 'auto_from_image', payload: { images: refs, image_paths: refs.map((r) => r.path), hint: hint.trim() || undefined } })
       clearPhotos()
-      toast(`受け取ったよ！${nextWorkerTime()} ごろ、トレイに届くね`, 'success')
+      toast(`受け取ったよ！${nextWorkerTime()} ごろに読んで、トレイに届けるね`, 'success')
       nav(paths.inbox, { replace: true })
     } catch (e) {
       toast(friendlyError(e, '送れませんでした'), 'error')
@@ -88,60 +91,66 @@ export function QuickAddPage() {
   /** AI を使わず、いつものネタ帳フォームで書く */
   const writeMyself = () => { const files = photos.map((p) => p.file); clearPhotos(); setDraft({ type: 'photo', files }) }
 
-  type ActionId = 'camera' | 'library' | 'paste' | 'note' | 'idea' | 'recipe'
+  type ActionId = 'camera' | 'library' | 'paste' | 'note' | 'recipe'
   const handle = (id: ActionId) => {
     switch (id) {
       case 'camera': cam.current?.click(); break
       case 'library': lib.current?.click(); break
       case 'paste': void paste(); break
       case 'note': setDraft({ type: 'note' }); break
-      case 'idea': setDraft({ type: 'idea' }); break
       case 'recipe': nav(paths.recipeNew); break
     }
   }
-  // 大きく出す 2 つ（撮る・書く）
-  const MAIN: ActionId[] = ['camera', 'note']
   const actions: { id: ActionId; icon: React.ReactNode; label: string; sub: string; color: string }[] = [
-    { id: 'camera', icon: <IconCamera />, label: '撮る', sub: '撮るだけ。あとは LaRa が仕分け', color: 'bg-brick-500 text-white' },
-    { id: 'library', icon: <IconImage />, label: '写真から選ぶ', sub: 'スクショやカメラロール。LaRa が仕分け', color: 'bg-mustard-400 text-espresso-900' },
+    { id: 'library', icon: <IconImage />, label: '写真から選ぶ', sub: 'スクショやカメラロール。LaRa が読む', color: 'bg-mustard-400 text-espresso-900' },
     { id: 'paste', icon: <IconClipboard />, label: 'クリップボードから', sub: 'Instagram の「リンクをコピー」の後に', color: 'bg-plum-400 text-white' },
-    { id: 'note', icon: <IconLink />, label: '書く', sub: 'メモやリンク', color: 'bg-green-600 text-white' },
-    { id: 'idea', icon: <IconBulb />, label: 'ひらめき', sub: '新メニューの種、思いつき', color: 'bg-[#FFF2C2] text-espresso-900' },
     { id: 'recipe', icon: <IconBook />, label: 'レシピを作る', sub: '手入力・テキスト貼り付け', color: 'bg-wood-300 text-espresso-900' },
   ]
+  const big = 'flex h-[72px] flex-1 flex-col items-center justify-center gap-1 rounded-card text-center shadow-card active:scale-[0.98]'
 
   return (
     <>
-      <PageHeader title="すぐメモ" back={paths.home} />
+      <PageHeader title="足す" back={paths.home} />
       <input ref={cam} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={onFiles} />
       <input ref={lib} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={onFiles} />
       <div className="flex flex-col gap-4">
-        <MascotSays mood="happy">何を残しておく？写真なら、撮るだけで OK だよ。</MascotSays>
-        {/* よく使う 2 つは大きく。ほかの方法は小さく並べる（隠さない） */}
-        <div className="grid grid-cols-2 gap-3">
-          {actions.filter((x) => MAIN.includes(x.id)).map((a) => (
-            <button key={a.id} type="button" onClick={() => handle(a.id)} className={cx('flex h-36 flex-col items-center justify-center gap-2 rounded-card px-3 text-center shadow-card active:scale-[0.98]', a.color)}>
-              <span className="[&>svg]:size-9">{a.icon}</span>
-              <span className="text-[17px] font-bold">{a.label}</span>
-              <span className="text-[11px] leading-snug opacity-85">{a.sub}</span>
+        <MascotSays mood="happy">何を足す？</MascotSays>
+        {/* 「何を足すか」で 3 つ。ネタは撮る／書くの 2 つのボタン、お店と記録はそれぞれの画面へ */}
+        <section className="flex flex-col gap-2 rounded-card border border-line bg-paper p-3 shadow-card" aria-label="ネタ">
+          <p className="text-[16px] font-bold">📌 ネタ</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => handle('camera')} className={cx(big, 'bg-brick-500 text-white')}>
+              <IconCamera /><span className="text-[15px] font-bold">撮る</span><span className="text-[11px] opacity-85">LaRa が読んでトレイへ</span>
             </button>
-          ))}
-        </div>
+            <button type="button" onClick={() => handle('note')} className={cx(big, 'bg-green-600 text-white')}>
+              <IconEdit /><span className="text-[15px] font-bold">書く</span><span className="text-[11px] opacity-85">そのままネタ帳へ</span>
+            </button>
+          </div>
+        </section>
+        <button type="button" onClick={() => nav(`${paths.places}?add=1`)} className="flex min-h-[64px] items-center gap-3 rounded-card border border-line bg-paper px-4 py-3 text-left shadow-card active:scale-[0.98]">
+          <span className="text-[26px]" aria-hidden>📍</span>
+          <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold">お店</span><span className="block text-[12px] text-muted">行って気に入ったお店を、Google マップのリンクで</span></span>
+          <IconChevronRight size={18} className="text-muted" />
+        </button>
+        <button type="button" onClick={() => nav(paths.menuDay(today()))} className="flex min-h-[64px] items-center gap-3 rounded-card border border-line bg-paper px-4 py-3 text-left shadow-card active:scale-[0.98]">
+          <span className="text-[26px]" aria-hidden>🗓️</span>
+          <span className="min-w-0 flex-1"><span className="block text-[16px] font-bold">今日を記録</span><span className="block text-[12px] text-muted">今日出したメニューにチェック</span></span>
+          <IconChevronRight size={18} className="text-muted" />
+        </button>
         <section className="flex flex-col gap-2" aria-label="ほかの方法">
-          <p className="text-[13px] font-bold text-espresso-700">ほかの方法</p>
+          <p className="text-[13px] font-bold text-muted">ほかの方法</p>
           <div className="grid grid-cols-2 gap-2">
-            {actions.filter((x) => !MAIN.includes(x.id)).map((a) => (
-              <button key={a.id} type="button" onClick={() => handle(a.id)} className="flex min-h-14 items-center gap-2 rounded-[14px] border border-line bg-paper px-3 py-2 text-left active:scale-[0.98]">
+            {actions.map((a) => (
+              <button key={a.id} type="button" onClick={() => handle(a.id)} className="flex min-h-14 items-center gap-2 rounded-card border border-line bg-paper px-3 py-2 text-left active:scale-[0.98]">
                 <span className={cx('grid size-9 shrink-0 place-items-center rounded-full [&>svg]:size-5', a.color)}>{a.icon}</span>
                 <span className="min-w-0"><span className="block text-[14px] font-bold leading-tight">{a.label}</span><span className="block truncate text-[11px] text-muted">{a.sub}</span></span>
               </button>
             ))}
           </div>
         </section>
-        <p className="text-center text-xs text-muted"><IconNote size={12} className="inline" /> iPhone の「写真からテキストをコピー」→「クリップボードから」で、手書きメモも読み込めるよ</p>
       </div>
 
-      <Sheet open={photos.length > 0} onClose={() => { if (!sending) clearPhotos() }} title="写真を LaRa に渡す">
+      <Sheet open={photos.length > 0} onClose={() => { if (!sending) setAskClear(true) }} title="写真を LaRa に渡す">
         <div className="flex flex-col gap-4 pb-2">
           <MascotSays mood="thinking">レシピなら下書きカードに、他店のメニューやラベルならネタ帳に。読み取った名前とメモも付けておくね。</MascotSays>
           <div className="grid grid-cols-3 gap-2">
@@ -164,6 +173,7 @@ export function QuickAddPage() {
         </div>
       </Sheet>
 
+      <Confirm open={askClear} onClose={() => setAskClear(false)} title="写真をやめる？" body="選んだ写真は送らないよ。" confirmLabel="やめる" danger onConfirm={() => { setAskClear(false); clearPhotos() }} />
       <ClipEditorSheet open={!!draft} onClose={() => setDraft(null)} draft={draft ?? undefined} onSaved={(c) => nav(paths.clip(c.id), { replace: true })} />
     </>
   )

@@ -28,7 +28,7 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
     { to: paths.clips, em: '📌', name: 'ネタ帳', n: counts.clips, accent: 'mustard' as const },
     { to: paths.recipes, em: '📖', name: 'レシピ', n: counts.recipes, accent: 'green' as const },
     { to: paths.menu, em: '🗓️', name: 'きろく', n: counts.menuLogs, accent: 'brick' as const },
-    { to: paths.inbox, em: '📬', name: '受信トレイ', n: counts.inbox, accent: 'plum' as const },
+    { to: paths.inbox, em: '📬', name: 'トレイ', n: counts.inbox, accent: 'plum' as const },
   ]
   const nav = useNavigate()
   const [talking, setTalking] = useState(false)

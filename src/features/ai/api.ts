@@ -6,13 +6,18 @@ export const WORKER_FIRST_HOUR = 8
 export const WORKER_LAST_HOUR = 23
 export const WORKER_SCHEDULE_LABEL = `${WORKER_FIRST_HOUR}:00〜${WORKER_LAST_HOUR}:00 の毎時`
 
-/** 次に定期処理が動く時刻（日本時間）。例: 「15:00」「明日の 8:00」 */
-export function nextWorkerTime(now = new Date()): string {
+/** 「直してもらう」（redo）はじっくり読む担当（毎時 20 分）が拾う */
+export const WORKER_REDO_MINUTE = 20
+
+/** 次に定期処理が動く時刻（日本時間）。例: 「15:00」「明日の 8:00」。minute を渡すと毎時その分の回（直してもらう = 20 分） */
+export function nextWorkerTime(now = new Date(), minute = 0): string {
   const jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60_000)
   const h = jst.getHours()
-  if (h < WORKER_FIRST_HOUR) return `${WORKER_FIRST_HOUR}:00`
-  if (h >= WORKER_LAST_HOUR) return `明日の ${WORKER_FIRST_HOUR}:00`
-  return `${h + 1}:00`
+  const mm = String(minute).padStart(2, '0')
+  if (h < WORKER_FIRST_HOUR) return `${WORKER_FIRST_HOUR}:${mm}`
+  if (h >= WORKER_LAST_HOUR && !(minute > 0 && h === WORKER_LAST_HOUR && jst.getMinutes() < minute)) return `明日の ${WORKER_FIRST_HOUR}:${mm}`
+  if (minute > 0 && jst.getMinutes() < minute) return `${h}:${mm}`
+  return `${h + 1}:${mm}`
 }
 
 export interface RecipeFromImagePayload { image_paths: string[]; hint?: string; genre_id?: string | null; clip_id?: string | null }

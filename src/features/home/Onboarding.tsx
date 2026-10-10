@@ -14,7 +14,7 @@ type Step = { emoji: string; title: string; body: string }
 const NAME_STEP: Step = { emoji: '✏️', title: 'なんて呼んだらいい？', body: 'お店のメンバーに出る名前だよ。あとから設定でも変えられるよ' }
 const STEPS: Step[] = [
   { emoji: '👋', title: 'はじめまして、LaRa だよ', body: 'お店のことを、いっしょに覚えていく係だよ。気になったこと、レシピ、毎日のメニューを残していこう。' },
-  { emoji: '📷', title: '下の「＋」で、撮るだけ', body: '気になるメニューやレシピは写真を撮るだけで OK。LaRa が読んで、ネタ帳かレシピかに仕分けするよ。' },
+  { emoji: '📷', title: '下の「＋」→「ネタ」→「撮る」', body: '気になるメニューやレシピは写真を撮るだけで OK。LaRa が読んで、ネタ帳かレシピかに仕分けするよ。' },
   { emoji: '📬', title: 'トレイで「OK」したら完成', body: '読み終わったら郵便受け（トレイ）に届くよ。中身を見て OK を押すと、ノートに入るよ。' },
   { emoji: '🗓️', title: '「きろく」で今日を記録', body: 'お店で出したメニューにチェックするだけ。続けると、売れ方や明日の仕込みの目安がわかるようになるよ。右上の 📅 で予定も見られるよ。' },
 ]
@@ -49,7 +49,8 @@ export function Onboarding() {
           <Mascot size={96} mood={i === 0 || saved ? 'happy' : 'idle'} />
           <span className="absolute -right-3 -top-1 text-[30px]" aria-hidden>{s.emoji}</span>
         </div>
-        <p className="text-[19px] font-bold">{s === STEPS[1] && saved ? `${saved} さん、よろしくね！` : s.title}</p>
+        {s === STEPS[1] && saved && <p className="text-[15px] font-bold text-green-700">{saved} さん、よろしくね！</p>}
+        <p className="text-[19px] font-bold">{s.title}</p>
         {s === NAME_STEP ? (
           <div className="flex w-full max-w-[28ch] flex-col gap-2">
             <p className="text-[15px] leading-relaxed text-espresso-700">{s.body}</p>

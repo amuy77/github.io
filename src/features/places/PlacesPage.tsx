@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 import { PageHeader, EmptyState, Skeleton, SegmentedTabs } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
@@ -6,6 +7,7 @@ import { IconPlus, IconSearch } from '@/components/ui/icons'
 import { FilterButton, FilterGroup } from '@/components/ui/FilterSheet'
 import { SortSelect, sortRows, type SortKey } from '@/components/ui/SortSelect'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
+import { paths } from '@/app/routes'
 import { usePlaces } from './hooks'
 import { PlaceListRow } from './PlaceListRow'
 import { PlaceEditorSheet } from './PlaceEditorSheet'
@@ -33,7 +35,11 @@ export function PlacesPage() {
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* private mode */ } }
   const [f, setF] = useState<Filter>(readFilter)
   const set = (patch: Partial<Filter>) => setF((cur) => { const next = { ...cur, ...patch }; try { sessionStorage.setItem(FILTER_KEY, JSON.stringify(next)) } catch { /* 覚えられなくても使える */ } return next })
-  const [adding, setAdding] = useState(false)
+  // ＋ → お店 から来たとき（?add=1）は、追加の画面を開いた状態で始める
+  const [params] = useSearchParams()
+  const nav = useNavigate()
+  const [adding, setAdding] = useState(params.get('add') === '1')
+  const closeAdd = () => { setAdding(false); if (params.get('add')) nav(paths.places, { replace: true }) }
   const [selected, setSelected] = useState<string | null>(null)
 
   const all = useMemo(() => places.data?.rows ?? [], [places.data])
@@ -118,7 +124,7 @@ export function PlacesPage() {
           </>
         )}
       </div>
-      <PlaceEditorSheet open={adding} onClose={() => setAdding(false)} />
+      <PlaceEditorSheet open={adding} onClose={closeAdd} />
     </>
   )
 }

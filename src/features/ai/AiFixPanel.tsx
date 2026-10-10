@@ -7,7 +7,7 @@ import { friendlyError } from '@/lib/errors'
 import { IconSparkles } from '@/components/ui/icons'
 import type { ImageRef } from '@/lib/supabase/database.types'
 import { useEnqueueJob } from './hooks'
-import { nextWorkerTime } from './api'
+import { nextWorkerTime, WORKER_REDO_MINUTE } from './api'
 import { cx } from '@/lib/cx'
 
 type Target = { type: 'clip'; id: string; images: ImageRef[] } | { type: 'recipe'; id: string; images: ImageRef[] }
@@ -48,7 +48,7 @@ export function AiFixPanel({ target, onSent, compact, collapsible }: { target: T
           ...(remember ? {} : { no_learn: true }),
         },
       })
-      toast(`LaRa に頼んだよ。${nextWorkerTime()} ごろ直して、トレイに届けるね`, 'success')
+      toast(`LaRa に頼んだよ。${nextWorkerTime(new Date(), WORKER_REDO_MINUTE)} ごろ直して、トレイに届けるね`, 'success')
       setText('')
       onSent?.()
     } catch (e) {

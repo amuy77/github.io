@@ -204,7 +204,7 @@ test('3D home: tapping each piece of furniture opens its card', async ({ page },
   await page.evaluate(() => (window as unknown as { __lara: { setResident(v: boolean): void } }).__lara.setResident(false))
   const cards: [string, string][] = [
     ['inbox', 'LaRa が読んだものが届く場所'], ['recipes', 'ジャンル別のレシピカード'], ['menu', '今日出したメニューの記録と、週・月のふりかえり'],
-    ['clips', '気になったお店・SNS・ワインやビールのメモ'], ['add', 'ひらめき・URL・写真をサッと保存'],
+    ['clips', '気になったお店・SNS・ワインやビールのメモ'], ['add', 'ネタ・お店・今日の記録'],
   ]
   for (const [id, sub] of cards) {
     const pos = await page.evaluate((id) => (window as unknown as { __lara: { debugHotspotScreenPos(h: string): { x: number; y: number } | null } }).__lara.debugHotspotScreenPos(id), id)
@@ -346,8 +346,12 @@ test('inbox shows LaRa results and the review sheet takes a 3-step rating', asyn
   await page.goto('#/inbox')
   await expect(page.getByRole('heading', { name: '確認待ち' })).toBeVisible()
   await page.getByText('ピスタチオラテ ¥720').click()
-  const dialog = page.getByRole('dialog')
+  const dialog = page.getByRole('dialog', { name: /これでいい/ })
   await expect(dialog).toBeVisible()
+  // 最初に見えるのは写真・名前・OK だけ。★や種類は「直す」を押したときだけ
+  await expect(dialog.getByRole('radio')).toHaveCount(0)
+  await expect(dialog.getByLabel('名前')).toHaveValue('ピスタチオラテ ¥720')
+  await dialog.getByRole('button', { name: /直す/ }).click()
   // 表の画面は 3 段階。「保留」ボタンは無く、同じ★をもう一度押しても消えない
   await expect(dialog.getByRole('radio')).toHaveCount(3 + 2)   // ★ 3 つ ＋ どっちのネタ？ の 2 つ
   await expect(dialog.getByRole('button', { name: '保留' })).toHaveCount(0)
@@ -362,6 +366,7 @@ test('inbox shows LaRa results and the review sheet takes a 3-step rating', asyn
   await page.screenshot({ path: `screenshots/${info.project.name}-review-clip.png` })
   await dialog.getByRole('button', { name: '閉じる' }).click()
   await page.getByText('ハムチーズクロワッサン').click()
+  await page.getByRole('dialog').getByRole('button', { name: /直す/ }).click()
   await expect(page.getByRole('dialog').getByText('同じ料理のレシピはもうある？')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-review-recipe.png` })
 })
@@ -404,6 +409,7 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   await page.goto('#/inbox')
   await page.getByText('ピスタチオラテ ¥720').click()
   const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: /直す/ }).click()
   await dialog.getByRole('button', { name: /読み取りが違う？/ }).click()
   await dialog.getByRole('button', { name: /1つずつ文字起こししてレシピとして保存して/ }).click()
   await page.screenshot({ path: `screenshots/${info.project.name}-ai-fix.png` })
@@ -621,6 +627,7 @@ test('clips: うちでやりたい is a chip next to the genres (no kind tabs), 
   await page.goto('#/inbox')
   await page.getByText('ピスタチオラテ ¥720').click()
   const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: /直す/ }).click()
   await dialog.getByRole('radio', { name: /うちでやりたい/ }).click()
   await dialog.getByRole('switch', { name: /お気に入り/ }).click()
   await page.screenshot({ path: `screenshots/${info.project.name}-review-clip-purpose.png` })
@@ -654,7 +661,7 @@ test('home talk: LaRa turns around and answers in her bubble, and a consult is h
   await expect(bubble.getByText(/「BLT」.*見つけた/)).toBeVisible()
   await expect(bubble.getByRole('button', { name: /BLT サンド/ }).first()).toBeVisible()
   await page.getByRole('button', { name: '確認待ちある？' }).click()
-  await expect(bubble.getByRole('button', { name: '受信トレイを開く →' })).toBeVisible()
+  await expect(bubble.getByRole('button', { name: 'トレイを開く →' })).toBeVisible()
   await box.fill('BLT の味をもっと良くしたい')
   await box.press('Enter')
   await bubble.getByRole('button', { name: '預ける' }).click()
@@ -675,7 +682,7 @@ test('home talk: LaRa turns around and answers in her bubble, and a consult is h
   // 返事のボタンを押すと、その画面へ
   await page.getByRole('button', { name: 'LaRa に聞く' }).click()
   await page.getByRole('button', { name: '確認待ちある？' }).click()
-  await bubble.getByRole('button', { name: '受信トレイを開く →' }).click()
+  await bubble.getByRole('button', { name: 'トレイを開く →' }).click()
   await expect(page).toHaveURL(/#\/inbox$/)
 })
 
@@ -698,12 +705,12 @@ test('home talk: the easygoing voice still says the facts (counts, names, button
   // 確認待ち: その件数が、のんきな口調の中にもそのまま入る
   await ask('確認待ちある？')
   await expect(bubble.getByText(new RegExp(`確認待ち.*${inbox} 件`))).toBeVisible()
-  await expect(bubble.getByRole('button', { name: '受信トレイを開く →' })).toBeVisible()
+  await expect(bubble.getByRole('button', { name: 'トレイを開く →' })).toBeVisible()
   // おすすめ: ★がいちばん高いお店のメニューの名前と、そのボタン
   await ask('おすすめ教えて')
   await expect.poll(async () => {
     const top = (await bubble.getByRole('button').first().textContent())?.replace(/ →$/, '')
-    return !!top && top !== '受信トレイを開く' && !!(await bubble.locator('p').last().textContent())?.includes(`「${top}」`)
+    return !!top && top !== 'トレイを開く' && !!(await bubble.locator('p').last().textContent())?.includes(`「${top}」`)
   }).toBe(true)
   // 探す: 見つからないときも、探した言葉を言う
   await ask('ドリアンある？')
@@ -960,7 +967,7 @@ test('safe: retrying a failed job resets attempts, and a stuck job can be retrie
     : route.fallback())
   await page.goto('#/inbox')
   await expect(page.getByText('止まってるみたい')).toBeVisible()
-  const retries = page.getByRole('button', { name: '再試行' })
+  const retries = page.getByRole('button', { name: 'もう一度' })
   await expect(retries).toHaveCount(2)
   await retries.first().click()
   await expect.poll(() => patches.length).toBe(1)
@@ -1313,7 +1320,7 @@ test('home: the bottom has only 聞く and 今日を記録 as separate buttons, 
 test('step0: the screens talk without developer words, and the record tab is called きろく', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/inbox')
-  await expect(page.getByRole('heading', { name: '受信トレイ' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'トレイ', level: 1 })).toBeVisible()
   await expect(page.getByText(/Claude|Opus|Sonnet|Routine|API 料金/)).toHaveCount(0)
   await page.goto('#/add')
   await expect(page.getByText(/Claude|Opus|Routine/)).toHaveCount(0)
@@ -1421,13 +1428,42 @@ test('stage1: list filters live in one しぼりこみ sheet with a badge', asyn
   await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toBeVisible()
 })
 
-test('stage1: ＋ has two big buttons and the other ways below', async ({ page }) => {
+test('theme3: ＋ asks what to add (ネタ・お店・今日を記録), and the other ways sit below', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/add')
-  await expect(page.getByRole('button', { name: /^撮る/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^書く/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '足す' })).toBeVisible()
+  const neta = page.getByRole('region', { name: 'ネタ' })
+  await expect(neta.getByRole('button', { name: /^撮る/ })).toBeVisible()
+  await expect(neta.getByRole('button', { name: /^書く/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^お店/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^今日を記録/ })).toBeVisible()
   const others = page.getByRole('region', { name: 'ほかの方法' })
-  for (const n of ['写真から選ぶ', 'クリップボードから', 'ひらめき', 'レシピを作る']) await expect(others.getByRole('button', { name: new RegExp(n) })).toBeVisible()
+  for (const n of ['写真から選ぶ', 'クリップボードから', 'レシピを作る']) await expect(others.getByRole('button', { name: new RegExp(n) })).toBeVisible()
+  await expect(page.getByRole('button', { name: /ひらめき/ })).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-add.png`, fullPage: true })
+  // お店 → お店の追加の画面がすぐ開く。今日を記録 → 今日の記録
+  await page.getByRole('button', { name: /^お店/ }).click()
+  await expect(page.getByRole('dialog', { name: '気に入ったお店を追加' })).toBeVisible()
+  await page.getByRole('button', { name: 'やめる' }).click()
+  await expect(page).toHaveURL(/#\/places$/)
+  await page.goto('#/add')
+  await page.getByRole('button', { name: /^今日を記録/ }).click()
+  await expect(page).toHaveURL(new RegExp(`#/menu/${iso(daysAgo(0))}$`))
+})
+
+test('theme3: closing the tray sheet after editing keeps the edit as あとで, and the tray words are LaRa\'s', async ({ page }) => {
+  await stubSupabase(page)
+  const patches: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/clips')) patches.push(r.postDataJSON()) })
+  await page.goto('#/inbox')
+  await expect(page.getByText(/順番待ち|処理中|再試行|取消/)).toHaveCount(0)
+  await page.getByText('ピスタチオラテ ¥720').click()
+  const dialog = page.getByRole('dialog', { name: /これでいい/ })
+  await dialog.getByLabel('名前').fill('ピスタチオラテ ¥720（直した）')
+  await dialog.getByRole('button', { name: '閉じる' }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0]).toMatchObject({ title: 'ピスタチオラテ ¥720（直した）' })
+  expect(patches[0]).not.toHaveProperty('needs_review')
 })
 
 test('settings: grouped rows like iPhone, sub-pages for each, profile on top, and logout asks first', async ({ page }, info) => {

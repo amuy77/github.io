@@ -18,7 +18,8 @@ async function fetchCounts(): Promise<HomeCounts> {
     sb.from('clips').select('id', { count: 'exact', head: true }).eq('needs_review', true),
   ])
   const n = (r: { count: number | null }) => r.count ?? 0
-  return { clips: n(clips), recipes: n(recipes), menuLogs: n(menuLogs), drafts: n(drafts), pendingJobs: n(jobs), inbox: n(drafts) + n(reviews) }
+  // トレイのバッジは「確認待ち」＋「読んでいる途中」（撮った直後から数が増えて、受け取ったと分かるように）
+  return { clips: n(clips), recipes: n(recipes), menuLogs: n(menuLogs), drafts: n(drafts), pendingJobs: n(jobs), inbox: n(drafts) + n(reviews) + n(jobs) }
 }
 
 export function useCounts() {

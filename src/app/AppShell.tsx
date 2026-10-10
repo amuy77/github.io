@@ -42,7 +42,7 @@ export function AppShell() {
       <nav className="fixed inset-y-0 left-0 z-30 hidden w-[88px] flex-col items-center gap-1 border-r border-line bg-paper pt-6 md:flex" aria-label="メイン">
         <div className="font-display mb-4 text-xl font-extrabold">LaRa</div>
         {tabs.map((t) => <RailTab key={t.key} tab={t} pathname={loc.pathname} />)}
-        <NavLink to={paths.add} className="mt-2 grid size-12 place-items-center rounded-full bg-green-600 text-white shadow-card" aria-label="すぐメモ"><IconPlus /></NavLink>
+        <NavLink to={paths.add} className="mt-2 grid size-12 place-items-center rounded-full bg-green-600 text-white shadow-card" aria-label="足す"><IconPlus /></NavLink>
         <button type="button" onClick={() => setAsking(true)} className={cx('mt-2 flex w-16 flex-col items-center gap-1 rounded-card py-2 text-[11px] font-bold', loc.pathname.startsWith(paths.ask) ? 'bg-green-600 text-white' : 'text-espresso-700 hover:bg-oat-100')}>
           <Mascot size={28} /> 聞く
         </button>
@@ -67,7 +67,7 @@ export function AppShell() {
       {/* モバイル: 下タブバー */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-line bg-paper/95 px-2 pb-[var(--safe-bottom)] backdrop-blur md:hidden" style={{ height: 'calc(var(--tabbar-h) + var(--safe-bottom))' }} aria-label="メイン">
         {tabs.slice(0, 2).map((t) => <Tab key={t.key} tab={t} pathname={loc.pathname} badge={t.key === 'home' ? inbox : 0} />)}
-        <NavLink to={paths.add} className="relative -top-4 grid size-14 place-items-center rounded-full bg-green-600 text-white shadow-sheet" aria-label="すぐメモ"><IconPlus size={28} /></NavLink>
+        <NavLink to={paths.add} className="relative -top-4 grid size-14 place-items-center rounded-full bg-green-600 text-white shadow-sheet" aria-label="足す"><IconPlus size={28} /></NavLink>
         {tabs.slice(2).map((t) => <Tab key={t.key} tab={t} pathname={loc.pathname} />)}
       </nav>
       {/* モバイル: どの画面からでも LaRa に聞ける丸ボタン（入力中の画面では出さない） */}

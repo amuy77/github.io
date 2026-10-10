@@ -71,7 +71,7 @@ export function AskPage() {
     if (!noKey) return
     try {
       await enqueue.mutateAsync({ kind: 'consult', payload: { question: noKey, recipe_id: recipeId ?? null, compare_with_id: vsId ?? null } })
-      toast(`預かったよ。${nextWorkerTime()} ごろ、受信トレイに返事が届くね`, 'success')
+      toast(`預かったよ。${nextWorkerTime()} ごろ、トレイに返事が届くね`, 'success')
       setNoKey(null)
     } catch { /* 失敗は global のトーストが知らせる。質問は残す */ }
   }
