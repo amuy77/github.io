@@ -28,7 +28,7 @@ export function TalkBubbleBody({ talk, onLink }: { talk: LaraTalk; onLink: (to: 
 }
 
 /** 話しかけている間、下に出す入力欄とすぐ送れる言葉 */
-export function TalkBar({ talk, onClose }: { talk: LaraTalk; onClose: () => void }) {
+export function TalkBar({ talk, onClose, hideClose }: { talk: LaraTalk; onClose: () => void; hideClose?: boolean }) {
   const [text, setText] = useState('')
   const send = (q: string) => { setText(''); void talk.send(q) }
   return (
@@ -42,7 +42,7 @@ export function TalkBar({ talk, onClose }: { talk: LaraTalk; onClose: () => void
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="LaRa に聞く" aria-label="LaRa に聞く" enterKeyHint="send" autoFocus
           className="h-10 min-w-0 flex-1 rounded-chip border border-line bg-paper px-4 text-[15px] focus:border-green-600 focus:outline-none" />
         <button type="submit" disabled={!text.trim() || talk.busy} className="h-10 shrink-0 rounded-chip bg-green-600 px-4 text-[14px] font-bold text-white disabled:opacity-40">送る</button>
-        <button type="button" onClick={onClose} aria-label="話すのをやめる" className="grid size-10 shrink-0 place-items-center rounded-full text-muted"><IconX /></button>
+        {!hideClose && <button type="button" onClick={onClose} aria-label="話すのをやめる" className="grid size-10 shrink-0 place-items-center rounded-full text-muted"><IconX /></button>}
       </form>
     </div>
   )

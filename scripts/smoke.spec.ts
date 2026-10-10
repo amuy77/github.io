@@ -389,7 +389,7 @@ test('ask LaRa: local search, chat answer links, and no-key fallback', async ({ 
   await box.fill('ベーコン')
   await expect(page.getByText('手元で見つかったもの')).toBeVisible()
   await box.fill('さっぱりしたい')
-  await page.getByRole('button', { name: '聞く', exact: true }).click()
+  await page.getByRole('button', { name: '送る' }).click()
   await expect(page.getByRole('link', { name: /BLT サンド（試作2）/ })).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-ask.png`, fullPage: true })
 
@@ -398,7 +398,7 @@ test('ask LaRa: local search, chat answer links, and no-key fallback', async ({ 
   await p2.goto('#/ask')
   await p2.evaluate(() => sessionStorage.clear())
   await p2.getByRole('textbox', { name: 'LaRa に聞く' }).fill('BLT をもっと美味しくしたい')
-  await p2.getByRole('button', { name: '聞く', exact: true }).click()
+  await p2.getByRole('button', { name: '送る' }).click()
   await expect(p2.getByRole('button', { name: 'トレイに入れて答えてもらう' })).toBeVisible()
 })
 
@@ -1891,4 +1891,48 @@ test('theme2: a failure toast stays until you tap it', async ({ page }) => {
   await expect(alert).toBeVisible()
   await alert.click()
   await expect(alert).toBeHidden()
+})
+
+// ---- UI の型 テーマ4: ホームの入口と聞く ----
+
+test('theme4: the home chips have words, the furniture card closes and keeps 今日を記録, and the home badge opens the tray', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/')
+  // 右上の 4 つに文字（予定は Planner がつながっていないと出ない）
+  await expect(page.getByRole('button', { name: 'LaRa のアルバム', exact: true })).toContainText('アルバム')
+  await expect(page.getByRole('button', { name: '2D のホームにする' })).toContainText('2Dへ')
+  if (info.project.name === 'phone') await expect(page.getByRole('link', { name: '設定' })).toContainText('設定')
+  await page.waitForFunction(() => (window as unknown as { __lara?: { debugState(): { figure: boolean } } }).__lara?.debugState().figure, null, { timeout: 20_000 })
+  await page.evaluate(() => (window as unknown as { __lara: { setResident(v: boolean): void } }).__lara.setResident(false))
+  const pos = await page.evaluate(() => (window as unknown as { __lara: { debugHotspotScreenPos(h: string): { x: number; y: number } | null } }).__lara.debugHotspotScreenPos('clips'))
+  await page.mouse.click(pos!.x, pos!.y)
+  const card = page.getByRole('group', { name: 'ネタ帳' })
+  await expect(card).toBeVisible()
+  // カードが出ていても「今日を記録」「聞く」は消えない
+  await expect(page.getByRole('button', { name: '今日を記録' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'LaRa に聞く' })).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-home-card.png` })
+  await card.getByRole('button', { name: '閉じる' }).click()
+  await expect(card).toBeHidden()
+  // ホームにいるとき、タブの数字を押したらトレイ
+  if (info.project.name === 'phone') {
+    await page.getByRole('navigation', { name: 'メイン' }).last().getByRole('link', { name: /ホーム/ }).click()
+    await expect(page).toHaveURL(/#\/inbox$/)
+  }
+})
+
+test('theme4: the ask sheet has one ×, and the talk survives closing and reopening', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  const askButton = () => (info.project.name === 'phone' ? page.getByRole('button', { name: 'LaRa に聞く' }).last() : page.getByRole('navigation', { name: 'メイン' }).first().getByRole('button', { name: /聞く/ }))
+  await askButton().click()
+  const sheet = page.getByRole('dialog', { name: 'LaRa に聞く' })
+  await expect(sheet.getByRole('button', { name: '話すのをやめる' })).toHaveCount(0)
+  await sheet.getByRole('textbox', { name: 'LaRa に聞く' }).fill('BLT ある？')
+  await sheet.getByRole('button', { name: '送る' }).click()
+  await expect(sheet.getByRole('status', { name: 'LaRa の返事' })).toContainText(/「BLT」/)
+  await sheet.getByRole('button', { name: '閉じる' }).click()
+  await expect(sheet).toBeHidden()
+  await askButton().click()
+  await expect(page.getByRole('dialog', { name: 'LaRa に聞く' }).getByRole('status', { name: 'LaRa の返事' })).toContainText(/「BLT」/)
 })

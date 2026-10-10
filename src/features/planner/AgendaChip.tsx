@@ -3,6 +3,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { SegmentedTabs } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { cx } from '@/lib/cx'
+import { IconCalendar } from '@/components/ui/icons'
 import { PLANNER_URL, openExternal, usePlannerAgenda } from './api'
 import type { Agenda } from './agendaLine'
 
@@ -57,8 +58,8 @@ export function AgendaChip({ className }: { className?: string }) {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label={`今日の予定と ToDo（${n} 件）`} title="今日の予定と ToDo"
-        className={cx('pointer-events-auto relative grid size-9 shrink-0 place-items-center rounded-full border border-line bg-paper/90 text-[17px] shadow-card backdrop-blur', className)}>
-        📅
+        className={cx('pointer-events-auto relative flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-paper/90 px-2 text-[11px] font-bold text-espresso-700 shadow-card backdrop-blur', className)}>
+        <IconCalendar size={15} />予定
         {n > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-green-600 px-1 text-[10px] font-bold leading-none text-white" aria-hidden>{n}</span>}
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="予定と ToDo">

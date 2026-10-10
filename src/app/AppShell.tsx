@@ -13,6 +13,7 @@ import { Mascot } from '@/components/mascot/Mascot'
 import { isNotesPath, notesPath } from '@/features/notes/notes'
 import { PLANNER_URL } from '@/features/planner/api'
 import { AskSheet } from '@/features/home/chat/AskSheet'
+import { useUnseenAnswers } from '@/features/home/chat/unseenAnswers'
 
 // 下のタブ: ホーム / ノート（ネタ帳・図鑑・メニュー。最後に見たものを開く）/ ＋ / きろく（日々のメニュー記録と分析）/ Planner（別アプリ）
 type TabDef = { key: string; label: string; Icon: typeof IconHome; to: (pathname: string) => string; active: (pathname: string) => boolean; external?: boolean }
@@ -27,6 +28,7 @@ export function AppShell() {
   const loc = useLocation()
   const counts = useCounts()
   const inbox = counts.data?.inbox ?? 0
+  const answers = useUnseenAnswers().length
   const isHome = loc.pathname === paths.home
   useScrollMemory()
   // 「聞く」のシート。開いた画面を覚えておき、画面を移ったら閉じたことにする（シートの中のリンクで移ったときなど）
@@ -74,6 +76,7 @@ export function AppShell() {
       {showAsk && (
         <button type="button" onClick={() => setAsking(true)} aria-label="LaRa に聞く" className="fixed right-4 z-30 flex items-center gap-1 rounded-full border border-line bg-paper py-1 pl-1 pr-3 text-[12px] font-bold shadow-sheet md:hidden" style={{ bottom: 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)' }}>
           <Mascot size={34} /> 聞く
+          {answers > 0 && <span className="absolute -top-0.5 right-0 size-2.5 rounded-full bg-brick-500" aria-label="相談の答えが届いています" />}
         </button>
       )}
       {/* どの画面の「聞く」も、ホームの「聞く」と同じ会話をシートで */}
@@ -136,8 +139,10 @@ function TabLink({ tab, pathname, className, children }: { tab: TabDef; pathname
 
 function Tab({ tab, pathname, badge = 0 }: { tab: TabDef; pathname: string; badge?: number }) {
   const on = tab.active(pathname)
+  // ホームにいるときにホームの「6」を押したら、その数のあるトレイを開く（押しても何も起きない、をなくす）
+  const t = on && badge > 0 && tab.key === 'home' ? { ...tab, to: () => paths.inbox } : tab
   return (
-    <TabLink tab={tab} pathname={pathname} className={cx('relative flex h-[var(--tabbar-h)] w-16 flex-col items-center justify-center gap-0.5 text-[11px] font-bold', on ? 'text-green-600' : 'text-muted')}>
+    <TabLink tab={t} pathname={pathname} className={cx('relative flex h-[var(--tabbar-h)] w-16 flex-col items-center justify-center gap-0.5 text-[11px] font-bold', on ? 'text-green-600' : 'text-muted')}>
       <tab.Icon />
       {tab.label}
       {tab.external && <span className="absolute right-3 top-2.5 text-[9px]" aria-hidden>↗</span>}

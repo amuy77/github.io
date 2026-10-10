@@ -27,13 +27,14 @@ function AskBody({ onClose }: { onClose: () => void }) {
   const talk = useLaraTalk({ counts, streak, active: true })
   // 開いたら最初のひとこと（ホームの「聞く」を押したときと同じ）
   useEffect(() => { talk.start() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const go = (to: string) => { onClose(); talk.stop(); nav(to) }
+  // 画面を移るときは閉じるだけ（会話は 30 分残るので、戻ってきたら続きから）
+  const go = (to: string) => { onClose(); nav(to) }
   return (
     <div className="flex flex-col gap-3">
       <MascotSays mood={talk.thinking ? 'thinking' : 'happy'}>
         <div role="status" aria-label="LaRa の返事" className="text-[14px]">{talk.line ? <TalkBubbleBody talk={talk} onLink={go} /> : 'なあに？'}</div>
       </MascotSays>
-      <TalkBar talk={talk} onClose={() => { talk.stop(); onClose() }} />
+      <TalkBar talk={talk} onClose={() => { talk.stop(); onClose() }} hideClose />
     </div>
   )
 }
