@@ -8,7 +8,7 @@ import { RatingStars } from '@/components/ui/Rating'
 import { Mascot, MascotSays } from '@/components/mascot/Mascot'
 import { useToast } from '@/components/ui/Toast'
 import { friendlyError } from '@/lib/errors'
-import { IconSearch, IconSparkles, IconX } from '@/components/ui/icons'
+import { IconSparkles, IconX } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { paths } from '@/app/routes'
 import { useRecipes } from '@/features/recipes/hooks'
@@ -134,12 +134,12 @@ export function AskPage() {
       <form onSubmit={(e) => { e.preventDefault(); void send() }}
         className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] z-20 flex items-end gap-2 border-t border-line bg-oat-50/95 px-4 py-2 backdrop-blur md:bottom-0 md:pl-[104px]">
         <label className="flex min-h-11 flex-1 items-center gap-2 rounded-card border border-line bg-paper px-3">
-          <IconSearch size={18} className="shrink-0 text-muted" />
-          <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder="料理名・気分・味の相談"
+          <Mascot size={26} className="shrink-0" />
+          <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={1} placeholder="LaRa に聞く（料理名・気分・味の相談）"
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }}
             className="max-h-32 min-h-6 w-full resize-none bg-transparent py-2.5 text-[16px] outline-none placeholder:text-muted/70" aria-label="LaRa に聞く" />
         </label>
-        <Button type="submit" disabled={!input.trim() || busy} icon={<IconSparkles size={16} />}>聞く</Button>
+        <Button type="submit" disabled={!input.trim() || busy}>送る</Button>
       </form>
     </>
   )

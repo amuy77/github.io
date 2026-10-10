@@ -9,6 +9,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ShopScene, type FriendEvent, type Hotspot } from './shopScene'
 import { eventLine, greetLine, monologue, tapLine, type Say, type VoiceCtx } from './laraVoice'
 import { paths } from '@/app/routes'
+import { IconX } from '@/components/ui/icons'
 import { dayPart, formatMD, today } from '@/lib/dates'
 import { LOGO_FULL, WORDMARK } from '@/components/mascot/Mascot'
 import type { HomeCounts } from '../useCounts'
@@ -414,18 +415,20 @@ export function ShopHome({ counts, streak, leaves = 0, decor = 0, worried = fals
       )}
 
       {/* 下部: 案内シート */}
-      <div className="absolute inset-x-0 bottom-0 px-4 pb-3">
-        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : info ? (
-          // 小物を選んだときだけ、その名前と「開く」
-          <motion.div layout className="flex items-center gap-2 rounded-card sm:gap-3 border border-line bg-paper/95 px-4 py-3 shadow-card backdrop-blur">
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 px-4 pb-3">
+        {/* 小物を選んだときは、その名前と「開く」。× で閉じられる。出ていても下の「聞く」「今日を記録」は消さない */}
+        {info && !talking && (
+          <motion.div layout role="group" aria-label={info.name} className="flex items-center gap-2 rounded-card border border-line bg-paper/95 py-2 pl-4 pr-1 shadow-card backdrop-blur sm:gap-3">
             <span className="text-[26px]" aria-hidden>{info.em}</span>
             <div className="min-w-0 flex-1">
               <p className="font-display truncate text-[15px] font-bold">{info.name}</p>
               <p className="truncate text-xs text-muted">{info.sub}</p>
             </div>
-            <button type="button" className="h-9 shrink-0 rounded-chip bg-green-600 px-3 text-[13px] font-bold text-white" onClick={() => nav(info.to)}>開く →</button>
+            <button type="button" className="h-10 shrink-0 rounded-chip bg-green-600 px-3 text-[14px] font-bold text-white" onClick={() => nav(info.to)}>開く →</button>
+            <button type="button" aria-label="閉じる" onClick={() => setPicked(null)} className="grid size-10 shrink-0 place-items-center rounded-full text-muted"><IconX size={18} /></button>
           </motion.div>
-        ) : (
+        )}
+        {talking ? <TalkBar talk={talk} onClose={stopTalk} /> : (
           // ふだんは「聞く」と「今日を記録」だけ。それぞれ別のボタンで（予定は LaRa が口で言う）
           <div className="flex items-end justify-between gap-3">
             <TalkButton onClick={startTalk} dot={answers > 0} floating />

@@ -16,6 +16,13 @@ import { AgendaError, agendaQuery, usePlannerAgenda } from '@/features/planner/a
 import { chatLine } from './chatVoice'
 import { markAnswersSeen, useUnseenAnswers, type UnseenAnswer } from './unseenAnswers'
 
+// 会話は 30 分残す（シートを閉じたり画面を移ったりしても、戻ってきたら続きから）
+const TALK_KEY = 'lara.talk.recent'
+const TALK_TTL = 30 * 60_000
+type SavedTalk = { at: number; line: TalkLine; history: { role: 'user' | 'assistant'; content: string }[] }
+function loadTalk(): SavedTalk | null { try { const v = JSON.parse(sessionStorage.getItem(TALK_KEY) ?? 'null') as SavedTalk | null; return v && Date.now() - v.at < TALK_TTL ? v : null } catch { return null } }
+function saveTalk(line: TalkLine | null, history: SavedTalk['history']) { try { if (line) sessionStorage.setItem(TALK_KEY, JSON.stringify({ at: Date.now(), line, history: history.slice(-8) })); else sessionStorage.removeItem(TALK_KEY) } catch { /* 覚えられなくても会話はできる */ } }
+
 /** LaRa の返事 1 つ分（吹き出しに出す）。mood は返事をするときの仕草 */
 export interface TalkLine {
   text: string
@@ -64,16 +71,23 @@ export function useLaraTalk({ counts, streak, active = true }: { counts: HomeCou
     return true
   }
 
-  /** 話しかけ始め: 届いた相談の答えがあれば先に伝える */
+  /** 話しかけ始め: 届いた相談の答えがあれば先に伝える。30 分以内の会話があれば続きから */
   const start = () => {
-    history.current = []
     queue.current = [...unseen]
-    if (!showAnswer()) setLine({ text: chatLine('opener'), mood: 'wave' })
+    if (showAnswer()) { history.current = []; return }
+    const saved = loadTalk()
+    if (saved) { history.current = saved.history; setLine(saved.line); return }
+    history.current = []
+    setLine({ text: chatLine('opener'), mood: 'wave' })
   }
 
   const send = async (raw: string) => {
     const q = raw.trim()
     if (!q || thinking) return
+    // 送ったらすぐ「考え中」（データを読み終わるまで前の言葉のままにしない）
+    setThinking(true)
+    setLine({ text: chatLine('thinking'), q, mood: 'think' })
+    try {
     // 話しかけ始めてすぐだと、まだ読み終わっていないことがある。無ければ待つ（あればキャッシュからすぐ）
     const rs = recipes.data ?? (await recipes.refetch()).data ?? []
     const cs = clips.data ?? (await clips.refetch()).data ?? []
@@ -97,14 +111,17 @@ export function useLaraTalk({ counts, streak, active = true }: { counts: HomeCou
         const ans = await askLara([...history.current.slice(-8), { role: 'user', content: q }])
         const text = ans.text.replace(/\[\[([RC]\d+)\]\]/g, (_, k: string) => `「${ans.refs[k]?.title ?? k}」`)
         history.current.push({ role: 'user', content: q }, { role: 'assistant', content: text })
-        setLine({ text, q, mood: 'nod' })
+        const next: TalkLine = { text, q, mood: 'nod' }
+        setLine(next); saveTalk(next, history.current)
         return
       } catch (e) {
         if (e instanceof FunctionError && e.code === 'NO_API_KEY') noKey.current = true
       } finally { setThinking(false) }
     }
     history.current.push({ role: 'user', content: q }, { role: 'assistant', content: reply.text })
-    setLine({ text: reply.text, q, links: reply.links, consultOf: reply.consult ? q : undefined, mood: reply.consult ? 'nod' : reply.links?.length ? 'happy' : 'wave' })
+    const next: TalkLine = { text: reply.text, q, links: reply.links, consultOf: reply.consult ? q : undefined, mood: reply.consult ? 'nod' : reply.links?.length ? 'happy' : 'wave' }
+    setLine(next); saveTalk(next, history.current)
+    } finally { setThinking(false) }
   }
 
   const consult = async () => {
@@ -116,6 +133,7 @@ export function useLaraTalk({ counts, streak, active = true }: { counts: HomeCou
     } catch { toast('預けられませんでした。もう一度試してね', 'error') }
   }
 
-  return { line, thinking, busy: thinking || enqueue.isPending, start, send, consult, next: showAnswer, stop: () => setLine(null) }
+  // やめる（×）は会話も消す。シートを閉じるだけ・画面を移るだけなら残る
+  return { line, thinking, busy: thinking || enqueue.isPending, start, send, consult, next: showAnswer, stop: () => { setLine(null); saveTalk(null, []) } }
 }
 export type LaraTalk = ReturnType<typeof useLaraTalk>

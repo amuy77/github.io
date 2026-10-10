@@ -53,8 +53,8 @@ export function AlbumChip({ className }: { className?: string }) {
   return (
     <>
       <button type="button" onClick={() => { setShown(0); setTab('letters'); setOpen(true); markRead() }} aria-label={unread ? 'LaRa のアルバム（新しい手紙）' : 'LaRa のアルバム'} title="LaRa のアルバム"
-        className={cx('pointer-events-auto relative grid size-9 shrink-0 place-items-center rounded-full border border-line bg-paper/90 text-[17px] shadow-card backdrop-blur', className)}>
-        📔
+        className={cx('pointer-events-auto relative flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-paper/90 pl-2 pr-2.5 text-[11px] font-bold text-espresso-700 shadow-card backdrop-blur', className)}>
+        <span className="text-[15px]" aria-hidden>📔</span>アルバム
         {unread && <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-brick-500" aria-hidden />}
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="LaRa のアルバム" tall>
