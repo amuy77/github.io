@@ -98,6 +98,12 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 更新（2026-10-12）: 住所からお店の場所を探す
+
+- iPhone の共有リンクの行き先は `maps.google.com/?q=〒番号 住所 店名&ftid=…` の形で、座標が入っていない。アプリで店名と住所を分けて読み、住所から場所を探してピンを置く。
+- Edge Function `link-preview` に `{ geocode: "住所" }` の使い方を追加（国土地理院の住所検索 `msearch.gsi.go.jp/address-search/AddressSearch` を引いて `{ lat, lng, title }` を返す。無料・キー不要）。
+  国土地理院いわく「主に地理院地図用・ずっと使えるとは限らない」ので、使えなくなったら「地図を押してピン」で保存できる。CLI でデプロイし直した。SQL は無し。
+
 ## 更新（2026-10-12）: link-preview が Google マップの短縮リンクをたどる
 
 - `maps.app.goo.gl` はブラウザに見えるアクセスだと転送（302）ではなく中継ページを返すので、店名も場所も読めなかった。

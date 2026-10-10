@@ -1,10 +1,11 @@
 // URL の og:title / og:image などを取ってくる（秘密情報なし）。
 // Instagram は未ログインだと og:image を返さないので instagram_blocked を立てて UI 側でスクショ添付を促す。
 // Google マップの短縮リンク（maps.app.goo.gl）は、転送の行き先（お店のページの URL）を final_url で返す。
+// { geocode: "住所" } のときは、国土地理院の住所検索で場所（lat・lng）を返す（無料・キー不要。見つからなければ空）。
 import { cors, json, jsonError } from '../_shared/cors.ts'
 import { requireUser } from '../_shared/auth.ts'
 import { resolvesToPrivate, validateUrl } from '../_shared/ssrf.ts'
-import { isMapsDestination, isMapsPlacePage, isMapsShortLink, mapsUrlInHtml } from '../_shared/mapsLink.ts'
+import { gsiFirstHit, isMapsDestination, isMapsPlacePage, isMapsShortLink, mapsUrlInHtml } from '../_shared/mapsLink.ts'
 
 const MAX_BYTES = 512 * 1024
 const UA_BROWSER = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
@@ -100,14 +101,32 @@ function decode(s: string): string {
   return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
 }
 
+/**
+ * 住所から場所を探す（国土地理院の住所検索）。「主に地理院地図用・ずっと使えるとは限らない」ものなので、
+ * だめなときはアプリ側で「地図を押してピン」にしてもらう
+ */
+async function geocode(req: Request, raw: string): Promise<Response> {
+  const q = raw.trim().slice(0, 200)
+  if (!q) return json(req, 200, {})
+  try {
+    const res = await fetch(`https://msearch.gsi.go.jp/address-search/AddressSearch?q=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(6000), headers: { Accept: 'application/json' } })
+    if (!res.ok) { try { await res.body?.cancel() } catch { /* noop */ } return jsonError(req, 502, 'GEOCODE_FAILED', '住所から場所を探せませんでした') }
+    return json(req, 200, gsiFirstHit(await res.json()) ?? {})
+  } catch (e) {
+    console.error('geocode failed', e)
+    return jsonError(req, 502, 'GEOCODE_FAILED', '住所から場所を探せませんでした')
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors(req) })
   if (req.method !== 'POST') return jsonError(req, 405, 'METHOD_NOT_ALLOWED', 'POST only')
   const user = await requireUser(req)
   if (!user) return jsonError(req, 401, 'UNAUTHORIZED', 'ログインが必要です')
 
-  let body: { url?: string }
+  let body: { url?: string; geocode?: unknown }
   try { body = await req.json() } catch { return jsonError(req, 400, 'BAD_REQUEST', 'JSON が読めません') }
+  if (typeof body.geocode === 'string') return geocode(req, body.geocode)
   const u = validateUrl(String(body.url ?? ''))
   if (!u) return jsonError(req, 400, 'URL_BLOCKED', 'この URL は取得できません')
 

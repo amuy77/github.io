@@ -135,7 +135,11 @@ async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean
     }
     // リンクのプレビュー: Google マップの短縮リンクは、たどった先と og:title を返す
     if (p.endsWith('/functions/v1/link-preview')) {
-      const target = (req.postDataJSON() as { url: string }).url
+      const { url: target = '', geocode } = req.postDataJSON() as { url?: string; geocode?: string }
+      // 住所から場所（国土地理院の住所検索のかわり）: 墨田区向島なら見つかる
+      if (geocode !== undefined) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(geocode.includes('墨田区向島') ? { lat: 35.7155, lng: 139.8155, title: '東京都墨田区向島三丁目' } : {}) })
+      // iPhone の共有リンクの行き先: 座標なし、?q= に「〒番号 住所 店名」
+      if (target.includes('maps.app.goo.gl/iphone')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ final_url: 'https://maps.google.com/?q=%E3%80%92131-0033+%E6%9D%B1%E4%BA%AC%E9%83%BD%E5%A2%A8%E7%94%B0%E5%8C%BA%E5%90%91%E5%B3%B6%EF%BC%93%E4%B8%81%E7%9B%AE%EF%BC%92%EF%BC%96%E2%88%92%EF%BC%97+GRAB+and+GO+GOODIES+Sandwich+%26+Brunch&ftid=0x60188f48214baaf1:0x5b61a1e3bbc1de8&entry=gps&g_st=ic' }) })
       if (target.includes('maps.app.goo.gl')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ final_url: 'https://www.google.com/maps/place/%E3%83%91%E3%83%B3%E5%B1%8B+A/@35.66,139.70,17z/data=!3d35.6612!4d139.7012', title: 'パン屋 A · 〒150-0001 東京都渋谷区神宮前4-5-6' }) })
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: '' }) })
     }
@@ -1719,6 +1723,42 @@ test('places: a link that cannot be read says so honestly, and still saves after
   await expect.poll(() => posts.length).toBe(1)
   expect(posts[0].name).toBe('食堂 S')
   expect(typeof posts[0].lat).toBe('number')
+})
+
+test('places: an iPhone share link (address first, no spot) fills the name and address, and the pin comes from the address', async ({ page }, info) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/places')) posts.push(r.postDataJSON()) })
+  await page.goto('#/places')
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/iphone123?g_st=ic')
+  await expect(sheet.getByText('住所から場所を入れたよ')).toBeVisible()
+  await expect(sheet.getByLabel('お店の名前')).toHaveValue('GRAB and GO GOODIES Sandwich & Brunch')
+  await expect(sheet.getByLabel('住所（任意）')).toHaveValue('〒131-0033 東京都墨田区向島３丁目２６−７')
+  await expect(sheet.getByLabel('エリア')).toHaveValue('墨田区')
+  await expect(sheet.locator('.lara-pin')).toHaveCount(1)
+  await expect(sheet.getByText('読み取った先:')).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-place-add-iphone.png` })
+  await sheet.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0]).toMatchObject({ name: 'GRAB and GO GOODIES Sandwich & Brunch', area: '墨田区', lat: 35.7155, lng: 139.8155 })
+})
+
+test('places: 住所から場所を探す drops the pin from a typed address, and says so when nothing is found', async ({ page }) => {
+  await stubSupabase(page)
+  await page.goto('#/places')
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await expect(sheet.getByRole('button', { name: /住所から場所を探す/ })).toHaveCount(0)
+  await sheet.getByLabel('住所（任意）').fill('北海道どこか')
+  await sheet.getByRole('button', { name: /住所から場所を探す/ }).click()
+  await expect(page.getByText('住所から場所が見つからなかった')).toBeVisible()
+  await expect(sheet.locator('.lara-pin')).toHaveCount(0)
+  await sheet.getByLabel('住所（任意）').fill('東京都墨田区向島3-26-7')
+  await expect(sheet.getByLabel('エリア')).toHaveValue('墨田区')
+  await sheet.getByRole('button', { name: /住所から場所を探す/ }).click()
+  await expect(sheet.locator('.lara-pin')).toHaveCount(1)
 })
 
 test('places: the map shows a pin per place, 傾向 sums up the taste, and a place links to Google Maps and its clips', async ({ page }, info) => {

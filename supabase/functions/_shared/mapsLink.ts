@@ -31,3 +31,14 @@ export function mapsUrlInHtml(html: string): string | null {
   const found = text.match(/https:\/\/(?:www\.|maps\.)?google\.[a-z.]+\/maps[^\s"'<>\\)]*|https:\/\/maps\.google\.[a-z.]+\/[^\s"'<>\\)]*/gi) ?? []
   return found.find((s) => s.includes('/maps/place/')) ?? found.find((s) => /@-?\d+\.\d+,-?\d+\.\d+|!3d-?\d/.test(s)) ?? found[0] ?? null
 }
+
+/** 国土地理院の住所検索（AddressSearch）の答えから、最初の場所を取り出す。形が違えば null */
+export function gsiFirstHit(json: unknown): { lat: number; lng: number; title: string } | null {
+  if (!Array.isArray(json) || !json.length) return null
+  const f = json[0] as { geometry?: { coordinates?: unknown }; properties?: { title?: unknown } }
+  const c = f?.geometry?.coordinates
+  if (!Array.isArray(c) || c.length < 2) return null
+  const [lng, lat] = c.map(Number)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+  return { lat, lng, title: typeof f.properties?.title === 'string' ? f.properties.title : '' }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isMapsDestination, isMapsPlacePage, isMapsShortLink, mapsUrlInHtml } from '../../../supabase/functions/_shared/mapsLink'
+import { gsiFirstHit, isMapsDestination, isMapsPlacePage, isMapsShortLink, mapsUrlInHtml } from '../../../supabase/functions/_shared/mapsLink'
 
 describe('link-preview: Google マップの短縮リンク', () => {
   it('knows the short links', () => {
@@ -24,5 +24,18 @@ describe('link-preview: Google マップの短縮リンク', () => {
     expect(mapsUrlInHtml(html)).toBe('https://www.google.com/maps/place/%E3%83%91%E3%83%B3/@35.6,139.7,17z/data=!3d35.61!4d139.71?entry=tts&g_ep=x')
     expect(mapsUrlInHtml('<a href="https://www.google.com/maps">x</a>')).toBe('https://www.google.com/maps')
     expect(mapsUrlInHtml('<p>nothing</p>')).toBeNull()
+  })
+})
+
+describe('link-preview: 住所から場所（国土地理院の住所検索）', () => {
+  it('takes the first hit', () => {
+    expect(gsiFirstHit([{ geometry: { coordinates: [139.8155, 35.7155], type: 'Point' }, type: 'Feature', properties: { addressCode: '', title: '東京都墨田区向島三丁目' } }]))
+      .toEqual({ lat: 35.7155, lng: 139.8155, title: '東京都墨田区向島三丁目' })
+  })
+  it('gives null for nothing or a strange answer', () => {
+    expect(gsiFirstHit([])).toBeNull()
+    expect(gsiFirstHit({})).toBeNull()
+    expect(gsiFirstHit([{ geometry: { coordinates: ['x', 'y'] } }])).toBeNull()
+    expect(gsiFirstHit([{ geometry: { coordinates: [139.8, 999] } }])).toBeNull()
   })
 })
