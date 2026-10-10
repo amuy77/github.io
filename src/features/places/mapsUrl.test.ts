@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { areaOf, coordsFromMapImage, isGoogleMapsUrl, mapsInfoFrom, parseMapsUrl, parseOgTitle } from './mapsUrl'
+import { areaOf, coordsFromMapImage, geocodeQuery, isGoogleMapsUrl, mapsInfoFrom, parseMapsUrl, parseOgTitle, splitAddressAndName } from './mapsUrl'
 
 describe('isGoogleMapsUrl', () => {
   it('knows the share links and the full links', () => {
@@ -94,5 +94,35 @@ describe('coordsFromMapImage', () => {
   it('fills the spot from the image when the followed URL has no coordinates', () => {
     const r = mapsInfoFrom('https://maps.app.goo.gl/AbC', { final_url: 'https://www.google.com/maps/place/Cafe+Q/data=!4m2!3m1!1s0x0:0x1', image: 'https://maps.google.com/maps/api/staticmap?center=34.70%2C135.50&zoom=15', title: 'カフェ Q · 大阪府大阪市北区梅田1-1' })
     expect(r).toMatchObject({ name: 'Cafe Q', lat: 34.7, lng: 135.5, area: '大阪市北区' })
+  })
+})
+
+// 侑磨さんの iPhone の共有リンク（maps.app.goo.gl/…?g_st=ic）の実際の行き先。座標は入っていない
+const IPHONE_SHARE = 'https://maps.google.com/?q=%E3%80%92131-0033+%E6%9D%B1%E4%BA%AC%E9%83%BD%E5%A2%A8%E7%94%B0%E5%8C%BA%E5%90%91%E5%B3%B6%EF%BC%93%E4%B8%81%E7%9B%AE%EF%BC%92%EF%BC%96%E2%88%92%EF%BC%97+GRAB+and+GO+GOODIES+Sandwich+%26+Brunch&ftid=0x60188f48214baaf1:0x5b61a1e3bbc1de8&entry=gps&lucs=,94297699&g_ep=CAISEjI2&skid=b5cc614b-421b-4562-8dcd-27fc1c0150a0&g_st=ic'
+
+describe('splitAddressAndName', () => {
+  it('splits the iPhone share text: postal code and address first, then the name', () => {
+    expect(splitAddressAndName('〒131-0033 東京都墨田区向島３丁目２６−７ GRAB and GO GOODIES Sandwich & Brunch'))
+      .toEqual({ address: '〒131-0033 東京都墨田区向島３丁目２６−７', name: 'GRAB and GO GOODIES Sandwich & Brunch' })
+    expect(splitAddressAndName('東京都渋谷区神宮前1-2-3 3 Coins Cafe')).toEqual({ address: '東京都渋谷区神宮前1-2-3', name: '3 Coins Cafe' })
+    expect(splitAddressAndName('〒248-0006 神奈川県鎌倉市小町1丁目5番地 トラットリア K')).toEqual({ address: '〒248-0006 神奈川県鎌倉市小町1丁目5番地', name: 'トラットリア K' })
+  })
+  it('keeps the old 「店名, 住所」 form, and never puts an address into the name', () => {
+    expect(splitAddressAndName('パン屋 A, 東京都渋谷区神宮前1-1')).toEqual({ name: 'パン屋 A', address: '東京都渋谷区神宮前1-1' })
+    expect(splitAddressAndName('大村珈琲')).toEqual({ name: '大村珈琲' })
+    expect(splitAddressAndName('〒150-0001 東京都渋谷区神宮前')).toEqual({ address: '〒150-0001 東京都渋谷区神宮前' })
+  })
+  it('reads the real iPhone share link: name, address and area, but no spot', () => {
+    const r = mapsInfoFrom('https://maps.app.goo.gl/zj1ttgw93T1GbYsH7?g_st=ic', { final_url: IPHONE_SHARE, title: 'Google マップ' })
+    expect(r).toMatchObject({ name: 'GRAB and GO GOODIES Sandwich & Brunch', address: '〒131-0033 東京都墨田区向島３丁目２６−７', area: '墨田区' })
+    expect(r.lat).toBeUndefined()
+  })
+})
+
+describe('geocodeQuery', () => {
+  it('drops the postal code and makes the house number half-width', () => {
+    expect(geocodeQuery('〒131-0033 東京都墨田区向島３丁目２６−７')).toBe('東京都墨田区向島3丁目26-7')
+    expect(geocodeQuery('日本、〒248-0006 神奈川県鎌倉市小町1-2-3')).toBe('神奈川県鎌倉市小町1-2-3')
+    expect(geocodeQuery('北海道虻田郡ニセコ町ニセコ センター 1')).toBe('北海道虻田郡ニセコ町ニセコ センター 1')
   })
 })

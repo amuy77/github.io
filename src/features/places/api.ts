@@ -2,6 +2,7 @@ import { getSupabase } from '@/lib/supabase/client'
 import type { Database, PlaceRow } from '@/lib/supabase/database.types'
 import { deleteUnusedPhotos } from '@/lib/images/upload'
 import { fetchAll } from '@/lib/supabase/fetchAll'
+import { geocodeQuery } from './mapsUrl'
 
 export type PlaceInsert = Database['public']['Tables']['places']['Insert']
 export type PlaceUpdate = Database['public']['Tables']['places']['Update']
@@ -31,6 +32,20 @@ export async function updatePlace(id: string, patch: PlaceUpdate): Promise<Place
   const { data, error } = await getSupabase().from('places').update(patch).eq('id', id).select('*').single()
   if (error) throw error
   return data as PlaceRow
+}
+
+/**
+ * 住所から場所を探す（Edge Function link-preview の geocode。中身は国土地理院の住所検索）。
+ * 見つからない・通信できないときは null（そのときは地図を押してピンを置いてもらう）
+ */
+export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const q = geocodeQuery(address)
+  if (!q) return null
+  try {
+    const { data, error } = await getSupabase().functions.invoke<{ lat?: number; lng?: number }>('link-preview', { body: { geocode: q } })
+    if (error || typeof data?.lat !== 'number' || typeof data?.lng !== 'number') return null
+    return { lat: data.lat, lng: data.lng }
+  } catch { return null }
 }
 
 export async function deletePlace(place: PlaceRow): Promise<void> {

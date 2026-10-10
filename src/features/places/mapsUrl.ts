@@ -63,15 +63,43 @@ export function parseMapsUrl(raw: string): MapsInfo {
     out.name = fromPath
   } else {
     const q = (u.searchParams.get('q') ?? u.searchParams.get('query') ?? '').trim()
-    if (q && !COORD_PAIR.test(q) && !/^place_id:/i.test(q)) {
-      // 「店名, 住所」の形なら分けて入れる
-      const [name, ...rest] = q.split(/,\s*|、/)
-      out.name = name.trim()
-      if (rest.length) out.address = rest.join(' ').trim()
-    }
+    if (q && !COORD_PAIR.test(q) && !/^place_id:/i.test(q)) Object.assign(out, splitAddressAndName(q))
   }
   if (out.address) out.area = areaOf(out.address)
   return out
+}
+
+const DIGIT = '[0-9０-９]'
+const POSTAL = /^〒?\s*\d{3}-?\d{4}\s*/
+/** 住所らしい書き出しか（〒か都道府県。「大村珈琲」のような店名を住所と間違えないよう、市区町村だけでは決めない） */
+const looksLikeAddress = (s: string) => /^(日本[、,]?\s*)?〒/.test(s) || /^(東京都|北海道|京都府|大阪府|\S{2,3}県)/.test(s)
+
+/**
+ * ?q= の中身を店名と住所に分ける。iPhone の共有リンクは「〒131-0033 東京都墨田区向島３丁目２６−７ 店名」のように
+ * 住所が先・店名が後ろでスペースでつながっているので、番地（数字と区切りのつながり）までを住所にする。
+ * 「店名, 住所」の形はカンマで分ける。住所だけで区切れないときは店名を空にする（住所が店名の欄に入らないように）
+ */
+export function splitAddressAndName(q: string): Pick<MapsInfo, 'name' | 'address'> {
+  const t = q.trim()
+  if (!t) return {}
+  if (!looksLikeAddress(t)) {
+    const [name, ...rest] = t.split(/,\s*|、/)
+    return { name: name.trim() || undefined, address: rest.join(' ').trim() || undefined }
+  }
+  const head = t.replace(/^日本[、,]?\s*/, '')
+  const postal = head.match(POSTAL)?.[0].trim() ?? ''
+  const body = head.replace(POSTAL, '')
+  const m = body.match(new RegExp(`^(.*?${DIGIT}+(?:\\s*(?:[-−－‐ー―]|丁目|番地|番|号|の)\\s*${DIGIT}+)*(?:丁目|番地|番|号)?)[\\s\u3000]+(\\S.*)$`))
+  const join = (a: string) => [postal, a.trim()].filter(Boolean).join(' ')
+  return m ? { address: join(m[1]), name: m[2].trim() } : { address: join(body) }
+}
+
+/** 住所を場所探し用に整える（〒番号・「日本、」を外し、全角の数字と番地の「−」を半角に） */
+export function geocodeQuery(address: string): string {
+  return address.replace(/^日本[、,]?\s*/, '').replace(POSTAL, '')
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/(\d)\s*[−－‐ー―]\s*(?=\d)/g, '$1-')
+    .trim()
 }
 
 /** Google マップのページの og:title（「店名 · 住所」）を分ける。「Google マップ」だけのときは何も返さない */

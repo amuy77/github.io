@@ -21,6 +21,7 @@ import { areaOf, isGoogleMapsUrl, mapsInfoFrom, type MapsInfo } from './mapsUrl'
 import { CUISINES, PRICE_BANDS } from './trends'
 import { MapBox } from './MapBox'
 import { useCreatePlace, usePlaces, useUpdatePlace } from './hooks'
+import { geocodeAddress } from './api'
 
 interface Props { open: boolean; onClose: () => void; place?: PlaceRow | null; onSaved?: (p: PlaceRow) => void }
 
@@ -43,7 +44,7 @@ export function PlaceEditorSheet({ open, onClose, place, onSaved }: Props) {
   )
 }
 
-type LinkState = 'idle' | 'loading' | 'done' | 'nocoords' | 'noname' | 'notmaps' | 'error'
+type LinkState = 'idle' | 'loading' | 'locating' | 'done' | 'geocoded' | 'nocoords' | 'noname' | 'notmaps' | 'error'
 /** 読めた中身から、出す文言を決める（店名も場所も／店名だけ／場所だけ／どちらも無し） */
 const linkStateOf = (info: MapsInfo): LinkState => (info.name ? (info.lat !== undefined ? 'done' : 'nocoords') : info.lat !== undefined ? 'noname' : 'error')
 
@@ -79,6 +80,15 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
   useEffect(() => { onDirtyChange(snapshot !== initial.current) }, [snapshot, onDirtyChange])
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
 
+  // 住所の欄から場所を探す（リンクが無いお店や、ピンがずれていたとき用）
+  const [locating, setLocating] = useState(false)
+  async function locateFromAddress() {
+    setLocating(true)
+    const spot = await geocodeAddress(address)
+    setLocating(false)
+    if (spot) { setPos(spot); toast('📍 住所から場所を入れたよ', 'success') }
+    else toast('住所から場所が見つからなかった。地図を押してピンを置いてね', 'error')
+  }
   const changeAddress = (v: string) => { setAddress(v); if (!areaTouched.current) setArea(areaOf(v)) }
   // 分かったことは、まだ空いているところにだけ入れる（自分で書いたものは上書きしない）
   const apply = (info: MapsInfo) => {
@@ -106,8 +116,15 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
         if (!alive) return
         const info = mapsInfoFrom(target, preview)
         apply(info)
-        setLink(linkStateOf(info))
         setSeen(preview.final_url ?? '')
+        // リンクに座標が無くても、住所が分かればそこから場所を探してピンを置く（iPhone の共有リンクはこの形）
+        if (info.lat === undefined && info.address) {
+          setLink('locating')
+          const spot = await geocodeAddress(info.address)
+          if (!alive) return
+          if (spot) { setPos((cur) => cur ?? spot); setLink('geocoded'); return }
+        }
+        setLink(linkStateOf(info))
       } catch {
         if (alive) setLink(linkStateOf(local))
       }
@@ -179,14 +196,16 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
           {{
             idle: 'Google マップでお店を開いて「共有 → リンクをコピー」。貼ると店名と場所が入るよ',
             loading: 'お店の情報を読んでいるよ…',
+            locating: '住所から場所を探しているよ…',
             done: '📍 店名と場所を入れたよ。違っていたら直してね',
+            geocoded: '📍 住所から場所を入れたよ（だいたいの位置。ずれていたら地図を押して直してね）',
             nocoords: '店名は分かったけど、場所までは取れなかった。下の地図を押してピンを置いてね',
             noname: '📍 場所は入れたよ。お店の名前を入れてね',
             notmaps: 'Google マップのリンクじゃないみたい。リンクはそのまま保存できるよ',
             error: 'リンクから読み取れなかった。店名を入れて、下の地図を押してピンを置いてね',
           }[shown]}
         </p>
-        {seen && shown !== 'done' && shown !== 'loading' && <p className="break-all text-[11px] text-muted/80">読み取った先: {seen}</p>}
+        {seen && !['done', 'geocoded', 'loading', 'locating'].includes(shown) && <p className="break-all text-[11px] text-muted/80">読み取った先: {seen}</p>}
       </div>
 
       <Input label="お店の名前" placeholder="コーヒースタンド Y" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
@@ -199,7 +218,10 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
           {pos && <button type="button" className="font-bold underline underline-offset-2" onClick={() => setPos(null)}>ピンを外す</button>}
         </div>
       </div>
-      <Input label="住所（任意）" placeholder="東京都渋谷区…" value={address} maxLength={200} onChange={(e) => changeAddress(e.target.value)} />
+      <div className="flex flex-col gap-1.5">
+        <Input label="住所（任意）" placeholder="東京都渋谷区…" value={address} maxLength={200} onChange={(e) => changeAddress(e.target.value)} />
+        {address.trim() && <Button size="sm" variant="secondary" className="self-start" loading={locating} onClick={locateFromAddress}>📍 住所から場所を探す</Button>}
+      </div>
       <Input label="エリア" hint="一覧や傾向で使うよ（渋谷区・鎌倉市など）" placeholder="渋谷区" value={area} maxLength={40} onChange={(e) => { areaTouched.current = true; setArea(e.target.value) }} />
 
       <div className="flex flex-col gap-2">
