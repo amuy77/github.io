@@ -1815,3 +1815,44 @@ test('places: before the SQL is run, the page says so instead of breaking', asyn
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
 })
+
+// ---- UI の型 テーマ2: お知らせは下に LaRa の顔つき、変更なしは「記録ずみ」、外した数は覚えておく ----
+
+test('theme2: the record page says 記録ずみ when nothing changed, keeps a count you un-tick, and the toast sits at the bottom', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  const done = page.getByRole('button', { name: /記録ずみ/ })
+  await expect(done).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-menu-day-done.png`, fullPage: true })
+  // 数を入れてから品名を押して外し、もう一度押すと数が戻る
+  const blt = page.getByRole('button', { name: 'BLT サンド' }).first()
+  await page.getByRole('button', { name: '増やす' }).first().click()
+  const before = await page.getByLabel(/の売数/).first().inputValue()
+  await blt.click()
+  await blt.click()
+  await expect(page.getByLabel(/の売数/).first()).toHaveValue(before)
+  await page.getByRole('button', { name: '記録する' }).click()
+  const toast = page.getByRole('status').filter({ hasText: '記録したよ' })
+  await expect(toast).toBeVisible()
+  const box = (await toast.boundingBox())!
+  const vh = page.viewportSize()!.height
+  expect(box.y).toBeGreaterThan(vh / 2)   // 画面の下半分にある
+  await expect(toast.locator('img[alt="LaRa"]')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-toast.png` })
+  // 押すと消える
+  await toast.click()
+  await expect(toast).toBeHidden()
+})
+
+test('theme2: a failure toast stays until you tap it', async ({ page }) => {
+  await stubSupabase(page)
+  await page.route(`https://${REF}.supabase.co/rest/v1/clips**`, (route) => (route.request().method() === 'PATCH' ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' }) : route.fallback()))
+  await page.goto('#/clips/c1000000-0000-4000-8000-000000000001')
+  await page.getByRole('button', { name: 'お気に入り' }).click()
+  const alert = page.getByRole('alert')
+  await expect(alert).toBeVisible()
+  await page.waitForTimeout(5000)
+  await expect(alert).toBeVisible()
+  await alert.click()
+  await expect(alert).toBeHidden()
+})
