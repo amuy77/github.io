@@ -53,13 +53,13 @@ export function Home2D({ counts, streak, loading, worried }: { counts: HomeCount
       <div className="relative">
         <div className="confetti-bg pointer-events-none absolute -inset-x-4 -top-4 h-24" aria-hidden />
         <div className="relative flex items-end justify-between">
-          {/* 1 日 1 つ落ちているたからもの */}
-          {!loading && <TreasureSpot className="absolute left-1/2 top-1 -translate-x-1/2" />}
-          <div>
-            <div className="font-display text-[28px] font-extrabold leading-none tracking-wide">LaRa</div>
-            <div className="mt-1 text-[11px] font-bold tracking-widest text-muted">{formatMD(today())}</div>
+          {/* 1 日 1 つ落ちているたからもの（右上の 4 つのボタンと重ならないように、見出しの下） */}
+          {!loading && <TreasureSpot className="absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2" />}
+          <div className="shrink-0">
+            <div className="font-display text-[22px] font-extrabold leading-none tracking-wide">LaRa</div>
+            <div className="mt-1 whitespace-nowrap text-[11px] font-bold tracking-wider text-muted">{formatMD(today())}</div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <AgendaChip />
             <AlbumChip />
             <HomeModeChip showing="2d" />
