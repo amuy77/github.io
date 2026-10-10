@@ -5,7 +5,9 @@ import { cx } from '@/lib/cx'
  * 星の評価。max=5（ネタ）/ 3（レシピ）。value=null は「保留」。
  * 同じ星をもう一度押すと保留に戻る。
  */
-export function RatingInput({ value, onChange, max, label, disabled }: { value: number | null; onChange: (v: number | null) => void; max: 3 | 5; label?: string; disabled?: boolean }) {
+export function RatingInput({ value, onChange, max, label, disabled, words }: { value: number | null; onChange: (v: number | null) => void; max: 3 | 5; label?: string; disabled?: boolean
+  /** ★ ごとのひとこと（無ければネタ・レシピ用） */
+  words?: string[] }) {
   return (
     <div className="flex flex-col gap-1.5">
       {label && <span className="text-[13px] font-bold text-espresso-700">{label}</span>}
@@ -27,7 +29,7 @@ export function RatingInput({ value, onChange, max, label, disabled }: { value: 
           保留
         </button>
       </div>
-      <p className="text-xs text-muted">{value === null ? 'まだ決めなくて OK。あとで付けられます' : RATING_WORDS[max][value - 1]}</p>
+      <p className="text-xs text-muted">{value === null ? 'まだ決めなくて OK。あとで付けられます' : (words ?? RATING_WORDS[max])[value - 1]}</p>
     </div>
   )
 }

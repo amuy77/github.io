@@ -1,0 +1,106 @@
+import type { LinkPreview } from '@/lib/supabase/database.types'
+
+/** Google マップのリンクから読み取れたこと（分からないものは入れない） */
+export interface MapsInfo { name?: string; lat?: number; lng?: number; address?: string; area?: string; mapsUrl?: string }
+
+const NUM = '(-?\\d{1,3}(?:\\.\\d+)?)'
+const COORD_PAIR = new RegExp(`^${NUM},\\s*${NUM}$`)
+
+function toUrl(s: string): URL | null {
+  try { return new URL(s.trim()) } catch { return null }
+}
+
+const okLat = (n: number) => Number.isFinite(n) && n >= -90 && n <= 90
+const okLng = (n: number) => Number.isFinite(n) && n >= -180 && n <= 180
+function coords(lat: string, lng: string): { lat: number; lng: number } | null {
+  const a = Number(lat), b = Number(lng)
+  return okLat(a) && okLng(b) && !(a === 0 && b === 0) ? { lat: a, lng: b } : null
+}
+
+/** Google マップのリンクか（短縮リンク maps.app.goo.gl・goo.gl/maps・google.*／maps・maps.google.*） */
+export function isGoogleMapsUrl(s: string): boolean {
+  const u = toUrl(s)
+  if (!u || !/^https?:$/.test(u.protocol)) return false
+  const h = u.hostname.toLowerCase()
+  if (h === 'maps.app.goo.gl') return true
+  if (h === 'goo.gl' && u.pathname.startsWith('/maps')) return true
+  if (/^maps\.google\.[a-z.]+$/.test(h)) return true
+  return /(^|\.)google\.[a-z.]+$/.test(h) && u.pathname.startsWith('/maps')
+}
+
+/** 同意画面（consent.google.com?continue=…）に飛ばされたときは、中の本当の URL を取り出す */
+function unwrap(u: URL): URL {
+  if (/^consent\.google\./.test(u.hostname)) {
+    const inner = toUrl(u.searchParams.get('continue') ?? '')
+    if (inner) return inner
+  }
+  return u
+}
+
+const decodePart = (s: string) => { try { return decodeURIComponent(s.replace(/\+/g, ' ')).trim() } catch { return s.trim() } }
+
+/**
+ * Google マップの URL から店名と座標を読む。
+ * 座標は お店のピン（!3d…!4d…）→ 画面の中心（@lat,lng）→ ?q= / ?ll= の順。店名は /maps/place/<名前>/ か ?q=
+ */
+export function parseMapsUrl(raw: string): MapsInfo {
+  const first = toUrl(raw)
+  if (!first) return {}
+  const u = unwrap(first)
+  const href = u.toString()
+  const out: MapsInfo = { mapsUrl: href }
+
+  const pin = href.match(new RegExp(`!3d${NUM}!4d${NUM}`))
+  const at = u.pathname.match(new RegExp(`@${NUM},${NUM}`))
+  const param = ['q', 'query', 'll', 'center', 'destination'].map((k) => u.searchParams.get(k)?.trim() ?? '').find((v) => COORD_PAIR.test(v))
+  const pm = param?.match(COORD_PAIR)
+  const c = (pin && coords(pin[1], pin[2])) || (at && coords(at[1], at[2])) || (pm && coords(pm[1], pm[2])) || null
+  if (c) { out.lat = c.lat; out.lng = c.lng }
+
+  const place = u.pathname.match(/\/maps\/place\/([^/]+)/)
+  const fromPath = place ? decodePart(place[1]) : ''
+  if (fromPath && !COORD_PAIR.test(fromPath)) {
+    out.name = fromPath
+  } else {
+    const q = (u.searchParams.get('q') ?? u.searchParams.get('query') ?? '').trim()
+    if (q && !COORD_PAIR.test(q) && !/^place_id:/i.test(q)) {
+      // 「店名, 住所」の形なら分けて入れる
+      const [name, ...rest] = q.split(/,\s*|、/)
+      out.name = name.trim()
+      if (rest.length) out.address = rest.join(' ').trim()
+    }
+  }
+  if (out.address) out.area = areaOf(out.address)
+  return out
+}
+
+/** Google マップのページの og:title（「店名 · 住所」）を分ける。「Google マップ」だけのときは何も返さない */
+export function parseOgTitle(title: string | undefined): Pick<MapsInfo, 'name' | 'address'> {
+  const t = (title ?? '').trim()
+  if (!t || /^google\s*(マップ|maps)$/i.test(t)) return {}
+  const [name, ...rest] = t.split(/\s+·\s+/)
+  return { name: name.trim() || undefined, address: rest.join(' ').trim() || undefined }
+}
+
+/** 住所から「渋谷区」「鎌倉市」「横浜市中区」くらいの呼び名を取り出す（日本の住所だけ） */
+export function areaOf(address: string): string {
+  const a = address.replace(/^日本[、,]\s*/, '').replace(/〒?\s*\d{3}-?\d{4}\s*/, '').trim()
+  // 都道府県を外す（無い住所「渋谷区神宮前…」はそのまま）
+  const rest = a.replace(/^(東京都|北海道|京都府|大阪府|.{2,3}県)/, '')
+  const m = rest.match(/^(.+?市.+?区)/) ?? rest.match(/^(.+?[市区町村])/)
+  return m ? m[1].replace(/^.+?郡/, '') : ''
+}
+
+/**
+ * 貼ったリンクとプレビュー（たどった先の URL・og:title）を合わせて、分かったことをまとめる。
+ * たどった先 → 貼ったリンク → og:title の順に、まだ分かっていないところだけ埋める
+ */
+export function mapsInfoFrom(pasted: string, preview?: LinkPreview | null): MapsInfo {
+  const out: MapsInfo = {}
+  const fill = (x: MapsInfo) => { for (const [k, v] of Object.entries(x) as [keyof MapsInfo, never][]) if (v !== undefined && v !== '' && out[k] === undefined) out[k] = v }
+  if (preview?.final_url) fill(parseMapsUrl(preview.final_url))
+  fill(parseMapsUrl(pasted))
+  fill(parseOgTitle(preview?.title))
+  if (out.address && !out.area) out.area = areaOf(out.address)
+  return out
+}

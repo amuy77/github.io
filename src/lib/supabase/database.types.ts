@@ -72,6 +72,27 @@ export type AiInsightRow = { id: string; user_id: string; week_start: string; in
 export type IngredientPriceRow = Timestamps & { id: string; user_id: string; name: string; buy_amount: number; buy_unit: string; buy_price: number }
 export type ShopRow = { id: string; name: string; created_at: string }
 export type ShopMemberRow = { shop_id: string; user_id: string; role: 'owner' | 'staff'; display_name: string; created_at: string }
+/** お気に入りのお店（行って気に入ったお店。Google マップのリンクから） */
+export type PlaceRow = Timestamps & {
+  id: string; user_id: string; name: string
+  /** 貼ったリンク / たどった先の Google マップの URL */
+  url: string | null; maps_url: string | null
+  lat: number | null; lng: number | null
+  address: string
+  /** 「渋谷区」「鎌倉市」など */
+  area: string
+  /** お店のジャンル（カフェ・ラーメンなど。ネタ帳・レシピのジャンルとは別） */
+  cuisine: string
+  /** 1 人あたり。1: 〜¥1,000 … 5: ¥5,000〜 */
+  price_band: number | null
+  /** 1〜5 */
+  rating: number | null
+  /** また行きたい */
+  revisit: boolean
+  note: string
+  images: ImageRef[]
+  visited_on: string | null
+}
 
 type GeneratedKeys = 'id' | 'user_id' | 'created_at' | 'updated_at'
 type Table<Row extends object, Required extends keyof Row> = {
@@ -96,6 +117,7 @@ export type Database = {
       shops: Table<ShopRow, 'name'>
       ingredient_prices: Table<IngredientPriceRow, 'name' | 'buy_amount' | 'buy_unit' | 'buy_price'>
       shop_members: Table<ShopMemberRow, 'shop_id'>
+      places: Table<PlaceRow, 'name'>
     }
     Views: { [_ in never]: never }
     Functions: {
