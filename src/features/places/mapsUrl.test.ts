@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { areaOf, isGoogleMapsUrl, mapsInfoFrom, parseMapsUrl, parseOgTitle } from './mapsUrl'
+import { areaOf, coordsFromMapImage, isGoogleMapsUrl, mapsInfoFrom, parseMapsUrl, parseOgTitle } from './mapsUrl'
 
 describe('isGoogleMapsUrl', () => {
   it('knows the share links and the full links', () => {
@@ -80,5 +80,19 @@ describe('mapsInfoFrom', () => {
     const r = mapsInfoFrom('https://maps.app.goo.gl/AbC', { final_url: 'https://www.google.com/maps?cid=123', title: 'パン屋 A · 東京都渋谷区神宮前1-1' })
     expect(r).toMatchObject({ name: 'パン屋 A', area: '渋谷区' })
     expect(r.lat).toBeUndefined()
+  })
+})
+
+describe('coordsFromMapImage', () => {
+  it('reads the pin or the centre of the Google static map image', () => {
+    expect(coordsFromMapImage('https://maps.google.com/maps/api/staticmap?center=35.6612%2C139.7012&zoom=15&size=256x256&markers=35.6613%2C139.7013')).toEqual({ lat: 35.6613, lng: 139.7013 })
+    expect(coordsFromMapImage('https://maps.google.com/maps/api/staticmap?center=35.6612%2C139.7012&zoom=15')).toEqual({ lat: 35.6612, lng: 139.7012 })
+    expect(coordsFromMapImage('https://lh5.googleusercontent.com/p/abc=w900')).toEqual({})
+    expect(coordsFromMapImage('https://example.com/?center=35.6%2C139.7')).toEqual({})
+    expect(coordsFromMapImage(undefined)).toEqual({})
+  })
+  it('fills the spot from the image when the followed URL has no coordinates', () => {
+    const r = mapsInfoFrom('https://maps.app.goo.gl/AbC', { final_url: 'https://www.google.com/maps/place/Cafe+Q/data=!4m2!3m1!1s0x0:0x1', image: 'https://maps.google.com/maps/api/staticmap?center=34.70%2C135.50&zoom=15', title: 'カフェ Q · 大阪府大阪市北区梅田1-1' })
+    expect(r).toMatchObject({ name: 'Cafe Q', lat: 34.7, lng: 135.5, area: '大阪市北区' })
   })
 })

@@ -98,6 +98,12 @@ Performance Advisor は INFO のみ（FK の未インデックス 3 件、未使
 
 Dashboard で確認したい場合: <https://supabase.com/dashboard/project/bzwwprtctvwinkesdfks>
 
+## 更新（2026-10-12）: link-preview が Google マップの短縮リンクをたどる
+
+- `maps.app.goo.gl` はブラウザに見えるアクセスだと転送（302）ではなく中継ページを返すので、店名も場所も読めなかった。
+  短縮リンクだけは User-Agent を付けずに転送をたどり、Google マップの URL に着いたらそれを `final_url` で返す（お店のページなら og:title・og:image も読む）。ほかの URL の動きは同じ。
+- Edge Function `link-preview` を Supabase CLI（`functions deploy link-preview --use-api`）でデプロイし直した。SQL は無し。
+
 ## 追加（2026-10-12）: ノートの「📍 お店」（お気に入りのお店）
 
 - `20261012000000_places.sql` を **SQL エディタで実行する**。

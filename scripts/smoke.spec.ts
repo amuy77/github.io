@@ -1694,13 +1694,20 @@ test('places: お店 is the 4th notes tab, and pasting a Google Maps link fills 
   await expect(list.getByRole('link')).toHaveCount(4)
 })
 
-test('places: a link that cannot be read still saves after you tap the map to drop a pin', async ({ page }) => {
+test('places: a link that cannot be read says so honestly, and still saves after you tap the map to drop a pin', async ({ page }) => {
   await stubSupabase(page)
+  // 短縮リンクが中継ページのままだった（たどれなかった）ときの返事
+  await page.route(`https://${REF}.supabase.co/functions/v1/link-preview`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Google マップ', final_url: 'https://maps.app.goo.gl/zj1ttgX' }) }))
   const posts: { lat: number | null; name: string }[] = []
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/places')) posts.push(r.postDataJSON()) })
   await page.goto('#/places')
   await page.getByRole('button', { name: '追加', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/zj1ttgX')
+  await expect(sheet.getByText('リンクから読み取れなかった')).toBeVisible()
+  await expect(sheet.getByText('店名は分かったけど')).toHaveCount(0)
+  await expect(sheet.getByText('読み取った先: https://maps.app.goo.gl/zj1ttgX')).toBeVisible()
+  await expect(sheet.getByLabel('お店の名前')).toHaveValue('')
   await sheet.getByLabel('お店の名前').fill('食堂 S')
   await expect(sheet.locator('.lara-pin')).toHaveCount(0)
   await sheet.getByTestId('place-map').click({ position: { x: 120, y: 90 } })
