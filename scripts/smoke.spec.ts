@@ -1900,7 +1900,7 @@ test('theme4: the home chips have words, the furniture card closes and keeps 今
   await page.goto('#/')
   // 右上の 4 つに文字（予定は Planner がつながっていないと出ない）
   await expect(page.getByRole('button', { name: 'LaRa のアルバム', exact: true })).toContainText('アルバム')
-  await expect(page.getByRole('button', { name: '2D のホームにする' })).toContainText('2Dにする')
+  await expect(page.getByRole('button', { name: '2D のホームにする' })).toContainText('2Dへ')
   if (info.project.name === 'phone') await expect(page.getByRole('link', { name: '設定' })).toContainText('設定')
   await page.waitForFunction(() => (window as unknown as { __lara?: { debugState(): { figure: boolean } } }).__lara?.debugState().figure, null, { timeout: 20_000 })
   await page.evaluate(() => (window as unknown as { __lara: { setResident(v: boolean): void } }).__lara.setResident(false))

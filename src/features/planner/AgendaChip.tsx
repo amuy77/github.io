@@ -57,8 +57,8 @@ export function AgendaChip({ className }: { className?: string }) {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label={`今日の予定と ToDo（${n} 件）`} title="今日の予定と ToDo"
-        className={cx('pointer-events-auto relative flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-paper/90 pl-2 pr-2.5 text-[11px] font-bold text-espresso-700 shadow-card backdrop-blur', className)}>
-        <span className="text-[15px]" aria-hidden>📅</span>予定
+        className={cx('pointer-events-auto relative flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-paper/90 px-2 text-[11px] font-bold text-espresso-700 shadow-card backdrop-blur', className)}>
+        <span className="text-[14px]" aria-hidden>📅</span>予定
         {n > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-green-600 px-1 text-[10px] font-bold leading-none text-white" aria-hidden>{n}</span>}
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="予定と ToDo">

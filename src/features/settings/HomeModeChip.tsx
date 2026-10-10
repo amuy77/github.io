@@ -11,8 +11,8 @@ export function HomeModeChip({ showing, className }: { showing: '3d' | '2d'; cla
   const to = showing === '3d' ? '2d' : '3d'
   return (
     <button type="button" onClick={() => updateSettings({ home3d: to === '3d' })} aria-label={to === '3d' ? '3D のホームにする' : '2D のホームにする'} title={to === '3d' ? '3D のホームにする' : '2D のホームにする'}
-      className={cx('pointer-events-auto flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-paper/90 pl-2 pr-2.5 text-[11px] font-bold text-espresso-700 shadow-card backdrop-blur', className)}>
-      <span className="font-extrabold tracking-wide">{to === '3d' ? '3D' : '2D'}</span>にする
+      className={cx('pointer-events-auto flex h-9 shrink-0 items-center gap-1 rounded-full border border-line bg-paper/90 px-2 text-[11px] font-bold text-espresso-700 shadow-card backdrop-blur', className)}>
+      <span className="font-extrabold tracking-wide">{to === '3d' ? '3D' : '2D'}</span>へ
     </button>
   )
 }
