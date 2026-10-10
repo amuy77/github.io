@@ -783,11 +783,13 @@ test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', a
   // お店が広くなって玄関から LaRa のところまで遠いので、長めに待つ
   await expect.poll(async () => (await friendState(page))?.phase, { timeout: 110_000 }).toBe('play')
   await page.screenshot({ path: `screenshots/${info.project.name}-home-luru.png` })
-  // タップすると宮崎弁でひとこと
+  // タップすると宮崎弁でひとこと。遊んでいる間も動き回るので、外れたら今の場所を取り直して押し直す
   await page.waitForTimeout(6000)
-  const pos = await page.evaluate(() => (window as unknown as FriendW).__lara!.friendScreenPos())
-  await page.mouse.click(pos!.x, pos!.y + 40)
-  await expect(luruSays).toBeVisible()
+  await expect(async () => {
+    const pos = await page.evaluate(() => (window as unknown as FriendW).__lara!.friendScreenPos())
+    await page.mouse.click(pos!.x, pos!.y + 40)
+    await expect(luruSays).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 30_000 })
   // 帰ってもらうと、郵便受けまで歩いていなくなる
   await page.evaluate(() => (window as unknown as FriendW).__lara!.sendFriendHome())
   await expect.poll(() => friendState(page), { timeout: 100_000 }).toBeNull()
