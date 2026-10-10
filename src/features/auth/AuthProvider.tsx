@@ -18,7 +18,7 @@ const Ctx = createContext<AuthState | null>(null)
 function jaError(msg: string): string {
   const m = msg.toLowerCase()
   if (m.includes('invalid login credentials')) return 'メールアドレスかパスワードが違うみたい。'
-  if (m.includes('email not confirmed')) return 'メールの確認が終わっていません。受信箱を見てね。'
+  if (m.includes('email not confirmed')) return 'メールの確認がまだだよ。受信箱を見てね。'
   if (m.includes('not allowed') || m.includes('allowed_emails') || m.includes('database error saving new user') || m.includes('許可')) return 'このメールアドレスは登録できません（お店のアカウント用に限定しています）。'
   if (m.includes('password should be at least')) return 'パスワードは 6 文字以上にしてね。'
   if (m.includes('user already registered') || m.includes('already been registered')) return 'そのメールアドレスはもう登録済み。ログインしてね。'

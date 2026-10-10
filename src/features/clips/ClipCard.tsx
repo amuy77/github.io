@@ -3,7 +3,7 @@ import type { ClipRow } from '@/lib/supabase/database.types'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Tag } from '@/components/ui/Chip'
 import { RatingStars } from '@/components/ui/Rating'
-import { IconStar } from '@/components/ui/icons'
+import { IconHeart } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { relativeDay } from '@/lib/dates'
 import { TYPE_LABEL } from './categories'
@@ -20,8 +20,8 @@ export function clipTitle(c: ClipRow): string {
 function FavoriteButton({ clip, onToggle, className }: { clip: ClipRow; onToggle: (c: ClipRow) => void; className: string }) {
   return (
     <button type="button" aria-label={clip.favorite ? 'お気に入りを外す' : 'お気に入りにする'} onClick={() => onToggle(clip)}
-      className={cx('z-10 grid place-items-center rounded-full', clip.favorite ? 'text-mustard-400' : 'text-line hover:text-mustard-400', className)}>
-      <IconStar size={clip.favorite ? 18 : 16} filled={clip.favorite} />
+      className={cx('z-10 grid place-items-center rounded-full', clip.favorite ? 'text-brick-400' : 'text-line hover:text-brick-400', className)}>
+      <IconHeart size={clip.favorite ? 18 : 16} filled={clip.favorite} />
     </button>
   )
 }
@@ -70,8 +70,8 @@ export function ClipListRow({ clip, onToggleFavorite }: { clip: ClipRow; onToggl
         {isIdea ? <span className="grid size-12 shrink-0 place-items-center text-xl" aria-hidden>💡</span> : <ImageThumb src={thumb} className="size-12 shrink-0 rounded-[8px]" emoji={cat.emoji} />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-bold leading-snug">{clipTitle(clip)}{clip.needs_review && <span className="ml-1.5 rounded-chip bg-mustard-400 px-1.5 py-0.5 text-[10px] font-bold">確認待ち</span>}</p>
-          <p className="truncate text-[11px] text-muted">{[isIdea ? 'ひらめき' : cat.id ? `${cat.emoji} ${cat.label}` : '', clip.shop_name ?? clip.preview?.site_name ?? '', clip.tags.slice(0, 3).join(' ')].filter(Boolean).join(' ・ ')}</p>
-          <div className="mt-0.5 flex items-center gap-1.5"><ClipPurposeBadge value={clip.purpose} />{!isIdea && <RatingStars value={clip.rating} max={5} showHold={false} />}<span className="ml-auto text-[10px] text-muted">{relativeDay(clip.created_at)}</span></div>
+          <p className="truncate text-[11px] text-muted">{[cat.id ? `${cat.emoji} ${cat.label}` : '', clip.shop_name ?? clip.preview?.site_name ?? '', clip.tags.slice(0, 3).join(' ')].filter(Boolean).join(' ・ ')}</p>
+          <div className="mt-0.5 flex items-center gap-1.5"><ClipPurposeBadge value={clip.purpose} /><RatingStars value={clip.rating} max={5} showHold={false} /><span className="ml-auto text-[10px] text-muted">{relativeDay(clip.created_at)}</span></div>
         </div>
       </Link>
       {onToggleFavorite && <FavoriteButton clip={clip} onToggle={onToggleFavorite} className="size-11 shrink-0" />}

@@ -11,7 +11,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { ClipRow } from '@/lib/supabase/database.types'
 import { qk } from '@/lib/supabase/queryKeys'
 import { useToast } from '@/components/ui/Toast'
-import { IconEdit, IconLink, IconStar, IconTrash } from '@/components/ui/icons'
+import { IconEdit, IconLink, IconHeart, IconTrash } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { dateOf, formatMD } from '@/lib/dates'
 import { paths } from '@/app/routes'
@@ -46,14 +46,14 @@ export function ClipDetailPage() {
   const c = clip.data
   // 通信の失敗と「本当に無い」は分ける
   if (clip.isError) return <><PageHeader title="ネタ" back={paths.clips} /><LoadError onRetry={() => void clip.refetch()} /></>
-  if (!c) return <><PageHeader title="ネタ" back={paths.clips} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
+  if (!c) return <><PageHeader title="ネタ" back={paths.clips} /><EmptyState emoji="🤔" title="見つからなかったよ" /></>
   const cat = genreOf(c.genre_id)
 
   return (
     <>
       <PageHeader title={clipTitle(c)} sub={`${TYPE_LABEL[c.type].emoji} ${TYPE_LABEL[c.type].label} ・ ${formatMD(dateOf(c.created_at))}`} back={paths.clips}
         actions={<>
-          <IconButton label="お気に入り" onClick={() => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })} className={c.favorite ? 'text-mustard-400' : ''}><IconStar filled={c.favorite} /></IconButton>
+          <IconButton label="お気に入り" onClick={() => update.mutate({ id: c.id, patch: { favorite: !c.favorite } })} className={c.favorite ? 'text-brick-400' : ''}><IconHeart filled={c.favorite} /></IconButton>
           <IconButton label="編集" onClick={() => setEdit(true)}><IconEdit /></IconButton>
         </>} />
       <div className="flex flex-col gap-4">
@@ -69,13 +69,13 @@ export function ClipDetailPage() {
         {c.needs_review && (
           <div className="flex items-center gap-3 rounded-card border border-mustard-300 bg-mustard-300/20 p-3 text-sm">
             <span className="text-xl" aria-hidden>📬</span>
-            <p className="flex-1 font-bold">AI が入れたネタです。中身を確認してね。</p>
+            <p className="flex-1 font-bold">LaRa が入れたネタだよ。中身を確認してね。</p>
             <Button size="sm" onClick={() => setReview(true)}>確認する</Button>
           </div>
         )}
         <Card className="flex flex-col gap-4">
-          <ClipPurposePicker value={c.purpose} onChange={(v) => v !== c.purpose && update.mutate({ id: c.id, patch: { purpose: v } }, { onSuccess: () => toast(v === 'idea' ? 'アイデアにしました' : '参考にしました', 'success') })} />
-          {c.type !== 'idea' && <RatingInput label="評価" max={5} value={c.rating} onChange={(v) => update.mutate({ id: c.id, patch: { rating: v } })} />}
+          <ClipPurposePicker value={c.purpose} onChange={(v) => v !== c.purpose && update.mutate({ id: c.id, patch: { purpose: v } }, { onSuccess: () => toast(v === 'idea' ? '「うちでやりたい」にしたよ' : '「よそで見た」にしたよ', 'success') })} />
+          <RatingInput label="評価" max={5} value={c.rating} onChange={(v) => update.mutate({ id: c.id, patch: { rating: v } })} />
         </Card>
         {c.type === 'idea' ? (
           <div className="rounded-[6px] border border-mustard-300 bg-[#FFF2C2] p-5 text-[15px] font-bold leading-relaxed whitespace-pre-wrap">{c.note}</div>

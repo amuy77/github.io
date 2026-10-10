@@ -29,7 +29,7 @@ export function RecipeComparePage() {
   }, [fam, picked, id])
 
   if (current.isLoading || all.isLoading) return <><PageHeader title="版を比べる" back /><Skeleton className="h-60" /></>
-  if (!current.data || !pair) return <><PageHeader title="版を比べる" back /><EmptyState emoji="🔍" title="比べる版がまだありません" body="レシピの画面で「この版から試作」を押すと、同じ料理の別の版ができます。" /></>
+  if (!current.data || !pair) return <><PageHeader title="版を比べる" back /><EmptyState emoji="🔍" title="比べる版がまだないよ" body="レシピの画面で「この版から試作」を押すと、同じ料理の別の版ができます。" /></>
   const [a, b] = pair
   const latest = latestOf(fam)
   const ings = diffIngredients(a.ingredients, b.ingredients)

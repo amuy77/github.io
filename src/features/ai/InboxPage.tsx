@@ -74,11 +74,11 @@ export function InboxPage() {
       <PageHeader title="受信トレイ" sub={`LaRa が ${WORKER_SCHEDULE_LABEL}に見に来るよ（次は ${nextWorkerTime()} ごろ）`} />
       <div className="flex flex-col gap-4">
         {reviews.length > 0 ? (
-          <MascotSays mood="party">AI が {reviews.length} 件振り分けたよ！タップして中身を確認してね。</MascotSays>
+          <MascotSays mood="party">{reviews.length} 件読んでおいたよ！タップして中身を確認してね。</MascotSays>
         ) : active.length > 0 ? (
           <MascotSays mood="thinking">{active.some((j) => j.status === 'processing') ? 'いま読み取り中…' : `${nextWorkerTime()} ごろに読みに来るね。届いたらここに並ぶよ。`}</MascotSays>
         ) : (
-          <MascotSays mood="idle">「＋」から写真を送ると、ネタ帳かレシピか AI が振り分けて、ここで確認できるよ。</MascotSays>
+          <MascotSays mood="idle">「＋」から写真を送ると、ネタ帳かレシピかに分けて、ここに届けるよ。</MascotSays>
         )}
 
         {loading ? <Skeleton className="h-28" /> : (
@@ -105,7 +105,7 @@ export function InboxPage() {
             )}
 
             {reviews.length === 0 && active.length === 0 && (
-              <EmptyState emoji="📬" title="トレイは空です" body="「＋」→ カメラか写真を選ぶだけ。ネタ帳かレシピかは AI が判断します。" action={<Link to={paths.add} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">写真を送る</Link>} />
+              <EmptyState emoji="📬" title="トレイは空っぽ" body="「＋」→ カメラか写真を選ぶだけ。ネタ帳かレシピかは LaRa が決めるよ。" action={<Link to={paths.add} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">写真を送る</Link>} />
             )}
 
             {recent.length > 0 && (

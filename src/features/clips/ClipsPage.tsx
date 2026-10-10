@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
-import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconSearch, IconHeart } from '@/components/ui/icons'
 import type { ClipRow } from '@/lib/supabase/database.types'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
@@ -17,6 +17,7 @@ import { cx } from '@/lib/cx'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
 import { useNotesGenre } from '@/features/notes/notes'
 import { GenreChips } from '@/features/notes/GenreChips'
+import { isTop } from '@/lib/rating'
 
 const VIEW_KEY = 'lara.clips.view'
 function readView(): Record<string, unknown> { try { return JSON.parse(sessionStorage.getItem(VIEW_KEY) ?? '{}') } catch { return {} } }
@@ -46,7 +47,7 @@ export function ClipsPage() {
     return sortRows(all.filter((c) => {
       if (genreId === 'idea' ? c.purpose !== 'idea' : genreId === 'none' ? (c.genre_id ?? null) !== null : genreId !== 'all' && c.genre_id !== genreId) return false
       if (favOnly && !c.favorite) return false
-      if (minRating === -1 ? c.type === 'idea' || c.rating !== null : minRating > 0 && (c.rating ?? 0) < minRating) return false
+      if (minRating === -1 ? c.rating !== null : minRating > 0 && !isTop(c.rating, 5)) return false
       if (!needle) return true
       const hay = `${clipTitle(c)} ${c.note} ${c.shop_name ?? ''} ${c.tags.join(' ')} ${c.preview?.title ?? ''}`.toLowerCase()
       return hay.includes(needle)
@@ -80,14 +81,14 @@ export function ClipsPage() {
             <FilterGroup label="並び順"><SortSelect value={sort} onChange={setSort} /></FilterGroup>
             <FilterGroup label="表示"><LayoutToggle value={layout} onChange={setLayout} /></FilterGroup>
             <FilterGroup label="しぼりこみ">
-              <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
-              <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★4以上</Chip>
-              <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★をまだ付けていない</Chip>
+              <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconHeart size={14} filled={favOnly} />}>お気に入り</Chip>
+              <Chip active={minRating === 4} onClick={() => setMinRating(minRating === 4 ? 0 : 4)}>★ また食べたい</Chip>
+              <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★がまだ</Chip>
             </FilterGroup>
           </FilterButton>
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <GenreChips value={genreId} onChange={setGenreId} idea={inTab.filter((c) => c.purpose === 'idea').length} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
+          <GenreChips value={genreId} onChange={setGenreId} ideaLabel="🏠 うちでやりたい" idea={inTab.filter((c) => c.purpose === 'idea').length} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
           <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
         <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />
@@ -99,7 +100,7 @@ export function ClipsPage() {
         ) : list.length === 0 ? (
           (clips.data?.length ?? 0) === 0
             ? <EmptyState emoji="📌" title="まだネタがありません" body="気になったお店のメニュー写真、SNS の投稿、ワインやビールのメモをここに集めよう。" action={<Button onClick={() => setEditorOpen(true)} icon={<IconPlus size={16} />}>最初のネタを追加</Button>} />
-            : <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
+            : <EmptyState emoji="🔍" title="見つからなかったよ" body="検索やしぼりこみを変えてみてね。" />
         ) : (
           sections.map((s) => (
             <section key={s.key} className="flex flex-col gap-2">

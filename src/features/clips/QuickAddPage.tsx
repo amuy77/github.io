@@ -54,7 +54,7 @@ export function QuickAddPage() {
       if (!text.trim()) { toast('クリップボードは空でした'); return }
       setDraft(draftFromText(text))
     } catch {
-      toast('貼り付けが許可されませんでした。メモの欄に直接ペーストしてね')
+      toast('貼り付けができなかった。メモの欄に直接ペーストしてね')
       setDraft({ type: 'note' })
     }
   }
@@ -103,7 +103,7 @@ export function QuickAddPage() {
   const MAIN: ActionId[] = ['camera', 'note']
   const actions: { id: ActionId; icon: React.ReactNode; label: string; sub: string; color: string }[] = [
     { id: 'camera', icon: <IconCamera />, label: '撮る', sub: '撮るだけ。あとは LaRa が仕分け', color: 'bg-brick-500 text-white' },
-    { id: 'library', icon: <IconImage />, label: '写真から選ぶ', sub: 'スクショやカメラロール。AI が振り分け', color: 'bg-mustard-400 text-espresso-900' },
+    { id: 'library', icon: <IconImage />, label: '写真から選ぶ', sub: 'スクショやカメラロール。LaRa が仕分け', color: 'bg-mustard-400 text-espresso-900' },
     { id: 'paste', icon: <IconClipboard />, label: 'クリップボードから', sub: 'Instagram の「リンクをコピー」の後に', color: 'bg-plum-400 text-white' },
     { id: 'note', icon: <IconLink />, label: '書く', sub: 'メモやリンク', color: 'bg-green-600 text-white' },
     { id: 'idea', icon: <IconBulb />, label: 'ひらめき', sub: '新メニューの種、思いつき', color: 'bg-[#FFF2C2] text-espresso-900' },
@@ -141,7 +141,7 @@ export function QuickAddPage() {
         <p className="text-center text-xs text-muted"><IconNote size={12} className="inline" /> iPhone の「写真からテキストをコピー」→「クリップボードから」で、手書きメモも読み込めるよ</p>
       </div>
 
-      <Sheet open={photos.length > 0} onClose={() => { if (!sending) clearPhotos() }} title="写真を AI に渡す">
+      <Sheet open={photos.length > 0} onClose={() => { if (!sending) clearPhotos() }} title="写真を LaRa に渡す">
         <div className="flex flex-col gap-4 pb-2">
           <MascotSays mood="thinking">レシピなら下書きカードに、他店のメニューやラベルならネタ帳に。読み取った名前とメモも付けておくね。</MascotSays>
           <div className="grid grid-cols-3 gap-2">
@@ -158,9 +158,9 @@ export function QuickAddPage() {
             )}
           </div>
           <Input label="ヒント（任意）" placeholder="例: ○○カフェ 渋谷 / うちのメニュー / 2 枚目は裏面" hint="店名（できれば地名も）を入れると、住所・営業時間・看板メニューなどを Web で調べてネタに書き足すよ。レシピなら「うちのメニュー」と書くとお店のメニューに、書かなければ参考レシピに入るよ" value={hint} onChange={(e) => setHint(e.target.value)} disabled={sending} />
-          <Button variant="mustard" size="lg" full icon={<IconSparkles />} loading={sending} onClick={sendToAi}>AI にまかせる（自動で振り分け）</Button>
-          <p className="text-center text-xs text-muted">結果は受信トレイに届きます。次の処理は {nextWorkerTime()} ごろ。</p>
-          <Button variant="ghost" full disabled={sending} onClick={writeMyself}>AI を使わず自分で書く</Button>
+          <Button variant="mustard" size="lg" full icon={<IconSparkles />} loading={sending} onClick={sendToAi}>LaRa にまかせる（自動で仕分け）</Button>
+          <p className="text-center text-xs text-muted">読んだらトレイに届けるよ。次に読むのは {nextWorkerTime()} ごろ。</p>
+          <Button variant="ghost" full disabled={sending} onClick={writeMyself}>自分で書く</Button>
         </div>
       </Sheet>
 

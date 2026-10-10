@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Field'
-import { Chip, Tag } from '@/components/ui/Chip'
+import { Tag } from '@/components/ui/Chip'
 import { PhotoPicker } from '@/components/ui/PhotoPicker'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { useToast } from '@/components/ui/Toast'
@@ -74,20 +74,19 @@ function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Om
   const [tags, setTags] = useState<string[]>(clip?.tags ?? draft?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
   const [shop, setShop] = useState(clip?.shop_name ?? draft?.shop_name ?? '')
-  const [isIdea, setIsIdea] = useState((clip?.type ?? draft?.type) === 'idea')
   const [images, setImages] = useState<ImageRef[]>(clip?.images ?? [])
   const [pending, setPending] = useState<{ file: File; url: string }[]>(() => (draft?.files ?? []).map((file) => ({ file, url: URL.createObjectURL(file) })))
   const [preview, setPreview] = useState<LinkPreview | null>(clip?.preview ?? null)
   const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'blocked' | 'error'>('idle')
   const [rating, setRating] = useState<number | null>(clip?.rating ?? null)
-  // 自分で書くネタは参考が基本。ひらめき（付箋）はアイデア
+  // 聞くのは「うちでやりたい？ よそで見た？」の 1 つだけ。自分で書くネタは「よそで見た」が基本、ひらめき（＋の付箋）は「うちでやりたい」
   const [purpose, setPurpose] = useState<ClipPurpose>(clip?.purpose ?? ((clip?.type ?? draft?.type) === 'idea' ? 'idea' : 'reference'))
   const [favorite, setFavorite] = useState(clip?.favorite ?? false)
   const [saving, setSaving] = useState(false)
   const saveBtn = useRef<HTMLButtonElement>(null)
 
   // 開いたときから何か変えたら「入力途中」として親に知らせる（閉じるときの確認に使う）
-  const snapshot = JSON.stringify({ title, note, url, genreId, tags, shop, isIdea, images, rating, purpose, favorite, pending: pending.length })
+  const snapshot = JSON.stringify({ title, note, url, genreId, tags, shop, images, rating, purpose, favorite, pending: pending.length })
   const initial = useRef(snapshot)
   useEffect(() => { onDirtyChange(snapshot !== initial.current) }, [snapshot, onDirtyChange])
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
@@ -126,20 +125,21 @@ function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Om
   async function save() {
     if (!userId) return
     const hasUrl = URL_RE.test(url)
-    const type: ClipType = isIdea ? 'idea' : pending.length + images.length > 0 ? 'photo' : hasUrl ? 'link' : 'note'
+    // 写真も URL も無い「うちでやりたい」は付箋（idea）で見せる
+    const type: ClipType = pending.length + images.length > 0 ? 'photo' : hasUrl ? 'link' : purpose === 'idea' ? 'idea' : 'note'
     if (!title.trim() && !note.trim() && !hasUrl && pending.length + images.length === 0) { toast('何か 1 つ入れてね（写真・URL・メモ）', 'error'); return }
     setSaving(true)
     try {
       const uploaded: ImageRef[] = []
       for (const p of pending) uploaded.push(await uploadPhoto(p.file, userId))
       const allImages = [...images, ...uploaded]
-      const row = { type, title: title.trim(), note: note.trim(), url: hasUrl ? url.trim() : null, images: allImages, preview: hasUrl ? preview : null, genre_id: genreId, tags, shop_name: shop.trim() || null, rating: isIdea ? null : rating, purpose, favorite, needs_review: false }
+      const row = { type, title: title.trim(), note: note.trim(), url: hasUrl ? url.trim() : null, images: allImages, preview: hasUrl ? preview : null, genre_id: genreId, tags, shop_name: shop.trim() || null, rating, purpose, favorite, needs_review: false }
       let saved: ClipRow
       if (clip) {
         saved = await update.mutateAsync({ id: clip.id, patch: row })
         const removed = (clip.images ?? []).filter((im) => !allImages.some((a) => a.path === im.path))
         if (removed.length) void deleteUnusedPhotos(removed)
-        toast('更新しました', 'success')
+        toast('保存したよ', 'success')
       } else {
         saved = await create.mutateAsync(row)
         celebrateFrom(saveBtn.current)
@@ -157,13 +157,7 @@ function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Om
 
   return (
     <div className="flex flex-col gap-4 pb-2">
-      <div className="flex gap-2">
-        <Chip active={!isIdea} onClick={() => setIsIdea(false)}>📌 ネタ</Chip>
-        <Chip active={isIdea} onClick={() => { setIsIdea(true); setPurpose('idea') }}>💡 ひらめき</Chip>
-      </div>
-
-      {!isIdea && (
-        <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
           {(images.length > 0 || pending.length > 0) && (
             <div className="grid grid-cols-3 gap-2">
               {images.map((im, i) => (
@@ -181,34 +175,31 @@ function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Om
             </div>
           )}
           <PhotoPicker onFiles={addFiles} compact={images.length + pending.length > 0} disabled={saving} />
-        </div>
-      )}
+      </div>
 
-      <Input label={isIdea ? 'ひとこと（任意）' : 'タイトル'} placeholder={isIdea ? '秋メニュー案' : 'クロックムッシュ ¥980'} value={title} onChange={(e) => setTitle(e.target.value)} />
-      <Textarea label={isIdea ? 'ひらめき' : 'メモ'} placeholder={isIdea ? '栗とマスカルポーネのクロワッサン。はちみつ少し。' : '軽くて昼向き。BLT と合いそう'} value={note} onChange={(e) => setNote(e.target.value)} />
+      <Input label="タイトル" placeholder="クロックムッシュ ¥980" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Textarea label="メモ" placeholder="軽くて昼向き。BLT と合いそう" value={note} onChange={(e) => setNote(e.target.value)} />
 
-      {!isIdea && (
-        <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
           <Input label="URL（Instagram など）" type="url" inputMode="url" placeholder="https://www.instagram.com/p/…" value={url} onChange={(e) => setUrl(e.target.value)} />
           {previewState === 'loading' && <p className="text-xs text-muted">プレビューを取得中…</p>}
           {previewState === 'blocked' && <p className="rounded-[10px] bg-mustard-300/30 px-3 py-2 text-xs font-bold text-mustard-500">Instagram はプレビューを出してくれないので、スクショを添付しておくと後で見やすいよ。</p>}
-          {previewState === 'error' && <p className="text-xs text-muted">プレビューは取れなかったけど、URL は保存できます。</p>}
+          {previewState === 'error' && <p className="text-xs text-muted">プレビューは取れなかったけど、URL は保存できるよ。</p>}
           {preview && !preview.instagram_blocked && (preview.title || preview.image) && (
             <div className="flex gap-3 rounded-[10px] border border-line bg-oat-50 p-2">
               {preview.image && <ImageThumb src={preview.image} className="size-16 shrink-0 rounded-[8px]" />}
               <div className="min-w-0"><p className="line-clamp-2 text-[13px] font-bold">{preview.title}</p><p className="truncate text-[11px] text-muted">{preview.site_name ?? preview.final_url}</p></div>
             </div>
           )}
-        </div>
-      )}
+      </div>
 
       <ClipPurposePicker value={purpose} onChange={setPurpose} />
       <GenrePicker value={genreId} onChange={setGenreId} />
 
-      {!isIdea && <RatingInput label="評価" max={5} value={rating} onChange={setRating} />}
+      <RatingInput label="評価" max={5} value={rating} onChange={setRating} />
       <FavoriteToggle value={favorite} onChange={setFavorite} />
 
-      {!isIdea && <Input label="お店の名前（任意）" placeholder="コーヒースタンド Y" value={shop} onChange={(e) => setShop(e.target.value)} />}
+      <Input label="お店の名前（任意）" placeholder="コーヒースタンド Y" value={shop} onChange={(e) => setShop(e.target.value)} />
 
       <div className="flex flex-col gap-2">
         <span className="text-[13px] font-bold text-espresso-700">タグ</span>
@@ -222,7 +213,7 @@ function ClipForm({ clip, draft, onClose, onCancel, onSaved, onDirtyChange }: Om
 
       <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-line bg-paper px-4 pb-[calc(12px+var(--safe-bottom))] pt-3 md:pb-3">
         <Button variant="secondary" onClick={onCancel} disabled={saving}>やめる</Button>
-        <Button ref={saveBtn} full loading={saving} onClick={save}>{clip ? '更新する' : '保存する'}</Button>
+        <Button ref={saveBtn} full loading={saving} onClick={save}>保存する</Button>
       </div>
     </div>
   )

@@ -8,7 +8,7 @@ import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Confirm } from '@/components/ui/Sheet'
 import { RatingInput, RatingStars } from '@/components/ui/Rating'
 import { useToast } from '@/components/ui/Toast'
-import { IconCalendar, IconEdit, IconPlus, IconStar, IconTrash } from '@/components/ui/icons'
+import { IconCalendar, IconEdit, IconPlus, IconHeart, IconTrash } from '@/components/ui/icons'
 import { photoUrl } from '@/lib/images/upload'
 import { dateOf, formatMD, today } from '@/lib/dates'
 import { paths } from '@/app/routes'
@@ -30,7 +30,7 @@ import { PurposeBadge, PurposePicker } from './purpose'
 import { CostCard } from './CostCard'
 import { PURPOSE_NAME, PURPOSE_TAB_LABEL, readListView } from './listView'
 
-const SOURCE_LABEL = { manual: '手入力', ai_image: 'AI（写真から）', ai_text: 'AI（テキストから）', text_paste: 'テキスト貼り付け' } as const
+const SOURCE_LABEL = { manual: '手入力', ai_image: 'LaRa（写真から）', ai_text: 'LaRa（テキストから）', text_paste: 'テキスト貼り付け' } as const
 
 export function RecipeDetailPage() {
   const { id } = useParams()
@@ -64,7 +64,7 @@ export function RecipeDetailPage() {
   if (recipe.isLoading) return <><PageHeader title="レシピ" back={paths.recipes} /><Skeleton className="aspect-[4/3]" /></>
   // 通信の失敗と「本当に無い」は分ける
   if (recipe.isError) return <><PageHeader title="レシピ" back={paths.recipes} /><LoadError onRetry={() => void recipe.refetch()} /></>
-  if (!r) return <><PageHeader title="レシピ" back={paths.recipes} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
+  if (!r) return <><PageHeader title="レシピ" back={paths.recipes} /><EmptyState emoji="🤔" title="見つからなかったよ" /></>
   const genre = genres.data?.find((g) => g.id === r.genre_id) ?? null
   const latest = fam.length > 1 ? latestOf(fam) : null
   const isLatest = latest?.id === r.id
@@ -73,7 +73,7 @@ export function RecipeDetailPage() {
     <>
       <PageHeader title={r.title} sub={`${genre ? `${genreEmoji(genre)} ${genre.name} ・ ` : ''}${fam.length > 1 ? `${versionName(fam, r)} ・ ` : ''}${formatMD(dateOf(r.created_at))}`} back={r.purpose === 'menu' ? paths.shopMenu : paths.recipes}
         actions={<>
-          <IconButton label="お気に入り" onClick={() => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })} className={r.favorite ? 'text-mustard-400' : ''}><IconStar filled={r.favorite} /></IconButton>
+          <IconButton label="お気に入り" onClick={() => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })} className={r.favorite ? 'text-brick-400' : ''}><IconHeart filled={r.favorite} /></IconButton>
           <IconButton label="編集" onClick={() => nav(paths.recipeEdit(r.id))}><IconEdit /></IconButton>
         </>} />
       <div className="flex flex-col gap-4">
@@ -87,7 +87,7 @@ export function RecipeDetailPage() {
         {r.status === 'draft' && (
           <div className="flex items-center gap-3 rounded-card border border-mustard-300 bg-mustard-300/20 p-3 text-sm">
             <span className="text-xl" aria-hidden>📬</span>
-            <p className="flex-1 font-bold">AI が作った下書きです。確認してレシピに載せよう。</p>
+            <p className="flex-1 font-bold">LaRa が作った下書きだよ。確認してレシピに載せよう。</p>
             <Button size="sm" onClick={() => setReview(true)}>確認する</Button>
           </div>
         )}
@@ -112,7 +112,7 @@ export function RecipeDetailPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {isLatest ? <Tag className="bg-brick-500/10 text-brick-500">いま見ているのが最新の版</Tag> : latest && <Link to={paths.recipe(latest.id)} className="font-bold text-brick-500">最新は「{versionName(fam, latest)}」→</Link>}
-              <button type="button" onClick={() => setMain.mutate({ family: fam, id: r.is_main ? null : r.id }, { onSuccess: () => toast(r.is_main ? '採用中を外しました' : 'この版を採用中にしました', 'success') })}
+              <button type="button" onClick={() => setMain.mutate({ family: fam, id: r.is_main ? null : r.id }, { onSuccess: () => toast(r.is_main ? '採用中を外したよ' : 'この版を採用中にしたよ', 'success') })}
                 className={cx('ml-auto h-8 rounded-chip border px-3 font-bold', r.is_main ? 'border-mustard-400 bg-mustard-400 text-espresso-900' : 'border-line bg-paper')}>
                 {r.is_main ? '★ 採用中' : 'この版を採用中にする'}
               </button>
@@ -124,7 +124,7 @@ export function RecipeDetailPage() {
           <button type="button" onClick={() => setLightbox(true)} className="overflow-hidden rounded-card border border-line"><ImageThumb src={photoUrl(r.hero_image, 'full')} className="aspect-[4/3]" /></button>
         )}
         <Card className="flex flex-col gap-4">
-          <PurposePicker value={r.purpose} onChange={(v) => v !== r.purpose && update.mutate({ id: r.id, patch: { purpose: v } }, { onSuccess: () => toast(`${PURPOSE_NAME[v]}にしました`, 'success') })} />
+          <PurposePicker value={r.purpose} onChange={(v) => v !== r.purpose && update.mutate({ id: r.id, patch: { purpose: v } }, { onSuccess: () => toast(`「${PURPOSE_NAME[v]}」にしたよ`, 'success') })} />
           <RatingInput label="評価" max={3} value={r.rating} onChange={(v) => update.mutate({ id: r.id, patch: { rating: v } })} />
         </Card>
         <Card className="flex flex-col gap-3">
@@ -135,7 +135,7 @@ export function RecipeDetailPage() {
             <Tag>{SOURCE_LABEL[r.source_kind]}</Tag>
           </div>
           <SectionTitle className="mt-0">材料</SectionTitle>
-          {r.ingredients.length === 0 ? <p className="text-sm text-muted">材料はまだ書かれていません</p> : (
+          {r.ingredients.length === 0 ? <p className="text-sm text-muted">材料はまだ書いてないよ</p> : (
             <ul className="flex flex-col">
               {r.ingredients.map((ing, i) => (
                 <li key={i} className="flex items-baseline gap-2 border-b border-dashed border-line py-2 text-[15px] last:border-b-0">
@@ -149,7 +149,7 @@ export function RecipeDetailPage() {
         <CostCard recipe={r} />
         <Card className="flex flex-col gap-3">
           <SectionTitle className="mt-0">作り方</SectionTitle>
-          {r.steps.length === 0 ? <p className="text-sm text-muted">手順はまだ書かれていません</p> : (
+          {r.steps.length === 0 ? <p className="text-sm text-muted">手順はまだ書いてないよ</p> : (
             <ol className="flex flex-col gap-3">
               {r.steps.map((s, i) => (
                 <li key={i} className="flex gap-3 text-[15px] leading-relaxed">

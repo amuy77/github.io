@@ -4,10 +4,12 @@ import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 
 /**
- * ネタ帳・レシピで共通のジャンルのチップ（すべて・アイデア・各ジャンル・ジャンルなし）。横スクロールの並びの中に置く。
+ * ネタ帳・レシピで共通のジャンルのチップ（すべて・うちでやりたい／ためしたい・各ジャンル・ジャンルなし）。横スクロールの並びの中に置く。
  * 選んでいるチップは見える位置まで横にスクロールする（切り替えてきたとき、どのジャンルを見ているか分かるように）
  */
-export function GenreChips({ value, onChange, count, idea }: { value: string; onChange: (v: string) => void; count: (id: string) => number; idea?: number }) {
+export function GenreChips({ value, onChange, count, idea, ideaLabel = '🏠 うちでやりたい' }: { value: string; onChange: (v: string) => void; count: (id: string) => number; idea?: number
+  /** 'idea' のチップの名前（ネタ帳は「うちでやりたい」、レシピは「ためしたい」） */
+  ideaLabel?: string }) {
   const genres = useGenres()
   const first = useRef<HTMLButtonElement>(null)
   // 消したジャンルを選んだままなら「すべて」に戻す
@@ -25,8 +27,8 @@ export function GenreChips({ value, onChange, count, idea }: { value: string; on
   return (
     <>
       <Chip ref={first} data-genre-chip active={value === 'all'} onClick={() => onChange('all')} count={count('all')}>すべて</Chip>
-      {/* アイデア（うちでやりたいこと・試作）はジャンルと並べて選べる。アイデアの無い画面（お店のメニュー）では出さない */}
-      {idea !== undefined && (idea > 0 || value === 'idea') && <Chip data-genre-chip active={value === 'idea'} onClick={() => onChange('idea')} count={idea}>💡 アイデア</Chip>}
+      {/* 「うちでやりたい」「ためしたい」はジャンルと並べて選べる。無い画面（お店のメニュー）では出さない */}
+      {idea !== undefined && (idea > 0 || value === 'idea') && <Chip data-genre-chip active={value === 'idea'} onClick={() => onChange('idea')} count={idea}>{ideaLabel}</Chip>}
       {(genres.data ?? []).map((g) => <Chip key={g.id} data-genre-chip active={value === g.id} onClick={() => onChange(g.id)} count={count(g.id)}>{genreEmoji(g)} {g.name}</Chip>)}
       {(none > 0 || value === 'none') && <Chip data-genre-chip active={value === 'none'} onClick={() => onChange('none')} count={none}>🏷️ ジャンルなし</Chip>}
     </>

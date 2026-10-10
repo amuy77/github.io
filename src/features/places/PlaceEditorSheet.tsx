@@ -26,7 +26,7 @@ import { geocodeAddress } from './api'
 interface Props { open: boolean; onClose: () => void; place?: PlaceRow | null; onSaved?: (p: PlaceRow) => void }
 
 const URL_RE = /https?:\/\/[^\s]+/
-/** お店の ★ のひとこと */
+/** お店の ★ のひとこと（設定で「★をくわしく」にしたとき） */
 const PLACE_WORDS = ['いまひとつ', 'ふつう', 'いい感じ', 'かなり好き', '最高！何度でも行きたい']
 
 /** 気に入ったお店の追加・編集。開くたびにフォームを作り直す。入力途中で閉じようとしたら確認する */
@@ -168,7 +168,7 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
         saved = await update.mutateAsync({ id: place.id, patch: row })
         const removed = (place.images ?? []).filter((im) => !allImages.some((a) => a.path === im.path))
         if (removed.length) void deleteUnusedPhotos(removed)
-        toast('更新しました', 'success')
+        toast('保存したよ', 'success')
       } else {
         saved = await create.mutateAsync(row)
         celebrateFrom(saveBtn.current)
@@ -271,7 +271,7 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
       {/* シートの下の余白（16px）の分も下げて、保存の帯の下から中身が見えないように */}
       <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 flex gap-2 border-t border-line bg-paper px-4 pb-[calc(12px+var(--safe-bottom))] pt-3 md:pb-3">
         <Button variant="secondary" onClick={onCancel} disabled={saving}>やめる</Button>
-        <Button ref={saveBtn} full loading={saving} onClick={save}>{place ? '更新する' : '保存する'}</Button>
+        <Button ref={saveBtn} full loading={saving} onClick={save}>保存する</Button>
       </div>
     </div>
   )

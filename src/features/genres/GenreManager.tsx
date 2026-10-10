@@ -33,7 +33,7 @@ export function GenreManager() {
 
   return (
     <div className="flex flex-col gap-2">
-      {list.length === 0 && <p className="rounded-[10px] bg-oat-50 px-3 py-3 text-center text-sm text-muted">ジャンルはまだありません</p>}
+      {list.length === 0 && <p className="rounded-[10px] bg-oat-50 px-3 py-3 text-center text-sm text-muted">ジャンルはまだないよ</p>}
       {list.map((g, i) => (
         <ReorderRow key={g.id} name={g.name} index={i} count={list.length} onMove={(dir) => move(i, dir)} onEdit={() => setEditing(g)}>
           <span className="size-2.5 shrink-0 rounded-full" style={{ background: hexOf(g.color) }} aria-hidden />
@@ -70,14 +70,14 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
   async function save() {
     const n = name.trim()
     if (!n) { toast('ジャンル名を入れてね', 'error'); return }
-    if ((genres.data ?? []).some((g) => g.name === n && g.id !== genre?.id)) { toast('同じ名前のジャンルがあります', 'error'); return }
+    if ((genres.data ?? []).some((g) => g.name === n && g.id !== genre?.id)) { toast('同じ名前のジャンルがもうあるよ', 'error'); return }
     try {
       if (genre) {
         await update.mutateAsync({ id: genre.id, patch: { name: n, emoji, color } })
-        toast('ジャンルを更新しました', 'success')
+        toast('ジャンルを保存したよ', 'success')
       } else {
         const g = await create.mutateAsync({ name: n, emoji, color, sort_order: (genres.data?.length ?? 0) + 1 })
-        toast(`「${n}」を追加しました`, 'success')
+        toast(`「${n}」を追加したよ`, 'success')
         onCreated?.(g)
       }
       onClose()
@@ -114,12 +114,12 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
         </div>
       </div>
 
-      <Button full size="lg" loading={busy} onClick={save}>{genre ? '保存する' : '追加する'}</Button>
+      <Button full size="lg" loading={busy} onClick={save}>保存する</Button>
       {genre && (
         <Button variant="ghost" className="text-brick-500" icon={<IconTrash size={16} />} onClick={() => setConfirm(true)}>このジャンルを削除</Button>
       )}
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${genre?.name}」を削除しますか？`} body="このジャンルのネタとレシピは「ジャンルなし」になります（ネタやレシピ自体は消えません）。" confirmLabel="削除する" danger
-        onConfirm={() => { if (genre) remove.mutate(genre.id, { onSuccess: () => { toast('削除しました'); onClose() } }) }} />
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${genre?.name}」を削除する？`} body="このジャンルのネタとレシピは「ジャンルなし」になるよ（ネタやレシピ自体は消えないよ）。" confirmLabel="削除する" danger
+        onConfirm={() => { if (genre) remove.mutate(genre.id, { onSuccess: () => { toast('削除したよ'); onClose() } }) }} />
     </div>
   )
 }

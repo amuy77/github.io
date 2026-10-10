@@ -49,7 +49,7 @@ export function PlaceDetailPage() {
 
   if (places.isLoading) return <><PageHeader title="お店" back={paths.places} /><Skeleton className="aspect-[4/3]" /></>
   if (places.isError) return <><PageHeader title="お店" back={paths.places} /><LoadError onRetry={() => void places.refetch()} /></>
-  if (!p) return <><PageHeader title="お店" back={paths.places} /><EmptyState emoji="🤔" title="見つかりませんでした" /></>
+  if (!p) return <><PageHeader title="お店" back={paths.places} /><EmptyState emoji="🤔" title="見つからなかったよ" /></>
 
   const meta = [p.cuisine ? `${cuisineEmoji(p.cuisine)} ${p.cuisine}` : '', p.area].filter(Boolean).join(' ・ ')
   return (

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
-import { IconEdit, IconPlus, IconSearch, IconStar } from '@/components/ui/icons'
+import { IconEdit, IconPlus, IconSearch, IconHeart } from '@/components/ui/icons'
 import { GenreManagerSheet } from '@/features/genres/GenreManager'
 import type { RecipeRow } from '@/lib/supabase/database.types'
 import { paths } from '@/app/routes'
@@ -20,7 +20,7 @@ import { NotesSwitch } from '@/features/notes/NotesSwitch'
 import { useNotesGenre } from '@/features/notes/notes'
 import { GenreChips } from '@/features/notes/GenreChips'
 
-/** レシピ（アイデア・参考・未分類）と、ノートの「メニュー」（お店のメニュー）で同じ一覧を使う */
+/** レシピ（ためしたい・お手本・まだ決めてない）と、ノートの「メニュー」（お店のメニュー）で同じ一覧を使う */
 export type RecipesSide = 'recipes' | 'menu'
 
 export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
@@ -32,7 +32,7 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
   // ジャンル・★・検索は覚えておく（レシピを開いて戻っても、仕分けの続きからできるように）
   const [q, setQ] = useListViewState('q')
   const [pickedGenre, setGenreId] = useNotesGenre() // 'all' | 'none' | 'idea' | ジャンル id（ネタ帳と共通）
-  // お店のメニューにはアイデアが無いので「すべて」扱い（レシピに戻ったらアイデアのまま）
+  // お店のメニューには「ためしたい」が無いので「すべて」扱い（レシピに戻ったらそのまま）
   const genreId = isMenu && pickedGenre === 'idea' ? 'all' : pickedGenre
   const [favOnly, setFavOnly] = useListViewState('favOnly')
   const [minRating, setMinRating] = useListViewState('minRating') // -1 = 保留だけ
@@ -67,7 +67,7 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
   }, [filtered, genres.data])
 
   // 並んでいる順を覚えておく（詳細画面の「次へ」用）
-  useEffect(() => { if (recipes.data) writeListView({ order: sections.flatMap((s) => s.items.map((r) => r.id)), orderLabel: isMenu ? 'お店のメニュー' : genreId === 'idea' ? 'アイデア' : 'レシピ' }) }, [sections, recipes.data, isMenu, genreId])
+  useEffect(() => { if (recipes.data) writeListView({ order: sections.flatMap((s) => s.items.map((r) => r.id)), orderLabel: isMenu ? 'お店のメニュー' : genreId === 'idea' ? 'ためしたい' : 'レシピ' }) }, [sections, recipes.data, isMenu, genreId])
   // スクロール位置は AppShell が「戻る」のときだけ全画面共通で戻す
 
   const toggleFav = (r: RecipeRow) => update.mutate({ id: r.id, patch: { favorite: !r.favorite } })
@@ -89,15 +89,15 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
             <FilterGroup label="並び順"><SortSelect value={sort} onChange={setSort} /></FilterGroup>
             <FilterGroup label="表示"><LayoutToggle value={layout} onChange={setLayout} /></FilterGroup>
             <FilterGroup label="しぼりこみ">
-              <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconStar size={14} filled={favOnly} />}>お気に入り</Chip>
-              <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★★★</Chip>
-              <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★★以上</Chip>
-              <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★をまだ付けていない</Chip>
+              <Chip active={favOnly} onClick={() => setFavOnly(!favOnly)} icon={<IconHeart size={14} filled={favOnly} />}>お気に入り</Chip>
+              <Chip active={minRating === 3} onClick={() => setMinRating(minRating === 3 ? 0 : 3)}>★ また食べたい</Chip>
+              <Chip active={minRating === 2} onClick={() => setMinRating(minRating === 2 ? 0 : 2)}>★ ふつう以上</Chip>
+              <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★がまだ</Chip>
             </FilterGroup>
           </FilterButton>
         </div>
         <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <GenreChips value={genreId} onChange={setGenreId} idea={isMenu ? undefined : reps.filter((r) => r.purpose === 'idea').length} count={(id) => (id === 'all' ? total : reps.filter((r) => (id === 'none' ? r.genre_id === null : r.genre_id === id)).length)} />
+          <GenreChips value={genreId} onChange={setGenreId} ideaLabel="🧪 ためしたい" idea={isMenu ? undefined : reps.filter((r) => r.purpose === 'idea').length} count={(id) => (id === 'all' ? total : reps.filter((r) => (id === 'none' ? r.genre_id === null : r.genre_id === id)).length)} />
           <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
         </div>
 
@@ -108,9 +108,9 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
         ) : total === 0 ? (
           isMenu
             ? <EmptyState emoji="🍽️" title="お店のメニューはまだありません" body="レシピを開いて「お店のメニュー」を選ぶか、新しく作ってね。確定したレシピや写真をここにためて、ブラッシュアップしていこう。" action={<Button onClick={() => nav(newPath)} icon={<IconPlus size={16} />}>メニューを作る</Button>} />
-            : <EmptyState emoji="📖" title="レシピはまだ空っぽ" body="手入力でも、テキスト貼り付けでも、写真を AI に任せても OK。最初の 1 品を登録しよう。" action={<Button onClick={() => nav(newPath)} icon={<IconPlus size={16} />}>レシピを作る</Button>} />
+            : <EmptyState emoji="📖" title="レシピはまだ空っぽ" body="手入力でも、テキスト貼り付けでも、写真を LaRa に任せても OK。最初の 1 品を登録しよう。" action={<Button onClick={() => nav(newPath)} icon={<IconPlus size={16} />}>レシピを作る</Button>} />
         ) : filtered.length === 0 ? (
-          <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やフィルタを変えてみてね。" />
+          <EmptyState emoji="🔍" title="見つからなかったよ" body="検索やしぼりこみを変えてみてね。" />
         ) : (
           sections.map((s) => (
             <section key={s.key} className="flex flex-col gap-2">
