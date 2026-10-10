@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { qk } from '@/lib/supabase/queryKeys'
+import { useUndoableDelete } from '@/lib/useUndoableDelete'
 import { Link } from 'react-router'
 import { Sheet } from '@/components/ui/Sheet'
 import { Button } from '@/components/ui/Button'
@@ -66,7 +69,17 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
   const later = async () => { setBusy(true); try { await update.mutateAsync({ id: clip.id, patch: patch() }); toast('あとで確認に残したよ') ; onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
-  const discard = async () => { setBusy(true); try { await del.mutateAsync(clip); toast('捨てたよ'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
+  // 捨てるのは数秒待ってから。その間は「元に戻す」で戻せる（押し間違いが怖くないように）
+  const qc = useQueryClient()
+  const undoable = useUndoableDelete()
+  const discard = () => {
+    undoable('ネタ', {
+      key: clip.id,
+      hide: () => { qc.setQueryData<ClipRow[]>(qk.clips, (old) => old?.filter((x) => x.id !== clip.id)); onClose() },
+      restore: () => { qc.setQueryData<ClipRow[]>(qk.clips, (old) => (old && !old.some((x) => x.id === clip.id) ? [clip, ...old] : old)); void qc.invalidateQueries({ queryKey: qk.clips }) },
+      run: () => del.mutateAsync(clip),
+    })
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -138,7 +151,16 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
   const later = async () => { setBusy(true); try { await update.mutateAsync({ id: recipe.id, patch: patch() }); toast('下書きのまま残したよ'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
-  const discard = async () => { setBusy(true); try { await del.mutateAsync(recipe); toast('下書きを捨てたよ'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
+  const qc = useQueryClient()
+  const undoable = useUndoableDelete()
+  const discard = () => {
+    undoable('下書き', {
+      key: recipe.id,
+      hide: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.filter((x) => x.id !== recipe.id)); onClose() },
+      restore: () => { qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => (old && !old.some((x) => x.id === recipe.id) ? [recipe, ...old] : old)); void qc.invalidateQueries({ queryKey: qk.recipes }) },
+      run: () => del.mutateAsync(recipe),
+    })
+  }
 
   return (
     <div className="flex flex-col gap-4">

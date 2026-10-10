@@ -890,10 +890,10 @@ test('safe: a failed load shows a retry, not an empty editor or "not found"', as
   await page.route(`https://${REF}.supabase.co/rest/v1/clips**`, (route) => (fail && route.request().method() === 'GET' ? boom(route) : route.fallback()))
   await page.goto(`#/menu/${iso(daysAgo(0))}`)
   await expect(page.getByText('読み込めませんでした')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('button', { name: /記録する|更新する/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /記録する|記録ずみ/ })).toHaveCount(0)
   fail = false
   await page.getByRole('button', { name: 'もう一度' }).click()
-  await expect(page.getByRole('button', { name: /記録する|更新する/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /記録する|記録ずみ/ })).toBeVisible()
   fail = true
   await page.goto('#/clips/c1000000-0000-4000-8000-000000000001')
   await expect(page.getByText('読み込めませんでした')).toBeVisible({ timeout: 15_000 })

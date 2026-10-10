@@ -54,7 +54,7 @@ export async function cancelJob(id: string): Promise<void> {
 
 /** もう一度順番待ちに戻す。worker は attempts < 3 しか拾わないので、attempts も 0 に戻す（戻さないと永遠に pending のまま） */
 export async function retryJob(id: string): Promise<void> {
-  const { error } = await getSupabase().from('ai_jobs').update({ status: 'pending', error: null, attempts: 0, started_at: null }).eq('id', id).in('status', ['failed', 'processing'])
+  const { error } = await getSupabase().from('ai_jobs').update({ status: 'pending', error: null, attempts: 0, started_at: null }).eq('id', id).in('status', ['failed', 'processing', 'cancelled'])
   if (error) throw error
 }
 
