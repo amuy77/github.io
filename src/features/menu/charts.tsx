@@ -6,7 +6,7 @@ import { cx } from '@/lib/cx'
  * ジャンル構成比のドーナツ。6 分割以下の part-to-whole 専用。
  * 各セグメントに 2px の余白、凡例は常に表示（色だけに頼らない）。
  */
-export function GenreDonut({ shares, size = 168 }: { shares: GenreShare[]; size?: number }) {
+export function GenreDonut({ shares, size = 168, centerLabel = '提供回数', unit = '回' }: { shares: GenreShare[]; size?: number; centerLabel?: string; unit?: string }) {
   const [hover, setHover] = useState<string | null>(null)
   const total = shares.reduce((a, s) => a + s.count, 0)
   const r = size / 2 - 8, cx0 = size / 2, cy0 = size / 2, stroke = 22
@@ -24,12 +24,12 @@ export function GenreDonut({ shares, size = 168 }: { shares: GenreShare[]; size?
             <circle key={s.key} cx={cx0} cy={cy0} r={r} fill="none" stroke={s.color} strokeWidth={hover === s.key ? stroke + 4 : stroke}
               strokeDasharray={`${len} ${circ - len}`} strokeDashoffset={-offsets[i]} transform={`rotate(-90 ${cx0} ${cy0})`} strokeLinecap="butt"
               className="transition-[stroke-width] duration-150" onMouseEnter={() => setHover(s.key)} onMouseLeave={() => setHover(null)} onClick={() => setHover(hover === s.key ? null : s.key)}>
-              <title>{`${s.name}: ${s.count}回 (${Math.round(s.share * 100)}%)`}</title>
+              <title>{`${s.name}: ${s.count}${unit} (${Math.round(s.share * 100)}%)`}</title>
             </circle>
           )
         })}
         <text x={cx0} y={cy0 - 4} textAnchor="middle" className="fill-espresso-900 font-display" fontSize={26} fontWeight={800}>{active ? `${Math.round(active.share * 100)}%` : total}</text>
-        <text x={cx0} y={cy0 + 16} textAnchor="middle" className="fill-muted" fontSize={11} fontWeight={700}>{active ? active.name : '提供回数'}</text>
+        <text x={cx0} y={cy0 + 16} textAnchor="middle" className="fill-muted" fontSize={11} fontWeight={700}>{active ? active.name : centerLabel}</text>
       </svg>
       <ul className="flex w-full min-w-0 flex-1 flex-col gap-1.5">
         {shares.map((s) => (
@@ -37,7 +37,7 @@ export function GenreDonut({ shares, size = 168 }: { shares: GenreShare[]; size?
             <span className="size-3 shrink-0 rounded-[3px]" style={{ background: s.color }} aria-hidden />
             <span className="min-w-0 flex-1 truncate">{s.name}</span>
             <span className="font-bold tabular-nums">{Math.round(s.share * 100)}%</span>
-            <span className="w-8 text-right text-[11px] tabular-nums text-muted">{s.count}回</span>
+            <span className="w-8 text-right text-[11px] tabular-nums text-muted">{s.count}{unit}</span>
           </li>
         ))}
       </ul>

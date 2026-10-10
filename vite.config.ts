@@ -52,6 +52,12 @@ export default defineConfig({
             // <img> の写真は別ドメインで opaque になることがある
             options: { cacheName: 'lara-photos', cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 } },
           },
+          {
+            // お店の地図（国土地理院の淡色地図）。一度見たところはオフラインでも出る。たまりすぎないよう件数で上限
+            urlPattern: ({ url }) => url.hostname === 'cyberjapandata.gsi.go.jp',
+            handler: 'CacheFirst',
+            options: { cacheName: 'lara-map-tiles', cacheableResponse: { statuses: [0, 200] }, expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 30 } },
+          },
         ],
       },
     }),

@@ -11,6 +11,9 @@ export const paths = {
   recipeCompare: (id: string) => `/recipes/${id}/compare`,
   /** ノートの「メニュー」: お店のメニュー（確定して出しているレシピ）。下のタブの /menu（日々の記録）とは別 */
   shopMenu: '/shop-menu',
+  /** ノートの「お店」: 行って気に入ったお店（Google マップのリンクで溜める） */
+  places: '/places',
+  place: (id: string) => `/places/${id}`,
   ask: '/ask',
   menu: '/menu',
   menuDay: (date: string) => `/menu/${date}`,

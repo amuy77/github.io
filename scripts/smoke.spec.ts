@@ -82,6 +82,12 @@ const fixtures: Record<string, object[]> = {
     { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: USER_ID, role: 'owner', display_name: '侑磨', created_at: ts(30), shops: { name: 'LaRa' } },
     { shop_id: 's1000000-0000-4000-8000-000000000001', user_id: 'u2000000-0000-4000-8000-000000000002', role: 'staff', display_name: '彩加', created_at: ts(20), shops: { name: 'LaRa' } },
   ],
+  // ノートの「📍 お店」: 場所あり 2 軒・なし 1 軒
+  places: [
+    { ...base, id: 'f1000000-0000-4000-8000-000000000001', name: 'コーヒースタンド Y', url: 'https://maps.app.goo.gl/smokeY', maps_url: null, lat: 35.6702, lng: 139.7027, address: '東京都渋谷区神宮前1-2-3', area: '渋谷区', cuisine: 'カフェ', price_band: 2, rating: 5, revisit: true, note: '浅煎りのエチオピアが絶品', images: [], visited_on: iso(daysAgo(10)), created_at: ts(1), updated_at: ts(1) },
+    { ...base, id: 'f1000000-0000-4000-8000-000000000002', name: 'トラットリア K', url: null, maps_url: null, lat: 35.3192, lng: 139.5467, address: '神奈川県鎌倉市小町1-1', area: '鎌倉市', cuisine: 'イタリアン', price_band: 4, rating: 4, revisit: true, note: '', images: [], visited_on: null, created_at: ts(2), updated_at: ts(2) },
+    { ...base, id: 'f1000000-0000-4000-8000-000000000003', name: 'ベーカリー M', url: null, maps_url: null, lat: null, lng: null, address: '', area: '渋谷区', cuisine: 'ベーカリー', price_band: 1, rating: 4, revisit: false, note: '', images: [], visited_on: null, created_at: ts(5), updated_at: ts(5) },
+  ],
   ai_preferences: [
     { ...base, id: 'h1000000-0000-4000-8000-000000000001', rule: '手書きのレシピノートの写真は、写っているレシピを 1 つずつすべてレシピの下書きにする', example: 'レシピが書いてあるので、1つずつ文字起こししてレシピとして保存して', source_job_id: null, active: true },
   ],
@@ -98,12 +104,15 @@ const fixtures: Record<string, object[]> = {
 /** Planner（予定・ToDo のアプリ）の今日のまとめ。既定は予定も ToDo も無い日 */
 const emptyAgenda = (date: string) => ({ date, today: iso(daysAgo(0)), events: [], tasks: [], url: 'https://planner-mu-lovat.vercel.app/' })
 
+const BLANK_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean; agenda?: (date: string) => object } = {}) {
   const s = session()
   await page.route('https://planner-mu-lovat.vercel.app/api/v1/agenda**', (route) => {
     const date = new URL(route.request().url()).searchParams.get('date') ?? ''
     return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization' }, body: JSON.stringify((opts.agenda ?? emptyAgenda)(date)) })
   })
+  // お店の地図のタイル（国土地理院）は外に取りに行かず、空の画像を返す
+  await page.route('https://cyberjapandata.gsi.go.jp/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG }))
   await page.addInitScript(([key, value]) => { localStorage.setItem(key, value) }, [`sb-${REF}-auth-token`, JSON.stringify(s)])
   // はじめての案内は見たことにしておく（案内そのもののテストでは消す）
   await page.addInitScript(() => { if (!sessionStorage.getItem('lara.smoke.keepOnboarding')) localStorage.setItem('lara.onboarded', '1') })
@@ -123,6 +132,12 @@ async function stubSupabase(page: Page, opts: { noKey?: boolean; noRpc?: boolean
     if (p.endsWith('/functions/v1/lara-chat')) {
       if (opts.noKey) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'NO_API_KEY', message: 'Claude API キーが未設定です' } }) })
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ text: 'さっぱりなら [[R2]] がおすすめ。ネタ帳の [[C1]] の見せ方も合いそう！', refs: { R2: { type: 'recipe', id: 'd1000000-0000-4000-8000-000000000005', title: 'BLT サンド（試作2）' }, C1: { type: 'clip', id: 'c1000000-0000-4000-8000-000000000001', title: 'クロックムッシュ ¥980' } } }) })
+    }
+    // リンクのプレビュー: Google マップの短縮リンクは、たどった先と og:title を返す
+    if (p.endsWith('/functions/v1/link-preview')) {
+      const target = (req.postDataJSON() as { url: string }).url
+      if (target.includes('maps.app.goo.gl')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ final_url: 'https://www.google.com/maps/place/%E3%83%91%E3%83%B3%E5%B1%8B+A/@35.66,139.70,17z/data=!3d35.6612!4d139.7012', title: 'パン屋 A · 〒150-0001 東京都渋谷区神宮前4-5-6' }) })
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: '' }) })
     }
     if (p.includes('/rest/v1/rpc/activity_days')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([iso(daysAgo(2)), iso(daysAgo(1)), iso(daysAgo(0))]) })
     // DB 関数（RPC）: save_menu_log はその日の記録の id（無ければ新しい id）、それ以外は null
@@ -404,7 +419,7 @@ test('recipes: お店のメニュー lives in its own ノート tab, レシピ h
   // ノートの「メニュー」: お店のメニューだけ。種類の段は無い
   await page.goto('#/recipes')
   const notes = page.getByRole('tablist', { name: 'ノート' })
-  await expect(notes.getByRole('tab')).toHaveText(['📌 ネタ帳', '📖 レシピ', '🍽️ メニュー'])
+  await expect(notes.getByRole('tab')).toHaveText(['📌 ネタ帳', '📖 レシピ', '🍽️ メニュー', '📍 お店'])
   await notes.getByRole('tab', { name: /メニュー/ }).click()
   await expect(page).toHaveURL(/#\/shop-menu$/)
   await expect(page.getByRole('heading', { name: 'お店のメニュー', level: 1 })).toBeVisible()
@@ -1633,4 +1648,112 @@ test('settings: a member without a name is easy to spot, and the guide asks for 
   await expect(guide.getByText('彩加 さん、よろしくね！')).toBeVisible()
   await expect(guide.getByLabel('2 / 5')).toHaveCount(0)
   await expect(guide.getByLabel('3 / 5')).toBeVisible()
+})
+
+// ---- ノートの「📍 お店」: 行って気に入ったお店（Google マップのリンク・リスト・マップ・傾向） ----
+
+test('places: お店 is the 4th notes tab, and pasting a Google Maps link fills the name and the spot', async ({ page }, info) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/places')) posts.push(r.postDataJSON()) })
+  await page.goto('#/clips')
+  const notes = page.getByRole('tablist', { name: 'ノート' })
+  await expect(notes.getByRole('tab')).toHaveText(['📌 ネタ帳', '📖 レシピ', '🍽️ メニュー', '📍 お店'])
+  await notes.getByRole('tab', { name: /お店/ }).click()
+  await expect(page).toHaveURL(/#\/places$/)
+  await expect(page.getByRole('heading', { name: 'お店', level: 1 })).toBeVisible()
+  const list = page.getByTestId('place-list')
+  await expect(list.getByRole('link')).toHaveCount(3)
+  await expect(list.getByRole('link').first()).toContainText('コーヒースタンド Y')
+  await expect(list.getByRole('link').first()).toContainText('また行きたい')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: `screenshots/${info.project.name}-places-list.png`, fullPage: true })
+  // ジャンルのチップでしぼる
+  const chips = page.getByRole('group', { name: 'ジャンル' })
+  await chips.getByRole('button', { name: /イタリアン/ }).click()
+  await expect(list.getByRole('link')).toHaveCount(1)
+  await chips.getByRole('button', { name: /すべて/ }).click()
+  await expect(list.getByRole('link')).toHaveCount(3)
+
+  // リンクを貼ると、店名・場所・住所・エリアが入る
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/smokeA')
+  await expect(sheet.getByLabel('お店の名前')).toHaveValue('パン屋 A')
+  await expect(sheet.getByText('店名と場所を入れたよ')).toBeVisible()
+  await expect(sheet.getByLabel('エリア')).toHaveValue('渋谷区')
+  await expect(sheet.locator('.lara-pin')).toHaveCount(1)
+  await sheet.getByRole('group', { name: 'ジャンル' }).getByRole('button', { name: /ベーカリー/ }).click()
+  await sheet.getByRole('group', { name: '価格帯' }).getByRole('button', { name: '〜¥1,000' }).click()
+  await sheet.getByRole('radio', { name: '5 つ星' }).click()
+  await sheet.getByRole('switch', { name: 'また行きたい' }).check({ force: true })
+  await page.screenshot({ path: `screenshots/${info.project.name}-place-add.png` })
+  await sheet.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0]).toMatchObject({ name: 'パン屋 A', url: 'https://maps.app.goo.gl/smokeA', lat: 35.6612, lng: 139.7012, address: '〒150-0001 東京都渋谷区神宮前4-5-6', area: '渋谷区', cuisine: 'ベーカリー', price_band: 1, rating: 5, revisit: true })
+  await expect(list.getByRole('link')).toHaveCount(4)
+})
+
+test('places: a link that cannot be read still saves after you tap the map to drop a pin', async ({ page }) => {
+  await stubSupabase(page)
+  const posts: { lat: number | null; name: string }[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/places')) posts.push(r.postDataJSON()) })
+  await page.goto('#/places')
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await sheet.getByLabel('お店の名前').fill('食堂 S')
+  await expect(sheet.locator('.lara-pin')).toHaveCount(0)
+  await sheet.getByTestId('place-map').click({ position: { x: 120, y: 90 } })
+  await expect(sheet.locator('.lara-pin')).toHaveCount(1)
+  await expect(sheet.getByRole('button', { name: 'ピンを外す' })).toBeVisible()
+  await sheet.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0].name).toBe('食堂 S')
+  expect(typeof posts[0].lat).toBe('number')
+})
+
+test('places: the map shows a pin per place, 傾向 sums up the taste, and a place links to Google Maps and its clips', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.context().route('https://maps.app.goo.gl/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>maps</p>' }))
+  await page.goto('#/places')
+  await page.getByRole('tab', { name: /マップ/ }).click()
+  await expect(page.locator('.lara-pin')).toHaveCount(2)
+  await expect(page.getByText('場所が入っていないお店が 1 軒')).toBeVisible()
+  await page.locator('.leaflet-marker-icon[title="トラットリア K"]').click()
+  await expect(page.getByRole('link', { name: /トラットリア K/ })).toBeVisible()
+  await expect(page.getByText('地理院タイル')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-places-map.png`, fullPage: true })
+
+  await page.getByRole('tab', { name: /傾向/ }).click()
+  const trends = page.getByTestId('place-trends')
+  await expect(trends).toContainText('渋谷区が多め')
+  await expect(trends).toContainText('また行きたいお店がたくさん')
+  await expect(trends.getByRole('img', { name: /ジャンル構成比/ })).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-places-trends.png`, fullPage: true })
+  // 見方は覚えておく
+  await page.reload()
+  await expect(page.getByRole('tab', { name: /傾向/ })).toHaveAttribute('aria-selected', 'true')
+
+  await page.getByRole('tab', { name: /リスト/ }).click()
+  await page.getByRole('link', { name: /コーヒースタンド Y/ }).click()
+  await expect(page).toHaveURL(/#\/places\/f1000000-0000-4000-8000-000000000001$/)
+  await expect(page.getByRole('heading', { name: 'コーヒースタンド Y' })).toBeVisible()
+  await expect(page.getByText('浅煎りのエチオピアが絶品')).toBeVisible()
+  await expect(page.getByText('このお店のネタ')).toBeVisible()
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-place-detail.png`, fullPage: true })
+  const popup = page.waitForEvent('popup')
+  await page.getByRole('button', { name: /Google マップで開く/ }).click()
+  expect((await popup).url()).toBe('https://maps.app.goo.gl/smokeY')
+})
+
+test('places: before the SQL is run, the page says so instead of breaking', async ({ page }) => {
+  await stubSupabase(page)
+  await page.route(`https://${REF}.supabase.co/rest/v1/places**`, (route) => route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.places' in the schema cache", details: null, hint: null }) }))
+  await page.goto('#/places')
+  await expect(page.getByText('お店リストの準備がまだです')).toBeVisible()
+  await expect(page.getByRole('button', { name: '追加', exact: true })).toHaveCount(0)
+  // ほかのノートはそのまま使える
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
+  await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
 })

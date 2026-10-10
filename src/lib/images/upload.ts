@@ -33,7 +33,7 @@ export async function deletePhotos(refs: ImageRef[]): Promise<void> {
 /**
  * まだ誰かが使っている写真は消さずに、使われていないものだけ Storage から消す。
  * AI が 1 枚の写真から複数のレシピやネタを作ると同じ写真を何行も指すので、1 行消しただけで他の写真が壊れないように。
- * 見る場所: レシピの hero_image、ネタ帳の images、まだ処理していない AI ジョブの image_paths
+ * 見る場所: レシピの hero_image、ネタ帳の images、お店の images、まだ処理していない AI ジョブの image_paths
  */
 export async function deleteUnusedPhotos(refs: ImageRef[]): Promise<void> {
   if (!refs.length) return
@@ -41,14 +41,16 @@ export async function deleteUnusedPhotos(refs: ImageRef[]): Promise<void> {
   const unused: ImageRef[] = []
   for (const ref of refs) {
     try {
-      const [r, c, j] = await Promise.all([
+      const [r, c, j, p] = await Promise.all([
         sb.from('recipes').select('id', { count: 'exact', head: true }).eq('hero_image->>path', ref.path),
         sb.from('clips').select('id', { count: 'exact', head: true }).contains('images', [{ path: ref.path }]),
         sb.from('ai_jobs').select('id', { count: 'exact', head: true }).in('status', ['pending', 'processing']).contains('payload', { image_paths: [ref.path] }),
+        sb.from('places').select('id', { count: 'exact', head: true }).contains('images', [{ path: ref.path }]),
       ])
-      // 確認できなかったときは消さない（消しすぎるより残るほうがまし）
-      if (r.error || c.error || j.error) continue
-      if ((r.count ?? 0) + (c.count ?? 0) + (j.count ?? 0) === 0) unused.push(ref)
+      // 確認できなかったときは消さない（消しすぎるより残るほうがまし）。お店の表が無い（SQL を流す前）ときは 0 件とみなす
+      const placesMissing = p.error && ['PGRST205', '42P01'].includes((p.error as { code?: string }).code ?? '')
+      if (r.error || c.error || j.error || (p.error && !placesMissing)) continue
+      if ((r.count ?? 0) + (c.count ?? 0) + (j.count ?? 0) + (placesMissing ? 0 : p.count ?? 0) === 0) unused.push(ref)
     } catch (e) { console.warn('photo usage check failed', e) }
   }
   await deletePhotos(unused)

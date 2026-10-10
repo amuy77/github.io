@@ -16,6 +16,8 @@ const RecipesPage = page(() => import('@/features/recipes/RecipesPage'), 'Recipe
 const RecipeDetailPage = page(() => import('@/features/recipes/RecipeDetailPage'), 'RecipeDetailPage')
 const RecipeEditorPage = page(() => import('@/features/recipes/RecipeEditorPage'), 'RecipeEditorPage')
 const RecipeComparePage = page(() => import('@/features/recipes/RecipeComparePage'), 'RecipeComparePage')
+const PlacesPage = page(() => import('@/features/places/PlacesPage'), 'PlacesPage')
+const PlaceDetailPage = page(() => import('@/features/places/PlaceDetailPage'), 'PlaceDetailPage')
 const AskPage = page(() => import('@/features/ask/AskPage'), 'AskPage')
 const MenuCalendarPage = page(() => import('@/features/menu/MenuCalendarPage'), 'MenuCalendarPage')
 const MenuDayPage = page(() => import('@/features/menu/MenuDayPage'), 'MenuDayPage')
@@ -53,6 +55,8 @@ export function App() {
             <Route path="/recipes/:id" element={<RecipeDetailPage />} />
             <Route path="/recipes/:id/edit" element={<RecipeEditorPage />} />
             <Route path="/recipes/:id/compare" element={<RecipeComparePage />} />
+            <Route path={paths.places} element={<PlacesPage />} />
+            <Route path="/places/:id" element={<PlaceDetailPage />} />
             <Route path={paths.ask} element={<AskPage />} />
             <Route path={paths.menu} element={<MenuCalendarPage />} />
             <Route path={paths.menuStats} element={<MenuStatsPage />} />
