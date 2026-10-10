@@ -29,8 +29,8 @@ const HOT: Record<Place, { em: string; name: string; sub: string; to: string }> 
   clips: { em: '📌', name: 'ネタ帳', sub: '気になったお店・SNS・ワインやビールのメモ', to: paths.clips },
   recipes: { em: '📖', name: 'レシピ', sub: 'ジャンル別のレシピカード', to: paths.recipes },
   menu: { em: '🗓️', name: 'きろく', sub: '今日出したメニューの記録と、週・月のふりかえり', to: paths.menu },
-  inbox: { em: '📬', name: '受信トレイ', sub: 'LaRa が読んだものが届く場所', to: paths.inbox },
-  add: { em: '📝', name: 'すぐメモ', sub: 'ひらめき・URL・写真をサッと保存', to: paths.add },
+  inbox: { em: '📬', name: 'トレイ', sub: 'LaRa が読んだものが届く場所', to: paths.inbox },
+  add: { em: '📝', name: '足す', sub: 'ネタ・お店・今日の記録', to: paths.add },
 }
 
 type ResidentStatus = ReturnType<ShopScene['residentStatus']>

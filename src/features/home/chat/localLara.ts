@@ -88,7 +88,7 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
   if (has(t, '確認待ち', '受信トレイ', 'トレイ', '届いて')) {
     if (counts.inbox === 0 && counts.pendingJobs === 0) return { text: say('inboxZero') }
     const parts = [counts.inbox > 0 ? say('inboxSome', { n: counts.inbox }) : say('inboxNone'), counts.pendingJobs > 0 ? say('pending', { n: counts.pendingJobs }) : ''].filter(Boolean)
-    return { text: parts.join('、') + '。', links: [{ label: '受信トレイを開く', to: paths.inbox }] }
+    return { text: parts.join('、') + '。', links: [{ label: 'トレイを開く', to: paths.inbox }] }
   }
   if (has(t, '今日なに', '今日何', '今日は何', 'なにしよ', '何しよ', 'やること')) {
     const todo: string[] = []
@@ -97,7 +97,7 @@ export function localReply(input: string, ctx: LaraContext): LaraReply {
     const old = ctx.notServed[0]
     if (old) todo.push(say('todoOld', { title: old.title }))
     if (!todo.length) return { text: say('todoDone') + streakLine(streak, r) }
-    return { text: `${say('todoHead')}\n・${todo.join('\n・')}`, links: [...(counts.inbox > 0 ? [{ label: '受信トレイ', to: paths.inbox }] : []), ...(!ctx.todayLogged ? [{ label: '今日のメニューを記録', to: paths.menuDay(today()) }] : [])] }
+    return { text: `${say('todoHead')}\n・${todo.join('\n・')}`, links: [...(counts.inbox > 0 ? [{ label: 'トレイ', to: paths.inbox }] : []), ...(!ctx.todayLogged ? [{ label: '今日のメニューを記録', to: paths.menuDay(today()) }] : [])] }
   }
   if (has(t, '記録', '連続')) return { text: ctx.todayLogged ? say('recordDone', { streak }) : streak > 0 ? say('recordNotYetStreak', { streak }) : say('recordNotYetZero'), links: ctx.todayLogged ? undefined : [{ label: '今日のメニューを記録', to: paths.menuDay(today()) }] }
 

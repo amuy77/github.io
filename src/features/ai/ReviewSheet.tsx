@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/supabase/queryKeys'
 import { useUndoableDelete } from '@/lib/useUndoableDelete'
@@ -31,22 +31,38 @@ const Footer = ({ onLater, onDiscard, onOk, okLabel, busy }: { onLater: () => vo
   <div className="sticky -bottom-4 -mx-4 -mb-4 flex flex-col gap-2 border-t border-line bg-paper px-4 pb-[calc(16px+var(--safe-bottom))] pt-3 md:pb-4">
     <Button full size="lg" icon={<IconCheck />} loading={busy} onClick={onOk}>{okLabel}</Button>
     <div className="flex gap-2">
-      <Button variant="secondary" full disabled={busy} onClick={onLater}>あとで確認</Button>
+      <Button variant="secondary" full disabled={busy} onClick={onLater}>あとで</Button>
       <Button variant="ghost" className="text-brick-500" disabled={busy} icon={<IconX size={16} />} onClick={onDiscard}>捨てる</Button>
     </div>
   </div>
 )
 
+/** 「直す ▼」: ★・種類・ジャンル・メモなどは、押したときだけ出す（最初に見えるのは写真・名前・OK だけ） */
+function More({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <button type="button" aria-expanded={open} onClick={onToggle} className="flex h-12 items-center justify-between rounded-card border border-line bg-paper px-4 text-[15px] font-bold">
+        <span>✏️ 直す<span className="ml-2 text-[12px] font-normal text-muted">種類・★・ジャンル・メモ</span></span><span aria-hidden>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
+/** 直した途中で × や外を押して閉じても、黙って消さずに「あとで」として残す */
+type Keep = (fn: () => void) => void
+
 /** LaRa がネタ帳に入れたものの確認。名前・メモ・カテゴリ・店名・★5 を直して「OK」 */
 export function ClipReviewSheet({ clip, onClose }: { clip: ClipRow | null; onClose: () => void }) {
+  const keep = useRef<(() => void) | null>(null)
   return (
-    <Sheet open={!!clip} onClose={onClose} title="📌 ネタ帳に入れたよ" tall>
-      {clip && <ClipReviewForm key={clip.id} clip={clip} onClose={onClose} />}
+    <Sheet open={!!clip} onClose={() => { keep.current?.(); onClose() }} title="📌 これでいい？" tall>
+      {clip && <ClipReviewForm key={clip.id} clip={clip} onClose={onClose} register={(fn) => { keep.current = fn }} />}
     </Sheet>
   )
 }
 
-function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void }) {
+function ClipReviewForm({ clip, onClose, register }: { clip: ClipRow; onClose: () => void; register: Keep }) {
   const toast = useToast()
   const update = useUpdateClip()
   const del = useDeleteClip()
@@ -61,8 +77,12 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
   const [purpose, setPurpose] = useState<ClipPurpose>(clip.purpose)
   const [favorite, setFavorite] = useState(clip.favorite)
   const [busy, setBusy] = useState(false)
+  const [more, setMore] = useState(false)
 
   const patch = () => ({ title: title.trim(), note: note.trim(), shop_name: shop.trim() || null, genre_id: genreId, tags, rating, purpose, favorite })
+  const first = useRef<string | null>(null)
+  if (first.current === null) first.current = JSON.stringify(patch())
+  useEffect(() => { register(() => { if (!busy && JSON.stringify(patch()) !== first.current) void update.mutateAsync({ id: clip.id, patch: patch() }).catch(() => { /* 失敗の通知は共通のトーストが出す */ }) }) })
   const ok = async () => {
     setBusy(true)
     try { await update.mutateAsync({ id: clip.id, patch: { ...patch(), needs_review: false } }); if ((rating ?? 0) >= 4) celebrate('small'); toast('ネタ帳に入れたよ', 'success'); onClose() }
@@ -88,17 +108,20 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
           {clip.images.map((im) => <ImageThumb key={im.path} src={photoUrl(im, 'full')} className="h-44 w-auto min-w-44 shrink-0 rounded-card" fit="cover" />)}
         </div>
       )}
-      <AiFixPanel collapsible target={{ type: 'clip', id: clip.id, images: clip.images }} onSent={onClose} />
-      <ClipPurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
-      <RatingInput label="どのくらい気になる？" max={5} value={rating} onChange={setRating} disabled={busy} />
-      <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
       <Input label="名前" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="クロックムッシュ ¥980" />
-      <Input label="お店" value={shop} onChange={(e) => setShop(e.target.value)} placeholder="コーヒースタンド Y" />
-      <GenrePicker value={genreId} onChange={setGenreId} />
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">{tags.map((t) => <button key={t} type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="inline-flex items-center gap-1 rounded-chip bg-green-600 px-2.5 py-1 text-[12px] font-bold text-white">{t} <IconX size={12} /></button>)}</div>
-      )}
-      <Textarea label="LaRa のメモ（自由に直してね）" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-48" />
+      {!more && (clip.shop_name || clip.note) && <p className="line-clamp-2 text-[14px] text-muted">{[clip.shop_name, clip.note].filter(Boolean).join(' ・ ')}</p>}
+      <More open={more} onToggle={() => setMore(!more)}>
+        <AiFixPanel collapsible target={{ type: 'clip', id: clip.id, images: clip.images }} onSent={onClose} />
+        <ClipPurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
+        <RatingInput label="どのくらい気になる？" max={5} value={rating} onChange={setRating} disabled={busy} />
+        <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
+        <Input label="お店" value={shop} onChange={(e) => setShop(e.target.value)} placeholder="コーヒースタンド Y" />
+        <GenrePicker value={genreId} onChange={setGenreId} />
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">{tags.map((t) => <button key={t} type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="inline-flex items-center gap-1 rounded-chip bg-green-600 px-2.5 py-1 text-[12px] font-bold text-white">{t} <IconX size={12} /></button>)}</div>
+        )}
+        <Textarea label="LaRa のメモ（自由に直してね）" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-48" />
+      </More>
       <Footer okLabel="これで OK" busy={busy} onOk={ok} onLater={later} onDiscard={discard} />
     </div>
   )
@@ -106,14 +129,15 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
 
 /** LaRa が作ったレシピ下書きの確認。タイトル・ジャンル・★3・同じ料理のグループを決めて図鑑へ */
 export function RecipeReviewSheet({ recipe, onClose }: { recipe: RecipeRow | null; onClose: () => void }) {
+  const keep = useRef<(() => void) | null>(null)
   return (
-    <Sheet open={!!recipe} onClose={onClose} title="📖 レシピにしたよ" tall>
-      {recipe && <RecipeReviewForm key={recipe.id} recipe={recipe} onClose={onClose} />}
+    <Sheet open={!!recipe} onClose={() => { keep.current?.(); onClose() }} title="📖 これでいい？" tall>
+      {recipe && <RecipeReviewForm key={recipe.id} recipe={recipe} onClose={onClose} register={(fn) => { keep.current = fn }} />}
     </Sheet>
   )
 }
 
-function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () => void }) {
+function RecipeReviewForm({ recipe, onClose, register }: { recipe: RecipeRow; onClose: () => void; register: Keep }) {
   const toast = useToast()
   const all = useRecipes()
   const update = useUpdateRecipe()
@@ -126,6 +150,7 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   const [familyId, setFamilyId] = useState<string | null>(recipe.family_id)
   const [label, setLabel] = useState(recipe.variant_label)
   const [busy, setBusy] = useState(false)
+  const [more, setMore] = useState(false)
 
   // 同じ料理の候補: 自分以外の公開レシピの代表（グループごとに 1 件）。タイトルが似ているものを先に
   const families = useMemo(() => {
@@ -145,6 +170,9 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   }
 
   const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose, favorite })
+  const first = useRef<string | null>(null)
+  if (first.current === null) first.current = JSON.stringify(patch())
+  useEffect(() => { register(() => { if (!busy && JSON.stringify(patch()) !== first.current) void update.mutateAsync({ id: recipe.id, patch: patch() }).catch(() => { /* 失敗の通知は共通のトーストが出す */ }) }) })
   const ok = async () => {
     setBusy(true)
     try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${PURPOSE_NAME[purpose]}に載せたよ`, 'success'); onClose() }
@@ -165,30 +193,30 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   return (
     <div className="flex flex-col gap-4">
       {recipe.hero_image && <ImageThumb src={photoUrl(recipe.hero_image, 'full')} className="aspect-[4/3] rounded-card" />}
-      <AiFixPanel collapsible target={{ type: 'recipe', id: recipe.id, images: recipe.hero_image ? [recipe.hero_image] : [] }} onSent={onClose} />
-      <PurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
-      <RatingInput label="このレシピの評価" max={3} value={rating} onChange={setRating} disabled={busy} />
-      <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
       <Input label="レシピ名" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <GenrePicker value={genreId} onChange={setGenreId} />
-
-      <div className="flex flex-col gap-2 rounded-card border border-line bg-oat-50 p-3">
-        <span className="text-[13px] font-bold text-espresso-700">同じ料理のレシピはもうある？</span>
-        <p className="text-xs text-muted">選ぶと「別バージョン・試作」としてまとまり、あとで比べられます。</p>
-        <div className="flex flex-wrap gap-2">
-          <Chip active={familyId === null} onClick={() => pickFamily(null)}>🆕 新しい料理</Chip>
-          {families.map((r) => <Chip key={r.id} active={familyId === familyKey(r)} onClick={() => pickFamily(r)}>{r.title}</Chip>)}
-        </div>
-        {familyId && <Input label="この版の呼び名" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="試作2 / A案 / 夏バージョン" />}
-      </div>
-
       <div className="rounded-card border border-line p-3 text-sm">
         <p className="font-bold">材料 {recipe.ingredients.length} ・ 手順 {recipe.steps.length}</p>
         <p className="mt-1 line-clamp-3 text-xs text-muted">{recipe.ingredients.map((i) => `${i.name} ${i.amount}`.trim()).join(' / ')}</p>
         {recipe.notes && <p className="mt-2 whitespace-pre-wrap text-xs text-espresso-700">{recipe.notes}</p>}
         <Link to={paths.recipeEdit(recipe.id)} onClick={onClose} className="mt-2 inline-flex items-center gap-1 text-[13px] font-bold text-green-700">材料・手順を直す <IconChevronRight size={14} /></Link>
       </div>
-      <Tag className="self-start">あとからいつでも編集できます</Tag>
+      <More open={more} onToggle={() => setMore(!more)}>
+        <AiFixPanel collapsible target={{ type: 'recipe', id: recipe.id, images: recipe.hero_image ? [recipe.hero_image] : [] }} onSent={onClose} />
+        <PurposePicker value={purpose} onChange={setPurpose} disabled={busy} />
+        <RatingInput label="このレシピの評価" max={3} value={rating} onChange={setRating} disabled={busy} />
+        <FavoriteToggle value={favorite} onChange={setFavorite} disabled={busy} />
+        <GenrePicker value={genreId} onChange={setGenreId} />
+        <div className="flex flex-col gap-2 rounded-card border border-line bg-oat-50 p-3">
+          <span className="text-[14px] font-bold text-espresso-700">同じ料理のレシピはもうある？</span>
+          <p className="text-xs text-muted">選ぶと「別バージョン・試作」としてまとまって、あとで比べられるよ。</p>
+          <div className="flex flex-wrap gap-2">
+            <Chip active={familyId === null} onClick={() => pickFamily(null)}>🆕 新しい料理</Chip>
+            {families.map((r) => <Chip key={r.id} active={familyId === familyKey(r)} onClick={() => pickFamily(r)}>{r.title}</Chip>)}
+          </div>
+          {familyId && <Input label="この版の呼び名" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="試作2 / A案 / 夏バージョン" />}
+        </div>
+      </More>
+      <Tag className="self-start">あとからいつでも直せるよ</Tag>
       <Footer okLabel="レシピに載せる" busy={busy} onOk={ok} onLater={later} onDiscard={discard} />
     </div>
   )
