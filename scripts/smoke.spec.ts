@@ -1736,6 +1736,9 @@ test('places: お店 is the 4th notes tab, and pasting a Google Maps link fills 
   await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/smokeA')
   await expect(sheet.getByLabel('お店の名前')).toHaveValue('パン屋 A')
   await expect(sheet.getByText('店名と場所を入れたよ')).toBeVisible()
+  // 場所・エリア・ジャンルは「くわしく」の中（読めたときは閉じたまま）
+  await expect(sheet.getByLabel('エリア')).toHaveCount(0)
+  await sheet.getByRole('button', { name: /くわしく/ }).click()
   await expect(sheet.getByLabel('エリア')).toHaveValue('渋谷区')
   await expect(sheet.locator('.lara-pin')).toHaveCount(1)
   await sheet.getByRole('group', { name: 'ジャンル' }).getByRole('button', { name: /ベーカリー/ }).click()
@@ -1764,6 +1767,8 @@ test('places: a link that cannot be read says so honestly, and still saves after
   await expect(sheet.getByText('読み取った先: https://maps.app.goo.gl/zj1ttgX')).toBeVisible()
   await expect(sheet.getByLabel('お店の名前')).toHaveValue('')
   await sheet.getByLabel('お店の名前').fill('食堂 S')
+  // 「地図を押してピンを置いてね」と言ったときは、くわしく が自動で開いて地図が見える
+  await expect(sheet.getByRole('button', { name: /くわしく/ })).toHaveAttribute('aria-expanded', 'true')
   await expect(sheet.locator('.lara-pin')).toHaveCount(0)
   await sheet.getByTestId('place-map').click({ position: { x: 120, y: 90 } })
   await expect(sheet.locator('.lara-pin')).toHaveCount(1)
@@ -1784,6 +1789,7 @@ test('places: an iPhone share link (address first, no spot) fills the name and a
   await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/iphone123?g_st=ic')
   await expect(sheet.getByText('住所から場所を入れたよ')).toBeVisible()
   await expect(sheet.getByLabel('お店の名前')).toHaveValue('GRAB and GO GOODIES Sandwich & Brunch')
+  await sheet.getByRole('button', { name: /くわしく/ }).click()
   await expect(sheet.getByLabel('住所（任意）')).toHaveValue('〒131-0033 東京都墨田区向島３丁目２６−７')
   await expect(sheet.getByLabel('エリア')).toHaveValue('墨田区')
   await expect(sheet.locator('.lara-pin')).toHaveCount(1)
@@ -1799,6 +1805,7 @@ test('places: 住所から場所を探す drops the pin from a typed address, an
   await page.goto('#/places')
   await page.getByRole('button', { name: '追加', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await sheet.getByRole('button', { name: /くわしく/ }).click()
   await expect(sheet.getByRole('button', { name: /住所から場所を探す/ })).toHaveCount(0)
   await sheet.getByLabel('住所（任意）').fill('北海道どこか')
   await sheet.getByRole('button', { name: /住所から場所を探す/ }).click()
@@ -1989,4 +1996,68 @@ test('theme5: the recipe page puts ingredients and steps first, cost behind a bu
   await page.screenshot({ path: `screenshots/${info.project.name}-cook-mode.png` })
   await cook.getByRole('button', { name: '作るモードを閉じる' }).click()
   await expect(cook).toBeHidden()
+})
+
+// ---- UI の型 テーマ6: お店の追加は 5 つだけ（残りは くわしく）、売上は正直に、今日は N 個 ----
+
+test('theme6: adding a place shows only 5 fields, and the spot read from the link is saved even with くわしく closed', async ({ page }, info) => {
+  await stubSupabase(page)
+  const posts: unknown[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/places')) posts.push(r.postDataJSON()) })
+  await page.goto('#/places')
+  await page.getByRole('button', { name: '追加', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  // 最初に見えるのは リンク・名前・★・また行きたい・メモ。場所や住所やジャンルは「くわしく」の中
+  for (const n of ['Google マップのリンク', 'お店の名前', 'メモ（食べたもの・感想）']) await expect(sheet.getByLabel(n)).toBeVisible()
+  await expect(sheet.getByRole('radio', { name: '3 つ星' })).toBeVisible()
+  await expect(sheet.getByRole('switch', { name: 'また行きたい' })).toBeVisible()
+  await expect(sheet.getByLabel('住所（任意）')).toHaveCount(0)
+  await expect(sheet.getByLabel('行った日')).toHaveCount(0)
+  await expect(sheet.getByRole('group', { name: 'ジャンル' })).toHaveCount(0)
+  await expect(sheet.getByTestId('place-map')).toHaveCount(0)
+  const more = sheet.getByRole('button', { name: /くわしく/ })
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+  await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/smokeA')
+  await expect(sheet.getByText('店名と場所を入れたよ')).toBeVisible()
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+  await page.screenshot({ path: `screenshots/${info.project.name}-place-add-short.png` })
+  // 開いて閉じても、同じ中身
+  await more.click()
+  await expect(sheet.getByLabel('エリア')).toHaveValue('渋谷区')
+  await more.click()
+  await expect(sheet.getByLabel('エリア')).toHaveCount(0)
+  await sheet.getByRole('button', { name: '保存する' }).click()
+  await expect.poll(() => posts.length).toBe(1)
+  expect(posts[0]).toMatchObject({ name: 'パン屋 A', lat: 35.6612, lng: 139.7012, address: '〒150-0001 東京都渋谷区神宮前4-5-6', area: '渋谷区', visited_on: iso(daysAgo(0)) })
+})
+
+test('theme6: the stats say how many of the sold items have a price, and compare with the same weekday last week', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/menu/stats')
+  await page.getByRole('tab', { name: '4週間' }).click()
+  // 4 週間: BLT（旧版も 試作2 の ¥980 で数える）に価格あり、エッグサラダとドリップは価格なし
+  await expect(page.getByTestId('sales-honest')).toHaveText(/^売れた \d+ 個のうち、価格が入ってる \d+ 個ぶんで$/)
+  const [all, priced] = (await page.getByTestId('sales-honest').innerText()).match(/\d+/g)!.map(Number)
+  expect(all).toBeGreaterThan(priced)
+  await expect(page.getByText(/^¥[\d,]+$/).first()).toBeVisible()
+  // 今日 32 個（BLT 8 + ドリップ 20 + エッグ 4）、先週の同じ曜日は 33 個（BLT 13 + ドリップ 20）
+  await expect(page.getByTestId('last-week')).toContainText('は 32 個。先週の同じ曜日（33 個）より')
+  await expect(page.getByTestId('last-week')).toContainText('−1 個')
+  await page.screenshot({ path: `screenshots/${info.project.name}-stats-honest.png`, fullPage: true })
+})
+
+test('theme6: the record pages say 今日は N 個 in one line', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/menu')
+  await expect(page.getByText('今日の記録、ばっちり。3 品で 32 個売れたよ。')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-menu-today-line.png` })
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  await expect(page.getByText('3 品 ・ 32 個売れた')).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-menu-day-sold.png` })
+  // 数を変えると、その場で変わる
+  await page.getByRole('button', { name: '増やす' }).first().click()
+  await expect(page.getByText('3 品 ・ 33 個売れた')).toBeVisible()
+  // 売れた数を記録しない日は、品数だけ
+  await page.getByRole('checkbox', { name: /売れた数も記録する/ }).uncheck()
+  await expect(page.getByText(/^3 品$/)).toBeVisible()
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { genreShares, grossProfit, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
+import { genreShares, grossProfit, lastWeekCompare, notServedRecently, prepForecast, recipeFrequency, salesSummary, soldOn, weekdayAverages } from './aggregate'
 import type { MenuLogWithItems } from './api'
 import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { addDays, today } from '@/lib/dates'
@@ -59,8 +59,27 @@ describe('sales and forecasts', () => {
     const s = salesSummary([log('2026-09-28', [['blt', 3], ['egg', 2], ['drip', null]]), log('2026-09-29', [['blt', 1]])], rs)
     expect(s.total).toBe(3600)
     expect(s.items).toBe(4)
+    // 価格の無い egg の 2 個も、売れた数には入れる（正直に「6 個のうち 4 個ぶん」と言えるように）
+    expect(s.soldAll).toBe(6)
     expect(s.days).toBe(2)
     expect(s.missingPrice.map((r) => r.id)).toEqual(['egg'])
+  })
+  it('soldOn sums the day, and is null when no counts were recorded', () => {
+    const logs = [log('2026-09-28', [['a', 4], ['b', null]]), log('2026-09-29', [['a', null]])]
+    expect(soldOn(logs, '2026-09-28')).toBe(4)
+    expect(soldOn(logs, '2026-09-29')).toBeNull()
+    expect(soldOn(logs, '2026-09-30')).toBeNull()
+  })
+  it('lastWeekCompare compares the latest counted day with the same weekday a week before', () => {
+    const logs = [log('2026-09-21', [['a', 6]]), log('2026-09-28', [['a', 4], ['b', 5]]), log('2026-09-29', [['a', null]])]
+    // 9/29 は数を記録していないので、直近の 9/28（月）と 9/21（月）をくらべる
+    expect(lastWeekCompare(logs, '2026-09-29')).toEqual({ date: '2026-09-28', sold: 9, prevDate: '2026-09-21', prevSold: 6 })
+    expect(lastWeekCompare(logs, '2026-09-28')).toMatchObject({ sold: 9, prevSold: 6 })
+    // 先週の同じ曜日に記録が無ければ、くらべない
+    expect(lastWeekCompare(logs, '2026-09-21')).toBeNull()
+    expect(lastWeekCompare([], '2026-09-28')).toBeNull()
+    // 未来の日は見ない
+    expect(lastWeekCompare(logs, '2026-09-20')).toBeNull()
   })
   it('salesSummary uses the current version\'s price for days recorded with an older version', () => {
     const rs = [priced('v1', null), priced('v2', 1000, { family_id: 'v1', is_main: true } as Partial<RecipeRow>)]
