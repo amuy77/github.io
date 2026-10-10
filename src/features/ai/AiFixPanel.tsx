@@ -58,14 +58,14 @@ export function AiFixPanel({ target, onSent, compact, collapsible }: { target: T
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-card border border-plum-400/40 bg-plum-400/5 px-3 py-2.5 text-left text-[13px] font-bold text-plum-400">
+      <button type="button" onClick={() => setOpen(true)} className="flex min-h-11 items-center gap-2 rounded-card border border-mustard-400 bg-mustard-400/15 px-3 py-2.5 text-left text-[14px] font-bold text-espresso-900">
         ✏️ 読み取りが違う？ LaRa に直してもらう <span className="ml-auto" aria-hidden>▾</span>
       </button>
     )
   }
 
   return (
-    <div className={cx('flex flex-col gap-2', !compact && 'rounded-card border border-plum-400/40 bg-plum-400/5 p-3')}>
+    <div className={cx('flex flex-col gap-2', !compact && 'rounded-card border border-mustard-400 bg-mustard-400/10 p-3')}>
       {!compact && <p className="text-[13px] font-bold text-espresso-700">✏️ LaRa に直してもらう</p>}
       <div className="flex flex-wrap gap-1.5">
         {SUGGEST[target.type].map((s) => (
@@ -87,7 +87,7 @@ export function AiFixButton({ target, full }: { target: Target; full?: boolean }
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button variant="secondary" full={full} icon={<IconSparkles size={16} />} onClick={() => setOpen(true)}>LaRa に直してもらう</Button>
+      <Button variant="mustard" full={full} icon={<IconSparkles size={16} />} onClick={() => setOpen(true)}>LaRa に直してもらう</Button>
       <Sheet open={open} onClose={() => setOpen(false)} title="✏️ LaRa に直してもらう">
         {open && <AiFixPanel target={target} compact onSent={() => setOpen(false)} />}
       </Sheet>

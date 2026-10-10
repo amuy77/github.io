@@ -114,7 +114,10 @@ function GenreForm({ genre, onClose, onCreated }: { genre: GenreRow | null; onCl
         </div>
       </div>
 
-      <Button full size="lg" loading={busy} onClick={save}>保存する</Button>
+      <div className="flex gap-2">
+        <Button variant="ghost" onClick={onClose} disabled={busy}>やめる</Button>
+        <Button full size="lg" loading={busy} onClick={save}>保存する</Button>
+      </div>
       {genre && (
         <Button variant="ghost" className="text-brick-500" icon={<IconTrash size={16} />} onClick={() => setConfirm(true)}>このジャンルを削除</Button>
       )}

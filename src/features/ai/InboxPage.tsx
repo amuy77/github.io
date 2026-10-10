@@ -100,7 +100,7 @@ export function InboxPage() {
             {active.length > 0 && (
               <section className="flex flex-col gap-2">
                 <SectionTitle count={`${active.length}件`}>トレイの中</SectionTitle>
-                {active.map((j) => <JobRow key={j.id} job={j} onCancel={() => cancel.mutate(j.id)} onRetry={() => retry.mutate(j.id)} />)}
+                {active.map((j) => <JobRow key={j.id} job={j} onCancel={() => cancel.mutate(j.id, { onSuccess: () => toast('取り消したよ', 'info', { action: { label: '元に戻す', onClick: () => retry.mutate(j.id) } }) })} onRetry={() => retry.mutate(j.id)} />)}
               </section>
             )}
 

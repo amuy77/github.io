@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { PageHeader, Skeleton, SectionTitle, EmptyState, LoadError } from '@/components/ui/Page'
 import { useDiscardGuard } from '@/components/ui/useDiscardGuard'
@@ -75,7 +75,9 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
     return out
   }, [published, genres.data])
 
-  const toggle = (id: string) => setItems((m) => { const n = new Map(m); if (n.has(id)) n.delete(id); else n.set(id, null); return n })
+  // 品名を押して外しても、入れた数は覚えておく（押し間違いでもう一度押せば戻るように）
+  const kept = useRef(new Map<string, number | null>())
+  const toggle = (id: string) => setItems((m) => { const n = new Map(m); if (n.has(id)) { kept.current.set(id, n.get(id) ?? null); n.delete(id) } else n.set(id, kept.current.get(id) ?? null); return n })
   const setSold = (id: string, v: number | null) => setItems((m) => new Map(m).set(id, v))
 
   async function onSave() {
@@ -133,7 +135,10 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
         <Card className="flex items-center gap-3 text-xs text-muted">📝 続けると、週・月の構成比や人気ランキング、LaRa のコメントが見られるようになるよ。</Card>
         <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] -mx-4 flex gap-2 border-t border-line bg-oat-50/95 px-4 py-3 backdrop-blur md:bottom-0">
           {initial && <IconButton label="この日の記録を消す" className="text-brick-500" onClick={() => setConfirm(true)}><IconTrash /></IconButton>}
-          <Button full size="lg" loading={save.isPending} onClick={onSave} disabled={!dirty && !!initial}>記録する</Button>
+          {/* 変えていないときは灰色のボタンを出さず、もう記録ずみだと分かる形で戻れるようにする */}
+          {!dirty && initial
+            ? <Button full size="lg" variant="secondary" icon={<IconCheck size={18} />} onClick={() => nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true })}>記録ずみ ・ もどる</Button>
+            : <Button full size="lg" loading={save.isPending} onClick={onSave}>記録する</Button>}
         </div>
       </div>
       <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消す？" confirmLabel="消す" danger onConfirm={() => {
