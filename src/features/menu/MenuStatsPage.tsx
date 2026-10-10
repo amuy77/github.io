@@ -9,7 +9,7 @@ import { paths } from '@/app/routes'
 import { useRecipes } from '@/features/recipes/hooks'
 import { useGenres } from '@/features/genres/hooks'
 import { useInsights, useMenuLogs } from './hooks'
-import { genreShares, grossProfit, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
+import { genreShares, grossProfit, lastWeekCompare, notServedRecently, prepForecast, recipeFrequency, salesSummary, weekdayAverages } from './aggregate'
 import { useIngredientPrices } from '@/features/recipes/priceHooks'
 import { recipeCost } from '@/features/recipes/cost'
 import { familyKey, representativeOf } from '@/features/recipes/family'
@@ -43,6 +43,7 @@ export function MenuStatsPage() {
     return grossProfit(logs.data ?? [], recipes.data ?? [], (r) => { const c = recipeCost(r.ingredients, rows); return c.unknown === 0 && c.known > 0 ? c.total : null })
   }, [logs.data, recipes.data, prices.data])
   const weekdays = useMemo(() => weekdayAverages(allLogs.data ?? []), [allLogs.data])
+  const lastWeek = useMemo(() => lastWeekCompare(allLogs.data ?? [], t), [allLogs.data, t])
   const tomorrow = addDays(t, 1)
   const prep = useMemo(() => prepForecast(allLogs.data ?? [], recipes.data ?? [], tomorrow), [allLogs.data, recipes.data, tomorrow])
   const maxDay = Math.max(1, ...weekdays.map((w) => w.avgSold ?? 0))
@@ -90,11 +91,27 @@ export function MenuStatsPage() {
             <Card className="flex flex-col gap-2">
               <SectionTitle className="mt-0">売上</SectionTitle>
               {sales.total > 0 ? (
-                <div className="flex items-end gap-4">
-                  <p className="font-display text-[30px] font-extrabold leading-none tabular-nums">¥{sales.total.toLocaleString()}</p>
-                  <p className="pb-0.5 text-xs text-muted">{sales.items} 個 ・ 1 日あたり ¥{Math.round(sales.total / Math.max(1, sales.days)).toLocaleString()}</p>
-                </div>
+                <>
+                  {/* 価格の無い品を黙って外さず、「売れた数のうち、いくつぶんの金額か」を正直に言う */}
+                  <p className="text-[14px] leading-snug" data-testid="sales-honest">
+                    {sales.soldAll > sales.items
+                      ? <>売れた <b className="tabular-nums">{sales.soldAll} 個</b>のうち、価格が入ってる <b className="tabular-nums">{sales.items} 個</b>ぶんで</>
+                      : <>売れた <b className="tabular-nums">{sales.items} 個</b>で</>}
+                  </p>
+                  <div className="flex items-end gap-4">
+                    <p className="font-display text-[30px] font-extrabold leading-none tabular-nums">¥{sales.total.toLocaleString()}</p>
+                    <p className="pb-0.5 text-xs text-muted">1 日あたり ¥{Math.round(sales.total / Math.max(1, sales.days)).toLocaleString()}</p>
+                  </div>
+                </>
               ) : <p className="text-sm text-muted">売れた数と価格が入ると、ここに売上が出るよ</p>}
+              {lastWeek && (
+                <p className="text-[13px] text-espresso-700" data-testid="last-week">
+                  {formatMD(lastWeek.date)}は <b className="tabular-nums">{lastWeek.sold} 個</b>。先週の同じ曜日（{lastWeek.prevSold} 個）より
+                  <b className={cx('ml-1 tabular-nums', lastWeek.sold > lastWeek.prevSold ? 'text-green-700' : lastWeek.sold < lastWeek.prevSold ? 'text-brick-500' : '')}>
+                    {lastWeek.sold === lastWeek.prevSold ? '同じ' : `${lastWeek.sold > lastWeek.prevSold ? '+' : '−'}${Math.abs(lastWeek.sold - lastWeek.prevSold)} 個`}
+                  </b>
+                </p>
+              )}
               {gross && gross.items > 0 && (
                 <p className="text-sm">粗利 <b className="text-[18px] tabular-nums text-green-700">¥{Math.round(gross.profit).toLocaleString()}</b>
                   <span className="ml-2 text-xs text-muted">原価率 {Math.round((1 - gross.profit / gross.sales) * 100)}%（材料の原価が全部わかる品 {gross.items} 個ぶん）</span></p>

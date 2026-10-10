@@ -107,9 +107,11 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
   }
 
   const isToday = date === today()
+  // 「今日は N 個」: 入れた売数の合計（売数を記録しているときだけ）
+  const soldTotal = showSold ? [...items.values()].reduce<number>((a, v) => a + (v ?? 0), 0) : 0
   return (
     <>
-      <PageHeader title={`${formatMD(date)}${isToday ? ' ・ 今日' : ''}`} sub={`${items.size} 品を提供`} onBack={() => requestLeave(() => nav(`${paths.menu}?m=${date.slice(0, 7)}`))}
+      <PageHeader title={`${formatMD(date)}${isToday ? ' ・ 今日' : ''}`} sub={`${items.size} 品${soldTotal > 0 ? ` ・ ${soldTotal} 個売れた` : ''}`} onBack={() => requestLeave(() => nav(`${paths.menu}?m=${date.slice(0, 7)}`))}
         actions={<>
           <IconButton label="前の日" onClick={() => go(paths.menuDay(addDays(date, -1)))}><IconChevronLeft /></IconButton>
           <IconButton label="次の日" onClick={() => go(paths.menuDay(addDays(date, 1)))} disabled={date >= today()} className={date >= today() ? 'opacity-30' : ''}><IconChevronRight /></IconButton>

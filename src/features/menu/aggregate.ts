@@ -1,7 +1,7 @@
 import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { genreColor } from '@/lib/genreColors'
 import type { MenuLogWithItems } from './api'
-import { parseIso, today } from '@/lib/dates'
+import { addDays, parseIso, today } from '@/lib/dates'
 import { familyKey, representativeOf } from '@/features/recipes/family'
 
 /** グラフ用の色（ブランド色より少し彩度高め）。ジャンル色ごとの対応は src/lib/genreColors.ts */
@@ -70,9 +70,10 @@ export function dominantColor(log: MenuLogWithItems, recipes: RecipeRow[], genre
   return shares[0]?.color ?? CHART_NONE
 }
 
-export interface SalesSummary { total: number; items: number; days: number; missingPrice: RecipeRow[] }
+export interface SalesSummary { total: number; items: number; soldAll: number; days: number; missingPrice: RecipeRow[] }
 /**
- * 売上: 売数 × 価格（価格と売数の両方があるものだけ）。価格が入っていないのに売れた品は missingPrice で知らせる（代表の版で）
+ * 売上: 売数 × 価格（価格と売数の両方があるものだけ）。価格が入っていないのに売れた品は missingPrice で知らせる（代表の版で）。
+ * soldAll は価格の有無に関係なく売れた数の合計（「売れた 300 個のうち、価格が入ってる 108 個ぶんで」と正直に言うため）
  */
 export function salesSummary(logs: MenuLogWithItems[], recipes: RecipeRow[]): SalesSummary {
   const byId = new Map(recipes.map((r) => [r.id, r]))
@@ -80,18 +81,40 @@ export function salesSummary(logs: MenuLogWithItems[], recipes: RecipeRow[]): Sa
   const repOf = new Map<string, RecipeRow>()
   for (const r of recipes) { const k = familyKey(r); if (!repOf.has(k)) repOf.set(k, representativeOf(recipes.filter((x) => familyKey(x) === k))) }
   const priceOf = (r: RecipeRow) => r.price ?? repOf.get(familyKey(r))?.price ?? null
-  let total = 0, items = 0
+  let total = 0, items = 0, soldAll = 0
   const missing = new Map<string, RecipeRow>()
   const days = new Set<string>()
   for (const l of logs) for (const it of l.menu_log_items) {
     if (!it.sold_count) continue
+    soldAll += it.sold_count
     const r = byId.get(it.recipe_id)
     if (!r) continue
     const price = priceOf(r)
     if (price == null) { const rep = repOf.get(familyKey(r)) ?? r; missing.set(rep.id, rep); continue }
     total += it.sold_count * price; items += it.sold_count; days.add(l.log_date)
   }
-  return { total, items, days: days.size, missingPrice: [...missing.values()] }
+  return { total, items, soldAll, days: days.size, missingPrice: [...missing.values()] }
+}
+
+/** その日に売れた数の合計（売数を 1 つも記録していない日は null） */
+export function soldOn(logs: MenuLogWithItems[], date: string): number | null {
+  const l = logs.find((x) => x.log_date === date)
+  if (!l || !l.menu_log_items.some((it) => it.sold_count !== null)) return null
+  return l.menu_log_items.reduce((a, it) => a + (it.sold_count ?? 0), 0)
+}
+
+export interface LastWeekCompare { date: string; sold: number; prevDate: string; prevSold: number }
+/**
+ * 先週の同じ曜日とくらべる: date（今日。今日の記録が無ければ、いちばん近い記録の日）の売れた数と、その 7 日前の売れた数。
+ * どちらかに売数の記録が無ければ null（くらべられないときは何も言わない）
+ */
+export function lastWeekCompare(logs: MenuLogWithItems[], date: string): LastWeekCompare | null {
+  const latest = logs.filter((l) => l.log_date <= date && soldOn(logs, l.log_date) !== null).sort((a, b) => b.log_date.localeCompare(a.log_date))[0]
+  if (!latest) return null
+  const prevDate = addDays(latest.log_date, -7)
+  const sold = soldOn(logs, latest.log_date), prevSold = soldOn(logs, prevDate)
+  if (sold === null || prevSold === null) return null
+  return { date: latest.log_date, sold, prevDate, prevSold }
 }
 
 export const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日'] as const

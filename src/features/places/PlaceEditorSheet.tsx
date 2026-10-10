@@ -136,6 +136,11 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
 
   const typed = url.match(URL_RE)
   const shown: LinkState = !typed ? 'idle' : !isGoogleMapsUrl(typed[0]) ? 'notmaps' : link
+  // 「くわしく」（場所・住所・エリア・ジャンル・価格帯・行った日・写真）は、最初は閉じておく（表に見えるのは 5 つまで）。
+  // 「地図を押してピンを置いてね」と言うときだけ自動で開く（言われた地図が見えないと困るので）
+  const [moreTouched, setMoreTouched] = useState<boolean | null>(null)
+  const more = moreTouched ?? (shown === 'nocoords' || shown === 'noname' || shown === 'error')
+  const setMore = (fn: (v: boolean) => boolean) => setMoreTouched(fn(more))
   const canPaste = typeof navigator !== 'undefined' && !!navigator.clipboard?.readText
   async function paste() {
     try {
@@ -197,8 +202,8 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
             idle: 'Google マップでお店を開いて「共有 → リンクをコピー」。貼ると店名と場所が入るよ',
             loading: 'お店の情報を読んでいるよ…',
             locating: '住所から場所を探しているよ…',
-            done: '📍 店名と場所を入れたよ。違っていたら直してね',
-            geocoded: '📍 住所から場所を入れたよ（だいたいの位置。ずれていたら地図を押して直してね）',
+            done: '📍 店名と場所を入れたよ。違っていたら「くわしく」で直してね',
+            geocoded: '📍 住所から場所を入れたよ（だいたいの位置。ずれていたら「くわしく」の地図で直してね）',
             nocoords: '店名は分かったけど、場所までは取れなかった。下の地図を押してピンを置いてね',
             noname: '📍 場所は入れたよ。お店の名前を入れてね',
             notmaps: 'Google マップのリンクじゃないみたい。リンクはそのまま保存できるよ',
@@ -209,64 +214,72 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
       </div>
 
       <Input label="お店の名前" placeholder="コーヒースタンド Y" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
-
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-bold text-espresso-700">場所</span>
-        <MapBox pick={pos} onPick={(lat, lng) => setPos({ lat, lng })} center={others[0] ? [others[0].lat!, others[0].lng!] : null} className="h-48 w-full overflow-hidden rounded-card border border-line" />
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span className="flex-1">{pos ? '地図を押すと、ピンを動かせるよ' : '地図を押すと、そこにピンを置くよ'}</span>
-          {pos && <button type="button" className="font-bold underline underline-offset-2" onClick={() => setPos(null)}>ピンを外す</button>}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Input label="住所（任意）" placeholder="東京都渋谷区…" value={address} maxLength={200} onChange={(e) => changeAddress(e.target.value)} />
-        {address.trim() && <Button size="sm" variant="secondary" className="self-start" loading={locating} onClick={locateFromAddress}>📍 住所から場所を探す</Button>}
-      </div>
-      <Input label="エリア" hint="一覧や傾向で使うよ（渋谷区・鎌倉市など）" placeholder="渋谷区" value={area} maxLength={40} onChange={(e) => { areaTouched.current = true; setArea(e.target.value) }} />
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">ジャンル</span>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="ジャンル">
-          {CUISINES.map((c) => <Chip key={c.name} active={cuisine === c.name} onClick={() => setCuisine(cuisine === c.name ? '' : c.name)}>{c.emoji} {c.name}</Chip>)}
-        </div>
-        <Input aria-label="ジャンル（自由に書く）" placeholder="ほかのジャンル（例: ベトナム料理）" value={CUISINES.some((c) => c.name === cuisine) ? '' : cuisine} maxLength={20} onChange={(e) => setCuisine(e.target.value)} />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">価格帯（1 人あたり）</span>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="価格帯">
-          {PRICE_BANDS.map((p) => <Chip key={p.value} active={price === p.value} onClick={() => setPrice(price === p.value ? null : p.value)}>{p.label}</Chip>)}
-        </div>
-      </div>
-
       <RatingInput label="評価" max={5} value={rating} onChange={setRating} words={PLACE_WORDS} />
       <div className="flex items-center gap-3 rounded-card border border-line bg-paper px-4 py-1">
         <span className="flex-1 text-[15px] font-bold">🔁 また行きたい</span>
         <Toggle checked={revisit} onChange={setRevisit} label="また行きたい" />
       </div>
-      <Input label="行った日" type="date" value={visited} max={today()} onChange={(e) => setVisited(e.target.value)} />
       <Textarea label="メモ（食べたもの・感想）" placeholder="カルボナーラが絶品。窓際の席が気持ちいい" value={note} onChange={(e) => setNote(e.target.value)} />
 
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] font-bold text-espresso-700">写真</span>
-        {(images.length > 0 || pending.length > 0) && (
-          <div className="grid grid-cols-3 gap-2">
-            {images.map((im, i) => (
-              <div key={im.path} className="relative">
-                <ImageThumb src={photoUrl(im, 'thumb')} className="aspect-square rounded-[10px]" />
-                <button type="button" aria-label="写真を外す" onClick={() => setImages((x) => x.filter((_, k) => k !== i))} className={removeBtn}><IconX size={14} /></button>
-              </div>
-            ))}
-            {pending.map((p, i) => (
-              <div key={p.url} className="relative">
-                <img src={p.url} alt="" className="aspect-square w-full rounded-[10px] object-cover" />
-                <button type="button" aria-label="写真を外す" onClick={() => removePending(i)} className={removeBtn}><IconX size={14} /></button>
-              </div>
-            ))}
+      {/* ここから下は「くわしく」。リンクから入った場所・住所・エリアは、開かなくてもそのまま保存される */}
+      <button type="button" aria-expanded={more} onClick={() => setMore((v) => !v)} className="flex h-12 items-center justify-between rounded-card border border-line bg-paper px-4 text-[15px] font-bold">
+        <span>くわしく<span className="ml-2 text-[12px] font-normal text-muted">場所・ジャンル・価格帯・写真・行った日</span></span><span aria-hidden>{more ? '▴' : '▾'}</span>
+      </button>
+      {more && (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-bold text-espresso-700">場所</span>
+            <MapBox pick={pos} onPick={(lat, lng) => setPos({ lat, lng })} center={others[0] ? [others[0].lat!, others[0].lng!] : null} className="h-48 w-full overflow-hidden rounded-card border border-line" />
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span className="flex-1">{pos ? '地図を押すと、ピンを動かせるよ' : '地図を押すと、そこにピンを置くよ'}</span>
+              {pos && <button type="button" className="font-bold underline underline-offset-2" onClick={() => setPos(null)}>ピンを外す</button>}
+            </div>
           </div>
-        )}
-        <PhotoPicker onFiles={addFiles} compact={images.length + pending.length > 0} disabled={saving} />
-      </div>
+          <div className="flex flex-col gap-1.5">
+            <Input label="住所（任意）" placeholder="東京都渋谷区…" value={address} maxLength={200} onChange={(e) => changeAddress(e.target.value)} />
+            {address.trim() && <Button size="sm" variant="secondary" className="self-start" loading={locating} onClick={locateFromAddress}>📍 住所から場所を探す</Button>}
+          </div>
+          <Input label="エリア" hint="一覧や傾向で使うよ（渋谷区・鎌倉市など）" placeholder="渋谷区" value={area} maxLength={40} onChange={(e) => { areaTouched.current = true; setArea(e.target.value) }} />
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-bold text-espresso-700">ジャンル</span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="ジャンル">
+              {CUISINES.map((c) => <Chip key={c.name} active={cuisine === c.name} onClick={() => setCuisine(cuisine === c.name ? '' : c.name)}>{c.emoji} {c.name}</Chip>)}
+            </div>
+            <Input aria-label="ジャンル（自由に書く）" placeholder="ほかのジャンル（例: ベトナム料理）" value={CUISINES.some((c) => c.name === cuisine) ? '' : cuisine} maxLength={20} onChange={(e) => setCuisine(e.target.value)} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-bold text-espresso-700">価格帯（1 人あたり）</span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="価格帯">
+              {PRICE_BANDS.map((p) => <Chip key={p.value} active={price === p.value} onClick={() => setPrice(price === p.value ? null : p.value)}>{p.label}</Chip>)}
+            </div>
+          </div>
+
+          <Input label="行った日" type="date" value={visited} max={today()} onChange={(e) => setVisited(e.target.value)} />
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-bold text-espresso-700">写真</span>
+            {(images.length > 0 || pending.length > 0) && (
+              <div className="grid grid-cols-3 gap-2">
+                {images.map((im, i) => (
+                  <div key={im.path} className="relative">
+                    <ImageThumb src={photoUrl(im, 'thumb')} className="aspect-square rounded-[10px]" />
+                    <button type="button" aria-label="写真を外す" onClick={() => setImages((x) => x.filter((_, k) => k !== i))} className={removeBtn}><IconX size={14} /></button>
+                  </div>
+                ))}
+                {pending.map((p, i) => (
+                  <div key={p.url} className="relative">
+                    <img src={p.url} alt="" className="aspect-square w-full rounded-[10px] object-cover" />
+                    <button type="button" aria-label="写真を外す" onClick={() => removePending(i)} className={removeBtn}><IconX size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <PhotoPicker onFiles={addFiles} compact={images.length + pending.length > 0} disabled={saving} />
+          </div>
+        </>
+      )}
 
       {/* シートの下の余白（16px）の分も下げて、保存の帯の下から中身が見えないように */}
       <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 flex gap-2 border-t border-line bg-paper px-4 pb-[calc(12px+var(--safe-bottom))] pt-3 md:pb-3">

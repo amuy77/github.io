@@ -10,7 +10,7 @@ import { paths } from '@/app/routes'
 import { useRecipes } from '@/features/recipes/hooks'
 import { useGenres } from '@/features/genres/hooks'
 import { useMenuLogs } from './hooks'
-import { dominantColor } from './aggregate'
+import { dominantColor, soldOn } from './aggregate'
 import { cx } from '@/lib/cx'
 
 const WD = ['月', '火', '水', '木', '金', '土', '日']
@@ -42,14 +42,18 @@ export function MenuCalendarPage() {
   const byDate = useMemo(() => new Map((logs.data ?? []).map((l) => [l.log_date, l])), [logs.data])
   const loggedDays = logs.data?.length ?? 0
   const t = today()
-  const todayLogged = byDate.has(t)
+  const todayLog = byDate.get(t)
+  const todayLogged = !!todayLog
+  // 「今日は N 個」を 1 行で（売数を記録していれば）
+  const todaySold = todayLog ? soldOn(logs.data ?? [], t) : null
+  const todayLine = todayLog ? `今日の記録、ばっちり。${todayLog.menu_log_items.length} 品${todaySold !== null ? `で ${todaySold} 個売れた` : ''}よ。` : '今日は何を出した？タップで記録できるよ。'
 
   return (
     <>
       <PageHeader title="きろく" sub={`${formatYM(month)} ・ ${loggedDays}日分`}
         actions={<Link to={paths.menuStats} className="inline-flex h-9 items-center gap-1 rounded-chip border border-line bg-paper px-3 text-[13px] font-bold"><IconChart size={16} /> 分析・仕込み</Link>} />
       <div className="flex flex-col gap-4">
-        <MascotSays mood={todayLogged ? 'happy' : 'idle'}>{todayLogged ? '今日の記録、ばっちり。' : '今日は何を出した？タップで記録できるよ。'}</MascotSays>
+        <MascotSays mood={todayLogged ? 'happy' : 'idle'}>{todayLine}</MascotSays>
         {!todayLogged && <Button size="lg" full icon={<IconPlus />} onClick={() => nav(paths.menuDay(t))}>今日を記録する</Button>}
 
         <Card className="flex flex-col gap-2" padded={false}>
