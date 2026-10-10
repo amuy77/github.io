@@ -43,7 +43,9 @@ export function PlaceEditorSheet({ open, onClose, place, onSaved }: Props) {
   )
 }
 
-type LinkState = 'idle' | 'loading' | 'done' | 'nocoords' | 'notmaps' | 'error'
+type LinkState = 'idle' | 'loading' | 'done' | 'nocoords' | 'noname' | 'notmaps' | 'error'
+/** 読めた中身から、出す文言を決める（店名も場所も／店名だけ／場所だけ／どちらも無し） */
+const linkStateOf = (info: MapsInfo): LinkState => (info.name ? (info.lat !== undefined ? 'done' : 'nocoords') : info.lat !== undefined ? 'noname' : 'error')
 
 function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Props, 'open'> & { onCancel: () => void; onDirtyChange: (d: boolean) => void }) {
   const toast = useToast()
@@ -67,6 +69,8 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
   const [images, setImages] = useState<ImageRef[]>(place?.images ?? [])
   const [pending, setPending] = useState<{ file: File; url: string }[]>([])
   const [link, setLink] = useState<LinkState>('idle')
+  // 読めなかったとき用: リンクをたどった先（原因を調べられるように小さく出す）
+  const [seen, setSeen] = useState('')
   const [saving, setSaving] = useState(false)
   const saveBtn = useRef<HTMLButtonElement>(null)
 
@@ -96,13 +100,16 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
       const local = mapsInfoFrom(target)
       apply(local)
       setLink('loading')
+      setSeen('')
       try {
-        const info = mapsInfoFrom(target, await fetchLinkPreview(target))
+        const preview = await fetchLinkPreview(target)
         if (!alive) return
+        const info = mapsInfoFrom(target, preview)
         apply(info)
-        setLink(info.lat !== undefined ? 'done' : 'nocoords')
+        setLink(linkStateOf(info))
+        setSeen(preview.final_url ?? '')
       } catch {
-        if (alive) setLink(local.lat !== undefined ? 'done' : 'error')
+        if (alive) setLink(linkStateOf(local))
       }
     }, 500)
     return () => { alive = false; window.clearTimeout(t) }
@@ -174,10 +181,12 @@ function PlaceForm({ place, onClose, onCancel, onSaved, onDirtyChange }: Omit<Pr
             loading: 'お店の情報を読んでいるよ…',
             done: '📍 店名と場所を入れたよ。違っていたら直してね',
             nocoords: '店名は分かったけど、場所までは取れなかった。下の地図を押してピンを置いてね',
+            noname: '📍 場所は入れたよ。お店の名前を入れてね',
             notmaps: 'Google マップのリンクじゃないみたい。リンクはそのまま保存できるよ',
             error: 'リンクから読み取れなかった。店名を入れて、下の地図を押してピンを置いてね',
           }[shown]}
         </p>
+        {seen && shown !== 'done' && shown !== 'loading' && <p className="break-all text-[11px] text-muted/80">読み取った先: {seen}</p>}
       </div>
 
       <Input label="お店の名前" placeholder="コーヒースタンド Y" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />

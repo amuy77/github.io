@@ -91,15 +91,28 @@ export function areaOf(address: string): string {
   return m ? m[1].replace(/^.+?郡/, '') : ''
 }
 
+/** Google マップのお店のページの og:image（地図の画像 staticmap）の center= / markers= から座標を読む */
+export function coordsFromMapImage(image: string | undefined): Pick<MapsInfo, 'lat' | 'lng'> {
+  const u = toUrl(image ?? '')
+  if (!u || !/google\./i.test(u.hostname)) return {}
+  for (const key of ['markers', 'center']) {
+    const m = (u.searchParams.get(key) ?? '').match(new RegExp(`${NUM},\\s*${NUM}`))
+    const c = m && coords(m[1], m[2])
+    if (c) return c
+  }
+  return {}
+}
+
 /**
- * 貼ったリンクとプレビュー（たどった先の URL・og:title）を合わせて、分かったことをまとめる。
- * たどった先 → 貼ったリンク → og:title の順に、まだ分かっていないところだけ埋める
+ * 貼ったリンクとプレビュー（たどった先の URL・og:title・og:image）を合わせて、分かったことをまとめる。
+ * たどった先 → 貼ったリンク → 地図の画像 → og:title の順に、まだ分かっていないところだけ埋める
  */
 export function mapsInfoFrom(pasted: string, preview?: LinkPreview | null): MapsInfo {
   const out: MapsInfo = {}
   const fill = (x: MapsInfo) => { for (const [k, v] of Object.entries(x) as [keyof MapsInfo, never][]) if (v !== undefined && v !== '' && out[k] === undefined) out[k] = v }
   if (preview?.final_url) fill(parseMapsUrl(preview.final_url))
   fill(parseMapsUrl(pasted))
+  fill(coordsFromMapImage(preview?.image))
   fill(parseOgTitle(preview?.title))
   if (out.address && !out.area) out.area = areaOf(out.address)
   return out

@@ -783,11 +783,13 @@ test('friends: LuRu visits, surprises LaRa, talks in 宮崎弁 and goes home', a
   // お店が広くなって玄関から LaRa のところまで遠いので、長めに待つ
   await expect.poll(async () => (await friendState(page))?.phase, { timeout: 110_000 }).toBe('play')
   await page.screenshot({ path: `screenshots/${info.project.name}-home-luru.png` })
-  // タップすると宮崎弁でひとこと
+  // タップすると宮崎弁でひとこと。遊んでいる間も動き回るので、外れたら今の場所を取り直して押し直す
   await page.waitForTimeout(6000)
-  const pos = await page.evaluate(() => (window as unknown as FriendW).__lara!.friendScreenPos())
-  await page.mouse.click(pos!.x, pos!.y + 40)
-  await expect(luruSays).toBeVisible()
+  await expect(async () => {
+    const pos = await page.evaluate(() => (window as unknown as FriendW).__lara!.friendScreenPos())
+    await page.mouse.click(pos!.x, pos!.y + 40)
+    await expect(luruSays).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 30_000 })
   // 帰ってもらうと、郵便受けまで歩いていなくなる
   await page.evaluate(() => (window as unknown as FriendW).__lara!.sendFriendHome())
   await expect.poll(() => friendState(page), { timeout: 100_000 }).toBeNull()
@@ -1694,13 +1696,20 @@ test('places: お店 is the 4th notes tab, and pasting a Google Maps link fills 
   await expect(list.getByRole('link')).toHaveCount(4)
 })
 
-test('places: a link that cannot be read still saves after you tap the map to drop a pin', async ({ page }) => {
+test('places: a link that cannot be read says so honestly, and still saves after you tap the map to drop a pin', async ({ page }) => {
   await stubSupabase(page)
+  // 短縮リンクが中継ページのままだった（たどれなかった）ときの返事
+  await page.route(`https://${REF}.supabase.co/functions/v1/link-preview`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ title: 'Google マップ', final_url: 'https://maps.app.goo.gl/zj1ttgX' }) }))
   const posts: { lat: number | null; name: string }[] = []
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/places')) posts.push(r.postDataJSON()) })
   await page.goto('#/places')
   await page.getByRole('button', { name: '追加', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: '気に入ったお店を追加' })
+  await sheet.getByLabel('Google マップのリンク').fill('https://maps.app.goo.gl/zj1ttgX')
+  await expect(sheet.getByText('リンクから読み取れなかった')).toBeVisible()
+  await expect(sheet.getByText('店名は分かったけど')).toHaveCount(0)
+  await expect(sheet.getByText('読み取った先: https://maps.app.goo.gl/zj1ttgX')).toBeVisible()
+  await expect(sheet.getByLabel('お店の名前')).toHaveValue('')
   await sheet.getByLabel('お店の名前').fill('食堂 S')
   await expect(sheet.locator('.lara-pin')).toHaveCount(0)
   await sheet.getByTestId('place-map').click({ position: { x: 120, y: 90 } })
