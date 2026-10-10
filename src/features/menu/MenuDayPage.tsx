@@ -19,7 +19,8 @@ import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { celebrate } from '@/features/game/celebrate'
 import { markRecorded } from '@/features/game/justRecorded'
-import { useDeleteMenuLog, useMenuLog, useSaveMenuLog } from './hooks'
+import { useDeleteMenuLog, useMenuLog, useMenuLogs, useSaveMenuLog } from './hooks'
+import { familyKey, representativeOf, versionName } from '@/features/recipes/family'
 import { cx } from '@/lib/cx'
 
 export function MenuDayPage() {
@@ -65,8 +66,22 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
   const { requestLeave, dialog: discardDialog } = useDiscardGuard(dirty && !save.isPending)
   const go = (to: string) => requestLeave(() => nav(to, { replace: true }))
 
-  // 選べるのはお店のメニューだけ（参考レシピは出さない）。記録済みのものは参考でも残す
-  const published = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published' && (r.purpose === 'menu' || items.has(r.id))), [recipes.data, items])
+  // 選べるのはお店のメニューだけ（お手本・ためしたいは出さない）。記録済みのものはそれでも残す
+  const menuAll = useMemo(() => (recipes.data ?? []).filter((r) => r.status === 'published' && (r.purpose === 'menu' || items.has(r.id))), [recipes.data, items])
+  // 同じ料理の版は、ふだんは 1 つだけ（採用中 → 最新）。記録ずみの版があればそれ。「ほかの版も出す」で全部
+  const [allVersions, setAllVersions] = useState(false)
+  const hasVersions = useMemo(() => new Set(menuAll.map(familyKey)).size < menuAll.length, [menuAll])
+  const published = useMemo(() => {
+    if (allVersions) return menuAll
+    const fams = new Map<string, typeof menuAll>()
+    for (const r of menuAll) fams.set(familyKey(r), [...(fams.get(familyKey(r)) ?? []), r])
+    return [...fams.values()].flatMap((fam) => { const picked = fam.filter((r) => items.has(r.id)); return picked.length ? picked : [representativeOf(fam)] })
+  }, [menuAll, allVersions, items])
+  const label = (r: (typeof menuAll)[number]) => { const fam = menuAll.filter((x) => familyKey(x) === familyKey(r)); return fam.length > 1 && (allVersions || fam.filter((x) => items.has(x.id)).length > 1) ? `${r.title}（${versionName(fam, r)}）` : r.title }
+  // 「前の日と同じ」: 直近 2 週間でいちばん近い記録（新しい日だけ）
+  const prevLogs = useMenuLogs(addDays(date, -14), addDays(date, -1), !initial)
+  const prevLog = useMemo(() => (prevLogs.data ?? []).filter((l) => l.menu_log_items.length > 0).sort((a, b) => b.log_date.localeCompare(a.log_date))[0] ?? null, [prevLogs.data])
+  const copyPrev = () => { if (!prevLog) return; setItems(new Map(prevLog.menu_log_items.map((i) => [i.recipe_id, i.sold_count]))); toast(`${formatMD(prevLog.log_date)} と同じにしたよ。数は直してね`, 'success') }
   const sections = useMemo(() => {
     const gs = genres.data ?? []
     const out = gs.map((g) => ({ key: g.id, title: `${genreEmoji(g)} ${g.name}`, items: published.filter((r) => r.genre_id === g.id) })).filter((s) => s.items.length)
@@ -101,6 +116,9 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
         </>} />
       {discardDialog}
       <div className="flex flex-col gap-4">
+        {!initial && prevLog && items.size === 0 && (
+          <Button variant="secondary" full icon={<IconCheck size={18} />} onClick={copyPrev}>{formatMD(prevLog.log_date)} と同じにする（{prevLog.menu_log_items.length} 品）</Button>
+        )}
         {recipes.isLoading ? <Skeleton className="h-40" /> : published.length === 0 ? (
           <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="ノートの「メニュー」にあるお店のメニューが、ここでチェックするだけで記録できるよ。「ためしたい」や「お手本」は出てこなせん。" action={<Button onClick={() => nav(paths.shopMenu)}>お店のメニューへ</Button>} />
         ) : (
@@ -112,7 +130,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
                   const on = items.has(r.id)
                   return (
                     <div key={r.id} className={cx('flex items-center gap-1 rounded-chip border pl-3 pr-1 text-[14px] font-bold transition-colors', on ? 'border-green-600 bg-green-600 text-white' : 'border-line bg-paper')}>
-                      <button type="button" aria-pressed={on} onClick={() => toggle(r.id)} className="flex h-10 items-center gap-1.5">{on && <IconCheck size={16} />}{r.title}</button>
+                      <button type="button" aria-pressed={on} onClick={() => toggle(r.id)} className="flex h-10 items-center gap-1.5">{on && <IconCheck size={16} />}{label(r)}</button>
                       {on && showSold && (
                         <span className="ml-1 flex items-center gap-0.5 rounded-chip bg-paper px-1 text-espresso-900">
                           <button type="button" aria-label="減らす" className="size-11 rounded-full text-[18px] hover:bg-oat-100" onClick={() => setSold(r.id, Math.max(0, (items.get(r.id) ?? 0) - 1))}>−</button>
@@ -127,6 +145,11 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
               </div>
             </section>
           ))
+        )}
+        {hasVersions && (
+          <label className="flex items-center gap-2 text-[13px] font-bold text-muted">
+            <input type="checkbox" checked={allVersions} onChange={(e) => setAllVersions(e.target.checked)} className="size-4 accent-green-600" /> ほかの版も出す
+          </label>
         )}
         <label className="flex items-center gap-2 text-[13px] font-bold text-espresso-700">
           <input type="checkbox" checked={showSold} onChange={(e) => setShowSold(e.target.checked)} className="size-4 accent-green-600" /> 売れた数も記録する

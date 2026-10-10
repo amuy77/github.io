@@ -1590,6 +1590,9 @@ test('stage4: a recipe shows its cost and margin, and a missing price can be add
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/ingredient_prices')) posts.push(r.postDataJSON()) })
   // エッグサラダ: 卵 2個（¥60）＋ マヨ（仕入れ値なし）
   await page.goto('#/recipes/d1000000-0000-4000-8000-000000000002')
+  // 原価は「くわしく」の中。押したときだけ出る
+  await expect(page.getByRole('heading', { name: '原価' })).toHaveCount(0)
+  await page.getByRole('button', { name: /原価を見る/ }).click()
   await expect(page.getByRole('heading', { name: '原価' })).toBeVisible()
   await expect(page.getByText('¥60', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('わかった材料 1 / 2')).toBeVisible()
@@ -1608,6 +1611,7 @@ test('stage4: a recipe shows its cost and margin, and a missing price can be add
 
   // 価格のある BLT（試作2・¥980）は原価率と粗利も出る
   await page.goto('#/recipes/d1000000-0000-4000-8000-000000000005')
+  await page.getByRole('button', { name: /原価を見る/ }).click()
   await expect(page.getByText('原価率')).toBeVisible()
   await expect(page.getByText('粗利')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-cost-card.png`, fullPage: true })
@@ -1935,4 +1939,54 @@ test('theme4: the ask sheet has one ×, and the talk survives closing and reopen
   await expect(sheet).toBeHidden()
   await askButton().click()
   await expect(page.getByRole('dialog', { name: 'LaRa に聞く' }).getByRole('status', { name: 'LaRa の返事' })).toContainText(/「BLT」/)
+})
+
+// ---- UI の型 テーマ5: きろくは版を 1 つだけ・前の日と同じ、レシピ詳細は材料と作り方が先・作るモード ----
+
+test('theme5: the record page shows one BLT, can show the other versions, and a new day can copy the previous one', async ({ page }, info) => {
+  await stubSupabase(page)
+  // 今日: 記録ずみ（最初の版が記録されている）→ その版だけ 1 つ
+  await page.goto(`#/menu/${iso(daysAgo(0))}`)
+  await expect(page.getByRole('button', { name: /^BLT サンド/ })).toHaveCount(1)
+  await page.getByRole('checkbox', { name: 'ほかの版も出す' }).check()
+  await expect(page.getByRole('button', { name: /^BLT サンド/ })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'BLT サンド（試作2）' })).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-menu-day-versions.png`, fullPage: true })
+  // 記録の無い日: 採用中の版（試作2）だけ。「前の日と同じにする」で選び直さなくていい
+  const posts: { p_items: { recipe_id: string; sold_count: number | null }[] }[] = []
+  page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/rpc/save_menu_log')) posts.push(r.postDataJSON()) })
+  await page.goto(`#/menu/${iso(daysAgo(20))}`)
+  await expect(page.getByRole('button', { name: /^BLT サンド/ })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /BLT サンド（試作2）/ })).toHaveCount(0)
+  // 日付の前後を選んで、記録の無い日に前の記録があるか（テスト用の DB は 20 日前の前に記録が無い）
+  await page.goto(`#/menu/${iso(daysAgo(3))}`)
+  if (await page.getByRole('button', { name: /と同じにする/ }).count()) {
+    await page.getByRole('button', { name: /と同じにする/ }).click()
+    await expect(page.getByText(/と同じにしたよ/)).toBeVisible()
+    await page.getByRole('button', { name: '記録する' }).click()
+    await expect.poll(() => posts.length).toBe(1)
+    expect(posts[0].p_items.length).toBeGreaterThan(0)
+  }
+})
+
+test('theme5: the recipe page puts ingredients and steps first, cost behind a button, and 作るモード scales the amounts', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000001')
+  const ing = page.getByRole('heading', { name: '材料' })
+  const kind = page.getByRole('radiogroup', { name: 'レシピの種類' })
+  await expect(ing).toBeVisible()
+  expect((await ing.boundingBox())!.y).toBeLessThan((await kind.boundingBox())!.y)
+  await expect(page.getByRole('heading', { name: '原価' })).toHaveCount(0)
+  await page.screenshot({ path: `screenshots/${info.project.name}-recipes-detail.png`, fullPage: true })
+  await page.getByRole('button', { name: /作るモード/ }).click()
+  const cook = page.getByRole('dialog', { name: /作るモード/ })
+  await expect(cook.getByText('3枚')).toBeVisible()
+  await cook.getByRole('radio', { name: '2 倍' }).click()
+  await expect(cook.getByText('6枚')).toBeVisible()
+  await expect(cook.getByText('1個')).toBeVisible()   // 1/2個 × 2
+  await cook.getByRole('button', { name: /ベーコンをカリカリに焼く/ }).click()
+  await expect(cook.getByRole('button', { name: /ベーコンをカリカリに焼く/ })).toHaveAttribute('aria-pressed', 'true')
+  await page.screenshot({ path: `screenshots/${info.project.name}-cook-mode.png` })
+  await cook.getByRole('button', { name: '作るモードを閉じる' }).click()
+  await expect(cook).toBeHidden()
 })
