@@ -38,7 +38,7 @@ export function LoginPage() {
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <img src={BRAND_IMAGE} alt="" width={168} height={156} className="h-auto w-[168px]" />
           <h1><img src={WORDMARK} alt="LaRa" width={150} height={50} className="h-auto w-[150px]" /></h1>
-          <p className="text-[11px] font-bold tracking-[0.2em] text-muted">SANDWICH &amp; COFFEE</p>
+          <p className="text-[11px] font-bold tracking-[0.2em] text-muted">CAFE &amp; SWEETS LAB</p>
           <p className="text-sm text-muted">店主ノート。ネタ帳・レシピ・メニュー記録。</p>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-card border border-line bg-paper p-5 shadow-card">
