@@ -34,7 +34,7 @@ const Footer = ({ onLater, onDiscard, onOk, okLabel, busy }: { onLater: () => vo
   </div>
 )
 
-/** AI がネタ帳に入れたものの確認。名前・メモ・カテゴリ・店名・★5 を直して「OK」 */
+/** LaRa がネタ帳に入れたものの確認。名前・メモ・カテゴリ・店名・★5 を直して「OK」 */
 export function ClipReviewSheet({ clip, onClose }: { clip: ClipRow | null; onClose: () => void }) {
   return (
     <Sheet open={!!clip} onClose={onClose} title="📌 ネタ帳に入れたよ" tall>
@@ -62,11 +62,11 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
   const patch = () => ({ title: title.trim(), note: note.trim(), shop_name: shop.trim() || null, genre_id: genreId, tags, rating, purpose, favorite })
   const ok = async () => {
     setBusy(true)
-    try { await update.mutateAsync({ id: clip.id, patch: { ...patch(), needs_review: false } }); if ((rating ?? 0) >= 4) celebrate('small'); toast('ネタ帳に確定しました', 'success'); onClose() }
+    try { await update.mutateAsync({ id: clip.id, patch: { ...patch(), needs_review: false } }); if ((rating ?? 0) >= 4) celebrate('small'); toast('ネタ帳に入れたよ', 'success'); onClose() }
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
-  const later = async () => { setBusy(true); try { await update.mutateAsync({ id: clip.id, patch: patch() }); toast('あとで確認に残しました') ; onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
-  const discard = async () => { setBusy(true); try { await del.mutateAsync(clip); toast('捨てました'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
+  const later = async () => { setBusy(true); try { await update.mutateAsync({ id: clip.id, patch: patch() }); toast('あとで確認に残したよ') ; onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
+  const discard = async () => { setBusy(true); try { await del.mutateAsync(clip); toast('捨てたよ'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,13 +85,13 @@ function ClipReviewForm({ clip, onClose }: { clip: ClipRow; onClose: () => void 
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">{tags.map((t) => <button key={t} type="button" onClick={() => setTags(tags.filter((x) => x !== t))} className="inline-flex items-center gap-1 rounded-chip bg-green-600 px-2.5 py-1 text-[12px] font-bold text-white">{t} <IconX size={12} /></button>)}</div>
       )}
-      <Textarea label="AI のメモ（自由に直してね）" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-48" />
+      <Textarea label="LaRa のメモ（自由に直してね）" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-48" />
       <Footer okLabel="これで OK" busy={busy} onOk={ok} onLater={later} onDiscard={discard} />
     </div>
   )
 }
 
-/** AI が作ったレシピ下書きの確認。タイトル・ジャンル・★3・同じ料理のグループを決めて図鑑へ */
+/** LaRa が作ったレシピ下書きの確認。タイトル・ジャンル・★3・同じ料理のグループを決めて図鑑へ */
 export function RecipeReviewSheet({ recipe, onClose }: { recipe: RecipeRow | null; onClose: () => void }) {
   return (
     <Sheet open={!!recipe} onClose={onClose} title="📖 レシピにしたよ" tall>
@@ -134,11 +134,11 @@ function RecipeReviewForm({ recipe, onClose }: { recipe: RecipeRow; onClose: () 
   const patch = () => ({ title: title.trim() || recipe.title, genre_id: genreId, rating, family_id: familyId, variant_label: label.trim(), purpose, favorite })
   const ok = async () => {
     setBusy(true)
-    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${PURPOSE_NAME[purpose]}に載せました`, 'success'); onClose() }
+    try { await update.mutateAsync({ id: recipe.id, patch: { ...patch(), status: 'published' } }); celebrate('small'); toast(`「${title.trim() || recipe.title}」を${PURPOSE_NAME[purpose]}に載せたよ`, 'success'); onClose() }
     catch { toast('保存できませんでした', 'error') } finally { setBusy(false) }
   }
-  const later = async () => { setBusy(true); try { await update.mutateAsync({ id: recipe.id, patch: patch() }); toast('下書きのまま残しました'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
-  const discard = async () => { setBusy(true); try { await del.mutateAsync(recipe); toast('下書きを捨てました'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
+  const later = async () => { setBusy(true); try { await update.mutateAsync({ id: recipe.id, patch: patch() }); toast('下書きのまま残したよ'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
+  const discard = async () => { setBusy(true); try { await del.mutateAsync(recipe); toast('下書きを捨てたよ'); onClose() } catch { /* 失敗の通知は共通のトーストが出す */ } finally { setBusy(false) } }
 
   return (
     <div className="flex flex-col gap-4">

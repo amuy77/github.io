@@ -10,6 +10,6 @@ export function useUndoableDelete() {
   return (what: string, { key, hide, restore, run }: { key: string; hide: () => void; restore: () => void; run: () => Promise<void> }) => {
     hide()
     const id = scheduleDelete(async () => { try { await run() } catch { restore(); toastBus.error(`${what}を削除できませんでした`) } }, restore, undefined, key)
-    toast(`${what}を削除しました`, 'info', { duration: UNDO_MS, action: { label: '元に戻す', onClick: () => { undoDelete(id) } } })
+    toast(`${what}を削除したよ`, 'info', { duration: UNDO_MS, action: { label: '元に戻す', onClick: () => { undoDelete(id) } } })
   }
 }

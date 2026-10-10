@@ -84,7 +84,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
       await save.mutateAsync({ date, note: note.trim(), items: [...items.entries()].map(([recipe_id, sold_count]) => ({ recipe_id, sold_count: showSold ? sold_count : null })) })
       if (!initial) celebrate('small')
       markRecorded()
-      toast(initial ? '更新しました' : '記録しました！', 'success')
+      toast('記録したよ！', 'success')
       nav(`${paths.menu}?m=${date.slice(0, 7)}`, { replace: true })
     } catch (e) { toast(friendlyError(e), 'error') }
   }
@@ -100,7 +100,7 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
       {discardDialog}
       <div className="flex flex-col gap-4">
         {recipes.isLoading ? <Skeleton className="h-40" /> : published.length === 0 ? (
-          <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="ノートの「メニュー」にあるお店のメニューが、ここでチェックするだけで記録できます。アイデアや参考レシピは出てきません。" action={<Button onClick={() => nav(paths.shopMenu)}>お店のメニューへ</Button>} />
+          <EmptyState emoji="🍽️" title="お店のメニューを登録しよう" body="ノートの「メニュー」にあるお店のメニューが、ここでチェックするだけで記録できるよ。「ためしたい」や「お手本」は出てこなせん。" action={<Button onClick={() => nav(paths.shopMenu)}>お店のメニューへ</Button>} />
         ) : (
           sections.map((s) => (
             <section key={s.key} className="flex flex-col gap-2">
@@ -130,13 +130,13 @@ function DayEditor({ date, initial }: { date: string; initial: ReturnType<typeof
           <input type="checkbox" checked={showSold} onChange={(e) => setShowSold(e.target.checked)} className="size-4 accent-green-600" /> 売れた数も記録する
         </label>
         <Textarea label="メモ（任意）" placeholder="雨で客足少なめ。BLT が早めに売り切れ" value={note} onChange={(e) => setNote(e.target.value)} />
-        <Card className="flex items-center gap-3 text-xs text-muted">📝 続けると、週・月の構成比や人気ランキング、AI のコメントが見られるようになります。</Card>
+        <Card className="flex items-center gap-3 text-xs text-muted">📝 続けると、週・月の構成比や人気ランキング、LaRa のコメントが見られるようになるよ。</Card>
         <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] -mx-4 flex gap-2 border-t border-line bg-oat-50/95 px-4 py-3 backdrop-blur md:bottom-0">
           {initial && <IconButton label="この日の記録を消す" className="text-brick-500" onClick={() => setConfirm(true)}><IconTrash /></IconButton>}
-          <Button full size="lg" loading={save.isPending} onClick={onSave} disabled={!dirty && !!initial}>{initial ? '更新する' : '記録する'}</Button>
+          <Button full size="lg" loading={save.isPending} onClick={onSave} disabled={!dirty && !!initial}>記録する</Button>
         </div>
       </div>
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消しますか？" confirmLabel="消す" danger onConfirm={() => {
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title="この日の記録を消す？" confirmLabel="消す" danger onConfirm={() => {
         if (!initial) return
         const row = initial
         undoable('この日の記録', {

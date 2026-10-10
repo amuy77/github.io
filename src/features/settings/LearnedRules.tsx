@@ -23,13 +23,13 @@ export function LearnedRules() {
     <Card className="flex flex-col gap-3">
       <p className="text-[13px] leading-relaxed text-muted">直してほしいと伝えたことを、LaRa は次から守るよ。違うと思ったら、スイッチで止めたり書き直したりしてね。</p>
       {list.length === 0 ? (
-        <p className="rounded-[10px] bg-oat-50 px-3 py-3 text-center text-sm text-muted">まだ何も覚えていません</p>
+        <p className="rounded-[10px] bg-oat-50 px-3 py-3 text-center text-sm text-muted">まだ何も覚えてないよ</p>
       ) : (
         <ul className="flex flex-col gap-2">{list.map((p) => <Rule key={p.id} pref={p} />)}</ul>
       )}
       <div className="flex gap-2">
         <Input placeholder="自分でルールを足す（例: 価格は税込で書く）" value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="ルールを追加" />
-        <Button variant="secondary" loading={add.isPending} onClick={async () => { const t = draft.trim(); if (!t) return; try { await add.mutateAsync(t); setDraft(''); toast('覚えました', 'success') } catch { /* 失敗は global のトーストが知らせる。入力は残す */ } }}>追加</Button>
+        <Button variant="secondary" loading={add.isPending} onClick={async () => { const t = draft.trim(); if (!t) return; try { await add.mutateAsync(t); setDraft(''); toast('覚えたよ', 'success') } catch { /* 失敗は global のトーストが知らせる。入力は残す */ } }}>追加</Button>
       </div>
     </Card>
   )

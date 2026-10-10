@@ -27,7 +27,7 @@ export function LoginPage() {
     setBusy(true); setError(null); setNotice(null)
     const err = mode === 'login' ? await signIn(email, password) : await signUp(email, password)
     setBusy(false)
-    if (err === 'CONFIRM_EMAIL') { setNotice('確認メールを送りました。メールのリンクを開いてから、ここでログインしてね。'); setMode('login'); return }
+    if (err === 'CONFIRM_EMAIL') { setNotice('確認メールを送ったよ。メールのリンクを開いてから、ここでログインしてね。'); setMode('login'); return }
     if (err) setError(err)
   }
 

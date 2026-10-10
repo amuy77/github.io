@@ -17,7 +17,7 @@ export function BackupRow() {
     } catch (e) { toast(friendlyError(e, '保存できませんでした'), 'error') } finally { setBusy(false) }
   }
   return (
-    <SettingsRow icon="💾" title="データを保存する" sub="ネタ帳・レシピ・記録を 1 つのファイルに（写真は入りません）"
+    <SettingsRow icon="💾" title="データを保存する" sub="ネタ帳・レシピ・記録を 1 つのファイルに（写真は入らないよ）"
       trailing={<button type="button" disabled={busy} onClick={() => void run()} className="h-11 shrink-0 rounded-chip border border-line bg-paper px-4 text-[14px] font-bold disabled:opacity-50">{busy ? '保存中…' : '保存する'}</button>} />
   )
 }

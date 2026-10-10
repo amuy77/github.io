@@ -84,7 +84,7 @@ export function MenuStatsPage() {
           initial={prep.map((p) => ({ recipe: p.recipe, count: Math.max(1, Math.ceil(p.avg)) }))} />
 
         {loading ? <Skeleton className="h-48" /> : days === 0 ? (
-          <EmptyState emoji="📊" title="この期間の記録がありません" body="メニューを記録すると、ジャンルの構成比や人気の品がここに出ます。" action={<Link to={paths.menuDay(t)} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">今日を記録する</Link>} />
+          <EmptyState emoji="📊" title="この期間の記録がないよ" body="メニューを記録すると、ジャンルの構成比や人気の品がここに出るよ。" action={<Link to={paths.menuDay(t)} className="inline-flex h-10 items-center rounded-chip bg-green-600 px-4 text-sm font-bold text-white">今日を記録する</Link>} />
         ) : (
           <>
             <Card className="flex flex-col gap-2">
@@ -151,7 +151,7 @@ export function MenuStatsPage() {
         )}
 
         <section className="flex flex-col gap-2">
-          <SectionTitle>相棒のコメント</SectionTitle>
+          <SectionTitle>LaRa のコメント</SectionTitle>
           {latest ? (
             <Card className="flex flex-col gap-3">
               <MascotSays mood="happy" size={52}>{formatMD(latest.week_start)} の週のふりかえりだよ。</MascotSays>

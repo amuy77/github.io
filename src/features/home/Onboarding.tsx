@@ -13,7 +13,7 @@ import { saveDisplayName, useShopMembers } from '@/features/settings/shopHooks'
 type Step = { emoji: string; title: string; body: string }
 const NAME_STEP: Step = { emoji: '✏️', title: 'なんて呼んだらいい？', body: 'お店のメンバーに出る名前だよ。あとから設定でも変えられるよ' }
 const STEPS: Step[] = [
-  { emoji: '👋', title: 'はじめまして、LaRa だよ', body: 'お店の秘書をするね。気になったこと、レシピ、毎日のメニューを、いっしょに残していこう。' },
+  { emoji: '👋', title: 'はじめまして、LaRa だよ', body: 'お店のことを、いっしょに覚えていく係だよ。気になったこと、レシピ、毎日のメニューを残していこう。' },
   { emoji: '📷', title: '下の「＋」で、撮るだけ', body: '気になるメニューやレシピは写真を撮るだけで OK。LaRa が読んで、ネタ帳かレシピかに仕分けするよ。' },
   { emoji: '📬', title: 'トレイで「OK」したら完成', body: '読み終わったら郵便受け（トレイ）に届くよ。中身を見て OK を押すと、ノートに入るよ。' },
   { emoji: '🗓️', title: '「きろく」で今日を記録', body: 'お店で出したメニューにチェックするだけ。続けると、売れ方や明日の仕込みの目安がわかるようになるよ。右上の 📅 で予定も見られるよ。' },

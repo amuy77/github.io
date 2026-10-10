@@ -203,7 +203,7 @@ test('3D home: tapping each piece of furniture opens its card', async ({ page },
   // 住人が家具の前に立ってタップを受け止めないように、いったんお店から出てもらう
   await page.evaluate(() => (window as unknown as { __lara: { setResident(v: boolean): void } }).__lara.setResident(false))
   const cards: [string, string][] = [
-    ['inbox', 'AI が作ったカードが届く場所'], ['recipes', 'ジャンル別のレシピカード'], ['menu', '今日出したメニューの記録と、週・月のふりかえり'],
+    ['inbox', 'LaRa が読んだものが届く場所'], ['recipes', 'ジャンル別のレシピカード'], ['menu', '今日出したメニューの記録と、週・月のふりかえり'],
     ['clips', '気になったお店・SNS・ワインやビールのメモ'], ['add', 'ひらめき・URL・写真をサッと保存'],
   ]
   for (const [id, sub] of cards) {
@@ -341,15 +341,24 @@ test('login page without session', async ({ page }, info) => {
   await page.screenshot({ path: `screenshots/${info.project.name}-login.png` })
 })
 
-test('inbox shows AI results and the review sheet takes a rating', async ({ page }, info) => {
+test('inbox shows LaRa results and the review sheet takes a 3-step rating', async ({ page }, info) => {
   await stubSupabase(page)
   await page.goto('#/inbox')
   await expect(page.getByRole('heading', { name: '確認待ち' })).toBeVisible()
   await page.getByText('ピスタチオラテ ¥720').click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('radio', { name: '4 つ星' }).click()
-  await expect(dialog.getByText('かなり好き')).toBeVisible()
+  // 表の画面は 3 段階。「保留」ボタンは無く、同じ★をもう一度押しても消えない
+  await expect(dialog.getByRole('radio')).toHaveCount(3 + 2)   // ★ 3 つ ＋ どっちのネタ？ の 2 つ
+  await expect(dialog.getByRole('button', { name: '保留' })).toHaveCount(0)
+  await dialog.getByRole('radio', { name: '3 つ星' }).click()
+  await expect(dialog.getByText('また食べたい')).toBeVisible()
+  await dialog.getByRole('radio', { name: '3 つ星' }).click()
+  await expect(dialog.getByText('また食べたい')).toBeVisible()
+  await dialog.getByRole('button', { name: '消す' }).click()
+  await expect(dialog.getByText('まだ付けてないよ')).toBeVisible()
+  await dialog.getByRole('radio', { name: '2 つ星' }).click()
+  await expect(dialog.getByText('ふつう')).toBeVisible()
   await page.screenshot({ path: `screenshots/${info.project.name}-review-clip.png` })
   await dialog.getByRole('button', { name: '閉じる' }).click()
   await page.getByText('ハムチーズクロワッサン').click()
@@ -411,7 +420,7 @@ test('AI fix: review sheet sends a redo, settings lists learned rules', async ({
   await page.screenshot({ path: `screenshots/${info.project.name}-learned.png`, fullPage: true })
 })
 
-test('recipes: お店のメニュー lives in its own ノート tab, レシピ has アイデア as a genre chip, and a recipe can switch sides', async ({ page }, info) => {
+test('recipes: お店のメニュー lives in its own ノート tab, レシピ has ためしたい as a genre chip, and a recipe can switch sides', async ({ page }, info) => {
   await stubSupabase(page)
   const patches: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/recipes')) patches.push(r.postDataJSON()) })
@@ -431,28 +440,28 @@ test('recipes: お店のメニュー lives in its own ノート tab, レシピ h
   await expect(page.getByText('BLT サンド').first()).toBeVisible()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
   await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /アイデア/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /ためしたい/ })).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-shop-menu.png`, fullPage: true })
 
-  // レシピ: 種類の段は無く、💡 アイデアはジャンルのチップと並ぶ。お店のメニューは出ない
+  // レシピ: 種類の段は無く、🧪 ためしたいはジャンルのチップと並ぶ。お店のメニューは出ない
   await notes.getByRole('tab', { name: /レシピ/ }).click()
   await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
-  await expect(page.getByRole('tab', { name: /未分類/ })).toHaveCount(0)
+  await expect(page.getByRole('tab', { name: /まだ決めてない/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /すべて/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
   await expect(page.getByText('BLT サンド')).toHaveCount(0)
-  const idea = page.getByRole('button', { name: /💡 アイデア/ })
+  const idea = page.getByRole('button', { name: /🧪 ためしたい/ })
   await expect(idea).toContainText('1')
   await idea.click()
   await expect(idea).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-recipes-idea.png`, fullPage: true })
-  // メニューに行ってもアイデアは無いので全部、レシピに戻るとアイデアのまま
+  // メニューに行っても「ためしたい」は無いので全部、レシピに戻るとそのまま
   await notes.getByRole('tab', { name: /メニュー/ }).click()
   await expect(page.getByText('エッグサラダ')).toBeVisible()
   await notes.getByRole('tab', { name: /レシピ/ }).click()
-  await expect(page.getByRole('button', { name: /💡 アイデア/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: /🧪 ためしたい/ })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: /すべて/ }).click()
 
   await page.getByText('ハンドドリップ 深煎り').click()
@@ -460,19 +469,19 @@ test('recipes: お店のメニュー lives in its own ノート tab, レシピ h
   await page.getByRole('radio', { name: /お店のメニュー/ }).click()
   await expect.poll(() => patches.length).toBe(1)
   expect(patches[0]).toMatchObject({ purpose: 'menu' })
-  await page.getByRole('radio', { name: /アイデア/ }).click()
+  await page.getByRole('radio', { name: /ためしたい/ }).click()
   await expect.poll(() => patches.length).toBe(2)
   expect(patches[1]).toMatchObject({ purpose: 'idea' })
 })
 
-test('recipes: 作る starts as お店のメニュー from メニュー, and as アイデア from レシピ', async ({ page }) => {
+test('recipes: 作る starts as お店のメニュー from メニュー, and as ためしたい from レシピ', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/shop-menu')
   await page.getByRole('button', { name: '作る' }).click()
   await expect(page.getByRole('radio', { name: /お店のメニュー/ })).toHaveAttribute('aria-checked', 'true')
   await page.goto('#/recipes')
   await page.getByRole('button', { name: '作る' }).click()
-  await expect(page.getByRole('radio', { name: /アイデア/ })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('radio', { name: /ためしたい/ })).toHaveAttribute('aria-checked', 'true')
   // ノートのタブは、最後に見たものを開く
   await page.goto('#/shop-menu')
   await page.goto('#/settings')
@@ -507,7 +516,7 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
   await page.getByRole('button', { name: '新しいジャンル' }).click()
   const add = page.getByRole('dialog', { name: 'ジャンルを追加' })
   await add.getByLabel('ジャンル名').fill('デザート')
-  await add.getByRole('button', { name: '追加する' }).click()
+  await add.getByRole('button', { name: '保存する' }).click()
   await expect.poll(() => writes.length).toBe(2)
   expect(writes[1]).toMatchObject({ method: 'POST', body: { name: 'デザート', emoji: '' } })
 })
@@ -515,11 +524,11 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
 test('recipes: the list keeps its genre after opening a recipe, and the detail page steps to the next one', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/recipes')
-  await page.getByRole('button', { name: /💡 アイデア/ }).click()
+  await page.getByRole('button', { name: /🧪 ためしたい/ }).click()
   await page.getByText('栗のカフェラテ 試作').click()
   await page.goBack()
-  // 戻ってもアイデアのまま
-  await expect(page.getByRole('button', { name: /💡 アイデア/ })).toHaveAttribute('aria-pressed', 'true')
+  // 戻っても「ためしたい」のまま
+  await expect(page.getByRole('button', { name: /🧪 ためしたい/ })).toHaveAttribute('aria-pressed', 'true')
 
   // お店のメニューから開くと、その並びで「次へ」
   await page.goto('#/shop-menu')
@@ -552,7 +561,7 @@ test('clip genres: the clip list shares the genres with レシピ, and the edito
   await add.getByLabel('ジャンル名').fill('スイーツ')
   await add.getByRole('radio', { name: '🍰' }).click()
   await page.screenshot({ path: `screenshots/${info.project.name}-category-add.png` })
-  await add.getByRole('button', { name: '追加する' }).click()
+  await add.getByRole('button', { name: '保存する' }).click()
   await expect.poll(() => genrePosts.length).toBe(1)
   expect(genrePosts[0]).toMatchObject({ name: 'スイーツ', emoji: '🍰' })
   await expect(add).toBeHidden()
@@ -587,22 +596,22 @@ test('notes: the genre you pick stays picked when you switch between ネタ帳 a
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /レシピ/ }).click()
   await expect(page.getByRole('button', { name: /ベバレッジ/ }).first()).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText('BLT サンド')).toHaveCount(0)
-  // 💡 アイデアも、ネタ帳とレシピで同じ
-  await page.getByRole('button', { name: /💡 アイデア/ }).click()
+  // 「ためしたい」（レシピ）と「うちでやりたい」（ネタ帳）は同じ位置で、切り替えても選んだまま
+  await page.getByRole('button', { name: /🧪 ためしたい/ }).click()
   await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
-  await expect(page.getByRole('button', { name: /💡 アイデア/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('button', { name: /🏠 うちでやりたい/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByText('秋メニュー案')).toBeVisible()
   await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
 })
 
-test('clips: アイデア is a chip next to the genres (no kind tabs), and the review sheet sets purpose and favourite', async ({ page }, info) => {
+test('clips: うちでやりたい is a chip next to the genres (no kind tabs), and the review sheet sets purpose and favourite', async ({ page }, info) => {
   await stubSupabase(page)
   const patches: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/clips')) patches.push(r.postDataJSON()) })
   await page.goto('#/clips')
   await expect(page.getByRole('tablist', { name: 'ネタの種類' })).toHaveCount(0)
-  await page.getByRole('button', { name: /💡 アイデア/ }).click()
+  await page.getByRole('button', { name: /🏠 うちでやりたい/ }).click()
   await expect(page.getByText('秋メニュー案')).toBeVisible()
   await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-idea.png`, fullPage: true })
@@ -612,7 +621,7 @@ test('clips: アイデア is a chip next to the genres (no kind tabs), and the r
   await page.goto('#/inbox')
   await page.getByText('ピスタチオラテ ¥720').click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByRole('radio', { name: /アイデア/ }).click()
+  await dialog.getByRole('radio', { name: /うちでやりたい/ }).click()
   await dialog.getByRole('switch', { name: /お気に入り/ }).click()
   await page.screenshot({ path: `screenshots/${info.project.name}-review-clip-purpose.png` })
   await dialog.getByRole('button', { name: 'これで OK' }).click()
@@ -916,7 +925,7 @@ test('safe: closing the clip editor with typed text asks first, and Esc closes o
   await expect(editor).toBeVisible()
   await expect(editor.getByLabel('タイトル')).toHaveValue('書きかけ')
   await page.keyboard.press('Escape')
-  const ask = page.getByRole('alertdialog', { name: '入力途中のものを捨てますか？' })
+  const ask = page.getByRole('alertdialog', { name: '書きかけを捨てる？' })
   await expect(ask).toBeVisible()
   await ask.getByRole('button', { name: 'やめる' }).click()
   await expect(ask).toBeHidden()
@@ -932,7 +941,7 @@ test('safe: leaving a half-typed menu record asks first', async ({ page }) => {
   await page.goto(`#/menu/${iso(daysAgo(0))}`)
   await page.getByRole('button', { name: 'エッグサラダ' }).click()
   await page.getByRole('button', { name: '前の日' }).click()
-  const ask = page.getByRole('alertdialog', { name: '入力途中のものを捨てますか？' })
+  const ask = page.getByRole('alertdialog', { name: '書きかけを捨てる？' })
   await expect(ask).toBeVisible()
   await ask.getByRole('button', { name: 'やめる' }).click()
   await expect(page).toHaveURL(new RegExp(`#/menu/${iso(daysAgo(0))}$`))
@@ -1084,7 +1093,7 @@ test('comfy: unticking 売れた数 saves the counts as empty', async ({ page })
   const tick = page.getByRole('checkbox', { name: /売れた数も記録する/ })
   await expect(tick).toBeChecked()
   await tick.click()
-  await page.getByRole('button', { name: '更新する' }).click()
+  await page.getByRole('button', { name: '記録する' }).click()
   await expect.poll(() => posts.length).toBe(1)
   const rows = (posts[0] as { p_items: { sold_count: number | null }[] }).p_items
   expect(rows.length).toBeGreaterThan(0)
@@ -1170,7 +1179,7 @@ test('atomic: when the DB functions are not there yet, saving falls back to the 
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/')) posts.push(r.url().replace(/^.*\/rest\/v1\//, '').replace(/\?.*$/, '')) })
   await page.goto(`#/menu/${iso(daysAgo(0))}`)
   await page.getByRole('button', { name: 'エッグサラダ' }).click()
-  await page.getByRole('button', { name: '更新する' }).click()
+  await page.getByRole('button', { name: '記録する' }).click()
   // 関数が無い（PGRST202）→ 今までの 3 段階（menu_logs の upsert → items）に戻る
   await expect.poll(() => posts.includes('menu_log_items')).toBe(true)
   expect(posts[0]).toBe('rpc/save_menu_log')
@@ -1327,7 +1336,7 @@ test('step0: sold counts are on for a new day, the ＋/− are big enough, and L
   // 保存して戻ると LaRa がお礼を言う（テスト用の DB は新しい日を覚えないので、記録のある今日を更新する）
   await page.goto(`#/menu/${iso(daysAgo(0))}`)
   await page.getByRole('button', { name: '増やす' }).first().click()
-  await page.getByRole('button', { name: '更新する' }).click()
+  await page.getByRole('button', { name: '記録する' }).click()
   await expect(page).toHaveURL(/#\/menu\?m=/)
   await page.goto('#/')
   await expect(page.getByText(/記録ありがとう|しっかり覚えた|えらいえらい/)).toBeVisible()
@@ -1384,10 +1393,10 @@ test('stage1: a menu dish has a price, and analysis shows sales, weekdays and to
   await price.fill('６５０円')
   await expect(price).toHaveValue('')
   await price.fill('650')
-  await page.getByRole('button', { name: '更新する' }).click()
+  await page.getByRole('button', { name: '保存する' }).click()
   await expect.poll(() => patches.length).toBe(1)
   expect(patches[0]).toMatchObject({ price: 650 })
-  // 参考レシピでは価格の欄は出ない
+  // 「お手本」では価格の欄は出ない
   await page.goto('#/recipes/d1000000-0000-4000-8000-000000000003/edit')
   await expect(page.getByLabel('価格（税込・円）')).toHaveCount(0)
 
@@ -1691,7 +1700,7 @@ test('places: お店 is the 4th notes tab, and pasting a Google Maps link fills 
   await expect(sheet.locator('.lara-pin')).toHaveCount(1)
   await sheet.getByRole('group', { name: 'ジャンル' }).getByRole('button', { name: /ベーカリー/ }).click()
   await sheet.getByRole('group', { name: '価格帯' }).getByRole('button', { name: '〜¥1,000' }).click()
-  await sheet.getByRole('radio', { name: '5 つ星' }).click()
+  await sheet.getByRole('radio', { name: '3 つ星' }).click()   // 3 段階の「また食べたい」= DB では 5
   await sheet.getByRole('switch', { name: 'また行きたい' }).check({ force: true })
   await page.screenshot({ path: `screenshots/${info.project.name}-place-add.png` })
   await sheet.getByRole('button', { name: '保存する' }).click()
@@ -1800,7 +1809,7 @@ test('places: before the SQL is run, the page says so instead of breaking', asyn
   await stubSupabase(page)
   await page.route(`https://${REF}.supabase.co/rest/v1/places**`, (route) => route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'PGRST205', message: "Could not find the table 'public.places' in the schema cache", details: null, hint: null }) }))
   await page.goto('#/places')
-  await expect(page.getByText('お店リストの準備がまだです')).toBeVisible()
+  await expect(page.getByText('お店リストの準備がまだだよ')).toBeVisible()
   await expect(page.getByRole('button', { name: '追加', exact: true })).toHaveCount(0)
   // ほかのノートはそのまま使える
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()

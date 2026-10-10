@@ -12,6 +12,7 @@ import { PlaceEditorSheet } from './PlaceEditorSheet'
 import { PlaceTrendsView } from './PlaceTrendsView'
 import { MapBox } from './MapBox'
 import { CUISINES, PRICE_BANDS, cuisineEmoji } from './trends'
+import { isTop } from '@/lib/rating'
 
 type View = 'list' | 'map' | 'trends'
 const VIEW_KEY = 'lara.places.view'
@@ -47,7 +48,7 @@ export function PlacesPage() {
     return sortRows(all.filter((p) => {
       if (f.cuisine !== 'all' && p.cuisine.trim() !== f.cuisine) return false
       if (f.revisit && !p.revisit) return false
-      if (f.top && (p.rating ?? 0) < 4) return false
+      if (f.top && !isTop(p.rating, 5)) return false
       if (f.price !== null && p.price_band !== f.price) return false
       if (!needle) return true
       return `${p.name} ${p.area} ${p.address} ${p.cuisine} ${p.note}`.toLowerCase().includes(needle)
@@ -67,7 +68,7 @@ export function PlacesPage() {
         ) : places.isError ? (
           <EmptyState emoji="😵" title="読み込めませんでした" body={(places.error as Error).message} action={<Button size="sm" variant="secondary" onClick={() => places.refetch()}>もう一度</Button>} />
         ) : !ready ? (
-          <EmptyState emoji="🛠️" title="お店リストの準備がまだです" body="Supabase の SQL Editor で「20261012000000_places.sql」を流すと使えるようになるよ。" />
+          <EmptyState emoji="🛠️" title="お店リストの準備がまだだよ" body="Supabase の SQL Editor で「20261012000000_places.sql」を流すと使えるようになるよ。" />
         ) : all.length === 0 ? (
           <EmptyState emoji="📍" title="まだお店がありません" body="行って気に入ったお店を溜めていこう。Google マップでお店を開いて「共有 → リンクをコピー」して、ここに貼るだけ。" action={<Button onClick={() => setAdding(true)} icon={<IconPlus size={16} />}>最初のお店を追加</Button>} />
         ) : (
@@ -86,7 +87,7 @@ export function PlacesPage() {
                     <FilterGroup label="並び順"><SortSelect value={f.sort} onChange={(v) => set({ sort: v })} /></FilterGroup>
                     <FilterGroup label="しぼりこみ">
                       <Chip active={f.revisit} onClick={() => set({ revisit: !f.revisit })}>🔁 また行きたい</Chip>
-                      <Chip active={f.top} onClick={() => set({ top: !f.top })}>★4以上</Chip>
+                      <Chip active={f.top} onClick={() => set({ top: !f.top })}>★ また食べたい</Chip>
                     </FilterGroup>
                     <FilterGroup label="価格帯（1 人あたり）">
                       {PRICE_BANDS.map((p) => <Chip key={p.value} active={f.price === p.value} onClick={() => set({ price: f.price === p.value ? null : p.value })}>{p.label}</Chip>)}
@@ -100,7 +101,7 @@ export function PlacesPage() {
                   </div>
                 )}
                 {list.length === 0 ? (
-                  <EmptyState emoji="🔍" title="見つかりませんでした" body="検索やしぼりこみを変えてみてね。" />
+                  <EmptyState emoji="🔍" title="見つからなかったよ" body="検索やしぼりこみを変えてみてね。" />
                 ) : view === 'map' ? (
                   <div className="flex flex-col gap-2">
                     <MapBox places={onMap} selectedId={selected} onSelect={setSelected} className="h-[min(60vh,480px)] w-full overflow-hidden rounded-card border border-line" />

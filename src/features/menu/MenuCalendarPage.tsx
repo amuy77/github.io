@@ -108,7 +108,7 @@ function LogSearch() {
         <IconSearch size={18} className="text-muted" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="記録を探す（メモ・メニュー名）" aria-label="記録を探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" />
       </label>
-      {needle && (logs.isLoading ? <Skeleton className="h-16" /> : hits.length === 0 ? <p className="px-1 text-xs text-muted">この 1 年の記録には見つかりませんでした</p> : (
+      {needle && (logs.isLoading ? <Skeleton className="h-16" /> : hits.length === 0 ? <p className="px-1 text-xs text-muted">この 1 年の記録には見つからなかったよ</p> : (
         <ul className="flex flex-col gap-1.5" data-testid="log-search-hits">
           {hits.map(({ l, names }) => (
             <li key={l.id}>

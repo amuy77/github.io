@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import type { GenreRow, RecipeRow } from '@/lib/supabase/database.types'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Stamp } from '@/components/ui/Chip'
-import { IconStar } from '@/components/ui/icons'
+import { IconHeart } from '@/components/ui/icons'
 import { RatingStars } from '@/components/ui/Rating'
 import { genreColor } from '@/lib/genreColors'
 import { photoUrl } from '@/lib/images/upload'
@@ -19,8 +19,8 @@ export function isNew(iso: string): boolean {
 function FavoriteButton({ recipe, onToggle, className }: { recipe: RecipeRow; onToggle: (r: RecipeRow) => void; className: string }) {
   return (
     <button type="button" aria-label={recipe.favorite ? 'お気に入りを外す' : 'お気に入りにする'} onClick={() => onToggle(recipe)}
-      className={cx('z-10 grid place-items-center rounded-full', recipe.favorite ? 'text-mustard-400' : 'text-line hover:text-mustard-400', className)}>
-      <IconStar size={recipe.favorite ? 18 : 16} filled={recipe.favorite} />
+      className={cx('z-10 grid place-items-center rounded-full', recipe.favorite ? 'text-brick-400' : 'text-line hover:text-brick-400', className)}>
+      <IconHeart size={recipe.favorite ? 18 : 16} filled={recipe.favorite} />
     </button>
   )
 }

@@ -27,7 +27,7 @@ import { BackupRow } from './BackupCard'
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const { userId } = useSession()
-  const { home3d, outfit, friends } = useSettings()
+  const { home3d, outfit, friends, ratingDetail } = useSettings()
   const nav = useNavigate()
   const members = useShopMembers().data
   const me = members?.find((m) => m.user_id === userId)
@@ -66,6 +66,8 @@ export function SettingsPage() {
         <SettingsGroup title="ネタ帳・レシピ" footer="ジャンルは、ネタ帳とレシピで同じものを使います。仕入れ値を入れると、レシピの原価と利益が出ます">
           <SettingsRow icon="🏷️" title="ジャンル" value={genres ? `${genres.length} 個` : undefined} to={paths.settingsGenres} />
           <SettingsRow icon="🧾" title="材料の仕入れ値" value={prices?.ready ? `${prices.rows.length} 品` : undefined} to={paths.settingsPrices} />
+          <SettingsRow icon="⭐" title="★をくわしく" sub={ratingDetail ? 'ネタとお店は 5 段階、レシピは 3 段階の言葉で' : 'オフ: いまいち・ふつう・また食べたい の 3 つ'}
+            trailing={<Toggle checked={ratingDetail} onChange={(v) => updateSettings({ ratingDetail: v })} label="★をくわしく" />} />
         </SettingsGroup>
 
         <SettingsGroup title="データ">

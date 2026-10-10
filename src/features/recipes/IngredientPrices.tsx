@@ -49,8 +49,8 @@ function PriceForm({ target, onDone }: { target: IngredientPriceRow | { name: st
       <p className="text-sm text-muted">{ok ? `→ ${perUnitLabel(draft)}` : '例: ベーコン 1 kg で 1800 円'}</p>
       <Button full disabled={!ok} loading={save.isPending} onClick={submit}>保存する</Button>
       {row && <Button variant="ghost" full onClick={() => setConfirm(true)}>この材料を消す</Button>}
-      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${row?.name}」の仕入れ値を消しますか？`} body="レシピの材料はそのまま残ります。原価が出なくなるだけです。" confirmLabel="消す" danger
-        onConfirm={() => { if (row) remove.mutate(row.id, { onSuccess: () => { toast('消しました'); onDone() } }) }} />
+      <Confirm open={confirm} onClose={() => setConfirm(false)} title={`「${row?.name}」の仕入れ値を消す？`} body="レシピの材料はそのまま残るよ。原価が出なくなるだけだよ。" confirmLabel="消す" danger
+        onConfirm={() => { if (row) remove.mutate(row.id, { onSuccess: () => { toast('消したよ'); onDone() } }) }} />
     </div>
   )
 }

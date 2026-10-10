@@ -15,7 +15,7 @@ export function useDiscardGuard(dirty: boolean): { requestLeave: (leave: () => v
     setAsking(true)
   }, [dirty])
   const dialog = (
-    <Confirm open={asking} onClose={() => setAsking(false)} title="入力途中のものを捨てますか？" body="まだ保存していません。" confirmLabel="捨てる" danger
+    <Confirm open={asking} onClose={() => setAsking(false)} title="書きかけを捨てる？" body="まだ保存してないよ。" confirmLabel="捨てる" danger
       onConfirm={() => { const fn = pending.current; pending.current = null; fn?.() }} />
   )
   return { requestLeave, dialog }

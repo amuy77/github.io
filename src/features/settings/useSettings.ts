@@ -8,9 +8,11 @@ export interface Settings {
   outfit: OutfitPref
   /** 友達（LuRu など）が遊びに来る頻度。書いていない友達は「ときどき」 */
   friends: Partial<Record<CharacterId, VisitFreq>>
+  /** ★をくわしく（ネタ・お店は 5 段階、レシピは 3 段階の言葉）。オフなら全部「いまいち／ふつう／また食べたい」 */
+  ratingDetail: boolean
 }
 const KEY = 'lara.settings'
-const DEFAULTS: Settings = { home3d: true, outfit: 'auto', friends: {} }
+const DEFAULTS: Settings = { home3d: true, outfit: 'auto', friends: {}, ratingDetail: false }
 const listeners = new Set<() => void>()
 let cache: Settings | null = null
 
