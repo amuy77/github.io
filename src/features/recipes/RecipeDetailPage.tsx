@@ -28,6 +28,8 @@ import { familyOf, latestOf, versionName } from './family'
 import { cx } from '@/lib/cx'
 import { PurposeBadge, PurposePicker } from './purpose'
 import { CostCard } from './CostCard'
+import { CookMode } from './CookMode'
+import { useIngredientPrices } from './priceHooks'
 import { PURPOSE_NAME, PURPOSE_TAB_LABEL, readListView } from './listView'
 
 const SOURCE_LABEL = { manual: '手入力', ai_image: 'LaRa（写真から）', ai_text: 'LaRa（テキストから）', text_paste: 'テキスト貼り付け' } as const
@@ -47,6 +49,10 @@ export function RecipeDetailPage() {
   const [confirm, setConfirm] = useState(false)
   const [review, setReview] = useState(false)
   const [lightbox, setLightbox] = useState(false)
+  const [cooking, setCooking] = useState(false)
+  // 原価を開いたレシピの id（同じ画面のまま別のレシピへ移ったら、また閉じた状態から）
+  const [costFor, setCostFor] = useState<string | null>(null)
+  const prices = useIngredientPrices()
   const r = recipe.data
   const sourceClip = useClip(r?.source_clip_id ?? undefined)
   const fam = useMemo(() => (r ? familyOf(all.data ?? [r], r) : []), [all.data, r])
@@ -92,6 +98,48 @@ export function RecipeDetailPage() {
           </div>
         )}
 
+        {r.hero_image && (
+          <button type="button" onClick={() => setLightbox(true)} className="overflow-hidden rounded-card border border-line"><ImageThumb src={photoUrl(r.hero_image, 'full')} className="aspect-[4/3]" /></button>
+        )}
+        {/* 作るとき: 材料と作り方だけを大きな字で。倍量・画面が消えない */}
+        {(r.ingredients.length > 0 || r.steps.length > 0) && (
+          <Button full size="lg" variant="secondary" icon={<span aria-hidden>👩‍🍳</span>} onClick={() => setCooking(true)}>作るモード（大きな字・倍量）</Button>
+        )}
+        <Card className="flex flex-col gap-3">
+          <SectionTitle className="mt-0">材料</SectionTitle>
+          {r.ingredients.length === 0 ? <p className="text-sm text-muted">材料はまだ書いてないよ</p> : (
+            <ul className="flex flex-col">
+              {r.ingredients.map((ing, i) => (
+                <li key={i} className="flex items-baseline gap-2 border-b border-dashed border-line py-2 text-[15px] last:border-b-0">
+                  <span className="flex-1">{ing.name}</span>
+                  <span className="font-bold tabular-nums">{ing.amount}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card className="flex flex-col gap-3">
+          <SectionTitle className="mt-0">作り方</SectionTitle>
+          {r.steps.length === 0 ? <p className="text-sm text-muted">手順はまだ書いてないよ</p> : (
+            <ol className="flex flex-col gap-3">
+              {r.steps.map((s, i) => (
+                <li key={i} className="flex gap-3 text-[15px] leading-relaxed">
+                  <span className="font-display grid size-7 shrink-0 place-items-center rounded-full bg-green-600 text-[13px] font-bold text-white">{i + 1}</span>
+                  <span className="pt-0.5">{s}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+        {r.notes && <Card><SectionTitle className="mt-0">メモ</SectionTitle><p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{r.notes}</p></Card>}
+        {/* ここから下は「くわしく」: 版・種類・評価・原価・元ネタ（毎日は見ないもの） */}
+        <SectionTitle>くわしく</SectionTitle>
+        <div className="flex flex-wrap items-center gap-2">
+            <PurposeBadge value={r.purpose} className="px-2.5 py-1 text-[12px]" />
+            {genre && <Tag>{genreEmoji(genre)} {genre.name}</Tag>}
+            {r.price != null && <Tag>¥{r.price.toLocaleString()}</Tag>}
+            <Tag>{SOURCE_LABEL[r.source_kind]}</Tag>
+          </div>
         {fam.length > 1 && (
           <Card className="flex flex-col gap-2">
             <SectionTitle className="mt-0" count={`${fam.length}版`} right={<Link to={paths.recipeCompare(r.id)} className="text-[13px] font-bold text-green-700">比べる →</Link>}>この料理の版</SectionTitle>
@@ -120,47 +168,13 @@ export function RecipeDetailPage() {
           </Card>
         )}
 
-        {r.hero_image && (
-          <button type="button" onClick={() => setLightbox(true)} className="overflow-hidden rounded-card border border-line"><ImageThumb src={photoUrl(r.hero_image, 'full')} className="aspect-[4/3]" /></button>
-        )}
         <Card className="flex flex-col gap-4">
           <PurposePicker value={r.purpose} onChange={(v) => v !== r.purpose && update.mutate({ id: r.id, patch: { purpose: v } }, { onSuccess: () => toast(`「${PURPOSE_NAME[v]}」にしたよ`, 'success') })} />
           <RatingInput label="評価" max={3} value={r.rating} onChange={(v) => update.mutate({ id: r.id, patch: { rating: v } })} />
         </Card>
-        <Card className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <PurposeBadge value={r.purpose} className="px-2.5 py-1 text-[12px]" />
-            {genre && <Tag>{genreEmoji(genre)} {genre.name}</Tag>}
-            {r.price != null && <Tag>¥{r.price.toLocaleString()}</Tag>}
-            <Tag>{SOURCE_LABEL[r.source_kind]}</Tag>
-          </div>
-          <SectionTitle className="mt-0">材料</SectionTitle>
-          {r.ingredients.length === 0 ? <p className="text-sm text-muted">材料はまだ書いてないよ</p> : (
-            <ul className="flex flex-col">
-              {r.ingredients.map((ing, i) => (
-                <li key={i} className="flex items-baseline gap-2 border-b border-dashed border-line py-2 text-[15px] last:border-b-0">
-                  <span className="flex-1">{ing.name}</span>
-                  <span className="font-bold tabular-nums">{ing.amount}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-        <CostCard recipe={r} />
-        <Card className="flex flex-col gap-3">
-          <SectionTitle className="mt-0">作り方</SectionTitle>
-          {r.steps.length === 0 ? <p className="text-sm text-muted">手順はまだ書いてないよ</p> : (
-            <ol className="flex flex-col gap-3">
-              {r.steps.map((s, i) => (
-                <li key={i} className="flex gap-3 text-[15px] leading-relaxed">
-                  <span className="font-display grid size-7 shrink-0 place-items-center rounded-full bg-green-600 text-[13px] font-bold text-white">{i + 1}</span>
-                  <span className="pt-0.5">{s}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </Card>
-        {r.notes && <Card><SectionTitle className="mt-0">メモ</SectionTitle><p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{r.notes}</p></Card>}
+        {prices.data?.ready && r.ingredients.length > 0 && (
+          costFor === r.id ? <CostCard recipe={r} /> : <Button variant="secondary" full onClick={() => setCostFor(r.id)}>💰 原価を見る</Button>
+        )}
         {sourceClip.data && (
           <Link to={paths.clip(sourceClip.data.id)} className="flex items-center gap-3 rounded-card border border-line bg-paper p-3 text-sm shadow-card">
             <span aria-hidden>📌</span><span className="text-muted">元ネタ:</span><span className="truncate font-bold">{clipTitle(sourceClip.data)}</span>
@@ -188,6 +202,7 @@ export function RecipeDetailPage() {
           })
         }} />
       <RecipeReviewSheet recipe={review ? r : null} onClose={() => setReview(false)} />
+      {cooking && <CookMode recipe={r} onClose={() => setCooking(false)} />}
       {lightbox && r.hero_image && (
         <button type="button" className="fixed inset-0 z-[80] grid place-items-center bg-espresso-900/90 p-4" onClick={() => setLightbox(false)} aria-label="閉じる">
           <img src={photoUrl(r.hero_image, 'full') ?? ''} alt="" className="max-h-full max-w-full rounded-card object-contain" />

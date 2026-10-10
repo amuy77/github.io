@@ -36,7 +36,8 @@ export function AppShell() {
   const asking = askAt === loc.pathname
   const setAsking = (v: boolean) => setAskAt(v ? loc.pathname : null)
   // ホームは下の案内カードに「聞く」を置くので、浮かぶボタンは出さない
-  const showAsk = !isHome && !/^\/(ask|add|login|settings)|\/(edit|new|compare)$/.test(loc.pathname)
+  // 入力する画面（記録の日・編集・作る・設定・足す）では出さない（保存の帯や入力欄に重なるので）
+  const showAsk = !isHome && !/^\/(ask|add|login|settings)|\/(edit|new|compare)$|^\/menu\/\d{4}-\d{2}-\d{2}$/.test(loc.pathname)
   return (
     <div className="min-h-full">
       <OfflineBanner />
