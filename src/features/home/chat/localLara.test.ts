@@ -34,10 +34,13 @@ describe('localReply', () => {
     expect(localReply('今日の予定は？', ctx({ planner: { date: today(), agenda: null, error: 'network' } })).text).toContain('つながらなかった')
   })
   it('予定: 聞かれた日（10/16 など）の分を、その日付つきで答える', () => {
-    const d = plannerDateOf('10/16の予定は？', today())!
-    expect(d).toMatch(/-10-16$/)
-    const r = localReply('10/16の予定は？', ctx({ planner: { date: d, agenda: agenda(d) } }))
-    expect(r.text).toMatch(/^10\/16（.）の予定は 1 件だよ。/)
+    // 今日・明日・明後日だと「明日」のような言い方になるので、10 日先の日付で聞く（テストを走らせる日に左右されないように）
+    const far = addDays(today(), 10)
+    const md = `${Number(far.slice(5, 7))}/${Number(far.slice(8, 10))}`
+    const d = plannerDateOf(`${md}の予定は？`, today())!
+    expect(d).toBe(far)
+    const r = localReply(`${md}の予定は？`, ctx({ planner: { date: d, agenda: agenda(d) } }))
+    expect(r.text).toMatch(new RegExp(`^${md.replace('/', '\\/')}（.）の予定は 1 件だよ。`))
     expect(r.text).toContain('10:00 打ち合わせ')
   })
   it('予定: 明日は「明日」と言う。別の日の分しか無ければ読めなかった扱い', () => {

@@ -4,6 +4,7 @@ import { IconCalendar, IconHome, IconInbox, IconNote, IconPlanner, IconPlus, Ico
 import { paths } from './routes'
 import { cx } from '@/lib/cx'
 import { OfflineBanner } from './OfflineBanner'
+import { useIsPicking } from '@/features/notes/pickState'
 import { UpdateToast } from './UpdateToast'
 import { TabokibaRescue } from './TabokibaRescue'
 import { useCounts } from '@/features/home/useCounts'
@@ -37,7 +38,9 @@ export function AppShell() {
   const setAsking = (v: boolean) => setAskAt(v ? loc.pathname : null)
   // ホームは下の案内カードに「聞く」を置くので、浮かぶボタンは出さない
   // 入力する画面（記録の日・編集・作る・設定・足す）では出さない（保存の帯や入力欄に重なるので）
-  const showAsk = !isHome && !/^\/(ask|add|login|settings)|\/(edit|new|compare)$|^\/menu\/\d{4}-\d{2}-\d{2}$/.test(loc.pathname)
+  // まとめて動かす（えらぶモード）の間も出さない（下の「ジャンルを変える」の帯に重なるので）
+  const picking = useIsPicking()
+  const showAsk = !isHome && !picking && !/^\/(ask|add|login|settings)|\/(edit|new|compare)$|^\/menu\/\d{4}-\d{2}-\d{2}$/.test(loc.pathname)
   return (
     <div className="min-h-full">
       <OfflineBanner />
@@ -99,7 +102,11 @@ function useScrollMemory() {
   const loc = useLocation()
   const navType = useNavigationType()
   const saved = useRef(new Map<string, number>())
+  // 画面（path + 検索）ごとの最後の位置。← で「親の画面」へ行くとき（state.up）はこちらで戻す（履歴のエントリは新しいので key では見つからない）
+  const byPath = useRef(new Map<string, number>())
   const key = loc.key
+  const path = loc.pathname + loc.search
+  const up = (loc.state as { up?: boolean } | null)?.up === true
   // ブラウザ自身の復元（同じページ内の # 移動でも働く）とぶつからないよう、位置はこちらで全部面倒を見る
   useEffect(() => { if ('scrollRestoration' in history) history.scrollRestoration = 'manual' }, [])
   // 次の画面を描いた瞬間、ページが短くなるとブラウザがスクロールを縮める（scroll イベントが出る）。
@@ -107,12 +114,12 @@ function useScrollMemory() {
   const shownKey = useRef(key)
   useLayoutEffect(() => { shownKey.current = key }, [key])
   useEffect(() => {
-    const onScroll = () => { if (shownKey.current === key) saved.current.set(key, window.scrollY) }
+    const onScroll = () => { if (shownKey.current === key) { saved.current.set(key, window.scrollY); byPath.current.set(path, window.scrollY) } }
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
-  }, [key])
+  }, [key, path])
   useEffect(() => {
-    const y = navType === 'POP' ? saved.current.get(key) ?? 0 : 0
+    const y = navType === 'POP' ? saved.current.get(key) ?? 0 : up ? byPath.current.get(path) ?? 0 : 0
     if (y <= 0) { window.scrollTo(0, 0); return }
     // 一覧の読み込みで高さが足りるまで待つ（時間で数える: フレーム数だと、画面を描かない環境では一瞬で使い切る）。
     // 3 秒待っても届かなければ、そのとき行ける一番下まで
@@ -126,7 +133,7 @@ function useScrollMemory() {
     }
     raf = requestAnimationFrame(tryRestore)
     return () => cancelAnimationFrame(raf)
-  }, [key, navType])
+  }, [key, navType, up, path])
 }
 
 /**

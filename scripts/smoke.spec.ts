@@ -17,6 +17,18 @@ async function inFilters(page: Page, fn: (sheet: Locator) => Promise<unknown>) {
   await sheet.getByRole('button', { name: 'これで見る' }).click()
   await expect(sheet).toBeHidden()
 }
+/** ジャンルのバー（ボタン 1 つ）を押して、下のシートの中からえらぶ */
+async function pickGenre(page: Page, name: RegExp | string) {
+  await page.getByTestId('genre-bar').click()
+  const sheet = page.getByRole('dialog', { name: 'ジャンルをえらぶ' })
+  await sheet.getByRole('radio', { name }).click()
+  await expect(sheet).toBeHidden()
+}
+/** ジャンルのシートの下の「ジャンルを追加・編集」を開く */
+async function openGenreManager(page: Page) {
+  await page.getByTestId('genre-bar').click()
+  await page.getByRole('dialog', { name: 'ジャンルをえらぶ' }).getByRole('button', { name: 'ジャンルを追加・編集' }).click()
+}
 const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d }
 const ts = (n: number) => daysAgo(n).toISOString()
 
@@ -446,20 +458,26 @@ test('recipes: お店のメニュー lives in its own ノート tab, レシピ h
   await expect(page.getByText('BLT サンド').first()).toBeVisible()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
   await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /ためしたい/ })).toHaveCount(0)
+  // お店のメニューのジャンルのシートに「ためしたい」は無い
+  const bar = page.getByTestId('genre-bar')
+  await bar.click()
+  const genreSheet = page.getByRole('dialog', { name: 'ジャンルをえらぶ' })
+  await expect(genreSheet.getByRole('radio', { name: /すべて/ })).toBeVisible()
+  await expect(genreSheet.getByRole('radio', { name: /ためしたい/ })).toHaveCount(0)
+  await genreSheet.getByRole('button', { name: '閉じる' }).click()
+  await expect(genreSheet).toBeHidden()
   await page.screenshot({ path: `screenshots/${info.project.name}-shop-menu.png`, fullPage: true })
 
-  // レシピ: 種類の段は無く、🧪 ためしたいはジャンルのチップと並ぶ。お店のメニューは出ない
+  // レシピ: 種類の段は無く、🧪 ためしたいはジャンルのシートの中に並ぶ。お店のメニューは出ない
   await notes.getByRole('tab', { name: /レシピ/ }).click()
   await expect(page.getByRole('tablist', { name: 'レシピの種類' })).toHaveCount(0)
   await expect(page.getByRole('tab', { name: /まだ決めてない/ })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /すべて/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(bar).toContainText('すべて')
   await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
   await expect(page.getByText('BLT サンド')).toHaveCount(0)
-  const idea = page.getByRole('button', { name: /🧪 ためしたい/ })
-  await expect(idea).toContainText('1')
-  await idea.click()
-  await expect(idea).toHaveAttribute('aria-pressed', 'true')
+  await pickGenre(page, /🧪 ためしたい/)
+  await expect(bar).toContainText('ためしたい')
+  await expect(bar).toContainText('1 品')
   await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
   await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-recipes-idea.png`, fullPage: true })
@@ -467,8 +485,8 @@ test('recipes: お店のメニュー lives in its own ノート tab, レシピ h
   await notes.getByRole('tab', { name: /メニュー/ }).click()
   await expect(page.getByText('エッグサラダ')).toBeVisible()
   await notes.getByRole('tab', { name: /レシピ/ }).click()
-  await expect(page.getByRole('button', { name: /🧪 ためしたい/ })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: /すべて/ }).click()
+  await expect(bar).toContainText('ためしたい')
+  await pickGenre(page, /すべて/)
 
   await page.getByText('ハンドドリップ 深煎り').click()
   await expect(page.getByRole('radiogroup', { name: 'レシピの種類' }).getByRole('radio')).toHaveCount(3)
@@ -503,7 +521,7 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
   page.on('request', (r) => { if (['POST', 'PATCH'].includes(r.method()) && r.url().includes('/rest/v1/genres')) writes.push({ method: r.method(), body: r.postDataJSON() }) })
 
   await page.goto('#/recipes')
-  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).first().click()
+  await openGenreManager(page)
   const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
   await expect(manager).toBeVisible()
   // 既存のジャンルを開いて、アイコンと名前を変える
@@ -530,11 +548,11 @@ test('genres: add and edit from the recipe list and the recipe editor', async ({
 test('recipes: the list keeps its genre after opening a recipe, and the detail page steps to the next one', async ({ page }) => {
   await stubSupabase(page)
   await page.goto('#/recipes')
-  await page.getByRole('button', { name: /🧪 ためしたい/ }).click()
+  await pickGenre(page, /🧪 ためしたい/)
   await page.getByText('栗のカフェラテ 試作').click()
   await page.goBack()
   // 戻っても「ためしたい」のまま
-  await expect(page.getByRole('button', { name: /🧪 ためしたい/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('genre-bar')).toContainText('ためしたい')
 
   // お店のメニューから開くと、その並びで「次へ」
   await page.goto('#/shop-menu')
@@ -559,7 +577,7 @@ test('clip genres: the clip list shares the genres with レシピ, and the edito
   })
   await page.goto('#/clips')
   await expect(page.getByRole('button', { name: 'カテゴリを追加・編集' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).click()
+  await openGenreManager(page)
   const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
   await expect(manager.getByText('クロワッサンサンド')).toBeVisible()
   await manager.getByRole('button', { name: 'ジャンルを追加' }).click()
@@ -587,26 +605,32 @@ test('clip genres: the clip list shares the genres with レシピ, and the edito
 
 test('notes: the genre you pick stays picked when you switch between ネタ帳 and レシピ', async ({ page }, info) => {
   await stubSupabase(page)
-  await page.goto('#/recipes')
-  await page.getByRole('button', { name: /アメリカンサンド/ }).first().click()
-  await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
-  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
-  await expect(page).toHaveURL(/#\/clips$/)
-  // ネタ帳でもアメリカンサンドが選ばれていて、そのネタだけ
-  await expect(page.getByRole('button', { name: /アメリカンサンド/ }).first()).toHaveAttribute('aria-pressed', 'true')
+  await page.goto('#/clips')
+  const bar = page.getByTestId('genre-bar')
+  await pickGenre(page, /アメリカンサンド/)
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
   await expect(page.getByText('ヴィーニョ・ヴェルデ 2024')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-notes-genre.png` })
-  // ネタ帳で変えると、レシピに戻っても同じ
-  await page.getByRole('button', { name: /ベバレッジ/ }).first().click()
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /レシピ/ }).click()
-  await expect(page.getByRole('button', { name: /ベバレッジ/ }).first()).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByText('BLT サンド')).toHaveCount(0)
-  // 「ためしたい」（レシピ）と「うちでやりたい」（ネタ帳）は同じ位置で、切り替えても選んだまま
-  await page.getByRole('button', { name: /🧪 ためしたい/ }).click()
+  await expect(page).toHaveURL(/#\/recipes$/)
+  // レシピでもアメリカンサンドが選ばれている（レシピには 0 品でも、選んでいるものはバーに出る）。そのレシピだけ＝何も無い
+  await expect(bar).toContainText('アメリカンサンド')
+  await expect(page.getByText('ハンドドリップ 深煎り')).toHaveCount(0)
+  await expect(page.getByText('見つからなかったよ')).toBeVisible()
+  // レシピで変えると、ネタ帳に戻っても同じ
+  await pickGenre(page, /コーヒー/)
+  await expect(page.getByText('ハンドドリップ 深煎り')).toBeVisible()
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
+  await expect(bar).toContainText('コーヒー')
+  await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
+  // 「うちでやりたい」（ネタ帳）と「ためしたい」（レシピ）は同じ位置で、切り替えても選んだまま
+  await pickGenre(page, /🏠 うちでやりたい/)
+  await expect(page.getByText('秋メニュー案')).toBeVisible()
+  await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /レシピ/ }).click()
+  await expect(bar).toContainText('ためしたい')
   await expect(page.getByText('栗のカフェラテ 試作')).toBeVisible()
   await page.getByRole('tablist', { name: 'ノート' }).getByRole('tab', { name: /ネタ帳/ }).click()
-  await expect(page.getByRole('button', { name: /🏠 うちでやりたい/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(bar).toContainText('うちでやりたい')
   await expect(page.getByText('秋メニュー案')).toBeVisible()
   await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
 })
@@ -617,11 +641,11 @@ test('clips: うちでやりたい is a chip next to the genres (no kind tabs), 
   page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/clips')) patches.push(r.postDataJSON()) })
   await page.goto('#/clips')
   await expect(page.getByRole('tablist', { name: 'ネタの種類' })).toHaveCount(0)
-  await page.getByRole('button', { name: /🏠 うちでやりたい/ }).click()
+  await pickGenre(page, /🏠 うちでやりたい/)
   await expect(page.getByText('秋メニュー案')).toBeVisible()
   await expect(page.getByText('クロックムッシュ ¥980')).toHaveCount(0)
   await page.screenshot({ path: `screenshots/${info.project.name}-clips-idea.png`, fullPage: true })
-  await page.getByRole('button', { name: /すべて/ }).click()
+  await pickGenre(page, /すべて/)
   await expect(page.getByText('クロックムッシュ ¥980')).toBeVisible()
 
   await page.goto('#/inbox')
@@ -875,7 +899,7 @@ test('safe: the Enter that confirms Japanese input does not save, a real Enter d
   const posts: unknown[] = []
   page.on('request', (r) => { if (r.method() === 'POST' && r.url().includes('/rest/v1/genres')) posts.push(r.postDataJSON()) })
   await page.goto('#/clips')
-  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).click()
+  await openGenreManager(page)
   await page.getByRole('dialog', { name: 'ジャンルの追加・編集' }).getByRole('button', { name: 'ジャンルを追加' }).click()
   const name = page.getByRole('dialog', { name: 'ジャンルを追加' }).getByLabel('ジャンル名')
   await name.fill('すい')
@@ -1033,7 +1057,7 @@ test('comfy: inputs are 16px so iOS does not zoom, and tap targets are 40px or m
   expect(await fontSize(page.getByRole('textbox', { name: '検索' }))).toBe('16px')
   const fav = page.getByRole('button', { name: /お気に入り/ }).first()
   expect((await fav.boundingBox())!.height).toBeGreaterThanOrEqual(40)
-  expect((await page.getByRole('button', { name: /サンド/ }).first().boundingBox())!.height).toBeGreaterThanOrEqual(40)
+  expect((await page.getByTestId('genre-bar').boundingBox())!.height).toBeGreaterThanOrEqual(40)
   await page.goto('#/recipes/new')
   expect(await fontSize(page.getByRole('textbox', { name: '材料 1' }))).toBe('16px')
   expect(await fontSize(page.getByRole('textbox', { name: '手順 1' }))).toBe('16px')
@@ -1172,7 +1196,7 @@ test('atomic: setting the main version is one RPC call, and a reorder sends the 
   expect((calls[0].body as { p_ids: string[] }).p_ids.sort()).toEqual(['d1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000005'])
 
   await page.goto('#/recipes')
-  await page.getByRole('button', { name: 'ジャンルを追加・編集' }).first().click()
+  await openGenreManager(page)
   const manager = page.getByRole('dialog', { name: 'ジャンルの追加・編集' })
   await manager.getByRole('button', { name: '下へ' }).first().click()
   await expect.poll(() => calls.length).toBe(2)
@@ -2060,4 +2084,114 @@ test('theme6: the record pages say 今日は N 個 in one line', async ({ page }
   // 売れた数を記録しない日は、品数だけ
   await page.getByRole('checkbox', { name: /売れた数も記録する/ }).uncheck()
   await expect(page.getByText(/^3 品$/)).toBeVisible()
+})
+
+// ---- ジャンルはボタン 1 つ → 下のシート。まとめて動かす。← は親の画面へ ----
+
+test('genres: the bar shows the pick and count, 0-count genres stay out of the sheet, and the sheet has the two actions', async ({ page }, info) => {
+  await stubSupabase(page)
+  await page.goto('#/clips')
+  const bar = page.getByTestId('genre-bar')
+  await expect(bar).toContainText('すべて')
+  await expect(bar).toContainText('5 件')
+  // 横スクロールの行は無い（ジャンルのチップがページに並ばない）
+  await expect(page.getByRole('button', { name: /^☕ コーヒー/ })).toHaveCount(0)
+  await bar.click()
+  const sheet = page.getByRole('dialog', { name: 'ジャンルをえらぶ' })
+  await expect(sheet.getByRole('radio', { name: /すべて/ })).toHaveAttribute('aria-checked', 'true')
+  // ネタ帳で 0 件の「クロワッサンサンド」は出ない。入っているジャンルは件数つきで出る
+  await expect(sheet.getByRole('radio', { name: /クロワッサンサンド/ })).toHaveCount(0)
+  await expect(sheet.getByRole('radio', { name: /アメリカンサンド/ })).toContainText('2')
+  await expect(sheet.getByRole('radio', { name: /ジャンルなし/ })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'ジャンルを追加・編集' })).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'まとめて動かす' })).toBeVisible()
+  await page.screenshot({ path: `screenshots/${info.project.name}-genre-sheet.png` })
+  await sheet.getByRole('radio', { name: /アメリカンサンド/ }).click()
+  await expect(sheet).toBeHidden()
+  await expect(bar).toContainText('アメリカンサンド')
+  await expect(bar).toContainText('2 件')
+  // レシピでは「クロワッサンサンド」も 0 件なので出ない。「お店のメニュー」側でも同じ
+  await page.goto('#/shop-menu')
+  await page.getByTestId('genre-bar').click()
+  await expect(page.getByRole('dialog', { name: 'ジャンルをえらぶ' }).getByRole('radio', { name: /クロワッサンサンド/ })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'ジャンルをえらぶ' }).getByRole('radio', { name: /アメリカンサンド/ })).toContainText('2')
+})
+
+test('genres: まとめて動かす picks several clips, moves them in one write, and 元に戻す puts them back', async ({ page }, info) => {
+  await stubSupabase(page)
+  const patches: { url: string; body: { genre_id?: string | null } }[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/clips')) patches.push({ url: decodeURIComponent(r.url()), body: r.postDataJSON() }) })
+  await page.goto('#/clips')
+  await page.getByTestId('genre-bar').click()
+  await page.getByRole('dialog', { name: 'ジャンルをえらぶ' }).getByRole('button', { name: 'まとめて動かす' }).click()
+  // えらぶモード: 上に帯、カードは押すとえらばれる、♥ は出ない、下に「ジャンルを変える」
+  await expect(page.getByText('動かすものを押してえらんでね')).toBeVisible()
+  await expect(page.getByRole('button', { name: /お気に入りに/ })).toHaveCount(0)
+  const move = page.getByRole('button', { name: /ジャンルを変える/ })
+  await expect(move).toBeDisabled()
+  await page.getByRole('button', { name: /ヴィーニョ・ヴェルデ 2024/ }).click()
+  await page.getByRole('button', { name: /秋メニュー案/ }).click()
+  await expect(page.getByRole('button', { name: /ヴィーニョ・ヴェルデ 2024/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(move).toContainText('2 件')
+  await page.screenshot({ path: `screenshots/${info.project.name}-genre-bulk.png`, fullPage: true })
+  await move.click()
+  const target = page.getByRole('dialog', { name: 'どのジャンルに入れる？' })
+  // 行き先には 0 件のジャンルも全部出る
+  await expect(target.getByRole('radio', { name: /クロワッサンサンド/ })).toBeVisible()
+  await target.getByRole('radio', { name: /コーヒー/ }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0].body).toEqual({ genre_id: G.coffee })
+  expect(patches[0].url).toContain('id=in.(')
+  expect(patches[0].url).toContain('c1000000-0000-4000-8000-000000000003')
+  // 一覧はすぐ変わる（コーヒーの見出しに 2 件）。えらぶモードは終わる
+  await expect(page.getByRole('heading', { name: /コーヒー/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /ジャンルなし/ })).toHaveCount(0)
+  await expect(page.getByText('動かすものを押してえらんでね')).toHaveCount(0)
+  await expect(page.getByText('2 件を ☕ コーヒー に入れたよ')).toBeVisible()
+  await page.getByRole('button', { name: '元に戻す' }).click()
+  await expect.poll(() => patches.length).toBe(2)
+  expect(patches[1].body).toEqual({ genre_id: null })
+  await expect(page.getByRole('heading', { name: /ジャンルなし/ })).toBeVisible()
+  await expect(page.getByText('元に戻したよ')).toBeVisible()
+})
+
+test('genres: まとめて動かす works for recipes too, and やめる leaves the mode without writing', async ({ page }) => {
+  await stubSupabase(page)
+  const patches: { body: { genre_id?: string | null } }[] = []
+  page.on('request', (r) => { if (r.method() === 'PATCH' && r.url().includes('/rest/v1/recipes')) patches.push({ body: r.postDataJSON() }) })
+  await page.goto('#/shop-menu')
+  await page.getByTestId('genre-bar').click()
+  await page.getByRole('dialog', { name: 'ジャンルをえらぶ' }).getByRole('button', { name: 'まとめて動かす' }).click()
+  await page.getByRole('button', { name: /エッグサラダ/ }).click()
+  await page.getByRole('button', { name: 'やめる' }).click()
+  await expect(page.getByText('動かすものを押してえらんでね')).toHaveCount(0)
+  await expect(page.getByTestId('genre-bar')).toBeVisible()
+  expect(patches).toHaveLength(0)
+  // もう一度: エッグサラダをコーヒーへ
+  await page.getByTestId('genre-bar').click()
+  await page.getByRole('dialog', { name: 'ジャンルをえらぶ' }).getByRole('button', { name: 'まとめて動かす' }).click()
+  await page.getByRole('button', { name: /エッグサラダ/ }).click()
+  await page.getByRole('button', { name: /ジャンルを変える/ }).click()
+  await page.getByRole('dialog', { name: 'どのジャンルに入れる？' }).getByRole('radio', { name: /コーヒー/ }).click()
+  await expect.poll(() => patches.length).toBe(1)
+  expect(patches[0].body).toEqual({ genre_id: G.coffee })
+  await expect(page.getByText('1 品を ☕ コーヒー に入れたよ')).toBeVisible()
+})
+
+test('back: ← goes to the parent page, not the previous one, even after hopping between a recipe and its clip', async ({ page }) => {
+  await stubSupabase(page)
+  // レシピ → 元ネタのネタ → ←: ネタ帳へ（レシピには戻らない）
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000001')
+  await page.getByRole('link', { name: /クロックムッシュ ¥980/ }).click()
+  await expect(page).toHaveURL(/#\/clips\/c1000000-0000-4000-8000-000000000001$/)
+  await page.getByRole('button', { name: '戻る' }).click()
+  await expect(page).toHaveURL(/#\/clips$/)
+  // お店のメニュー → レシピ → 版を比べる → ←: そのレシピ → ←: お店のメニュー
+  await page.goto('#/recipes/d1000000-0000-4000-8000-000000000005')
+  await page.getByRole('link', { name: /比べる/ }).click()
+  await expect(page).toHaveURL(/\/compare$/)
+  await page.getByRole('button', { name: '戻る' }).click()
+  await expect(page).toHaveURL(/#\/recipes\/d1000000-0000-4000-8000-000000000005$/)
+  await page.getByRole('button', { name: '戻る' }).first().click()
+  await expect(page).toHaveURL(/#\/shop-menu$/)
 })

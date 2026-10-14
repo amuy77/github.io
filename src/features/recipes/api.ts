@@ -29,6 +29,13 @@ export async function updateRecipe(id: string, patch: RecipeUpdate): Promise<Rec
   return data as RecipeRow
 }
 
+/** まとめてジャンルを入れ直す（1 回の書き込み） */
+export async function updateRecipesGenre(ids: string[], genre_id: string | null): Promise<void> {
+  if (!ids.length) return
+  const { error } = await getSupabase().from('recipes').update({ genre_id }).in('id', ids)
+  if (error) throw error
+}
+
 /** グループの「採用中」を 1 件に（id が null なら全部外す）。DB 関数で 1 回（無ければ版ごとに update） */
 export async function setMainRecipe(ids: string[], id: string | null): Promise<void> {
   await callRpc('set_main_recipe', { p_ids: ids, p_main: id }, async () => {

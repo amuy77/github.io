@@ -28,6 +28,13 @@ export async function updateClip(id: string, patch: ClipUpdate): Promise<ClipRow
   return data as ClipRow
 }
 
+/** まとめてジャンルを入れ直す（1 回の書き込み） */
+export async function updateClipsGenre(ids: string[], genre_id: string | null): Promise<void> {
+  if (!ids.length) return
+  const { error } = await getSupabase().from('clips').update({ genre_id }).in('id', ids)
+  if (error) throw error
+}
+
 export async function deleteClip(clip: ClipRow): Promise<void> {
   const { error } = await getSupabase().from('clips').delete().eq('id', clip.id)
   if (error) throw error

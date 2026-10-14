@@ -2,12 +2,12 @@ import { useCallback, useMemo, useState } from 'react'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
-import { IconEdit, IconPlus, IconSearch, IconHeart } from '@/components/ui/icons'
+import { IconPlus, IconSearch, IconHeart } from '@/components/ui/icons'
 import type { ClipRow } from '@/lib/supabase/database.types'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
 import { GenreManagerSheet } from '@/features/genres/GenreManager'
-import { useClips, useUpdateClip } from './hooks'
+import { useBulkClipGenre, useClips, useUpdateClip } from './hooks'
 import { ClipCard, ClipListRow, clipTitle } from './ClipCard'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { SortSelect, sortRows, type SortKey } from '@/components/ui/SortSelect'
@@ -16,7 +16,8 @@ import { ClipEditorSheet } from './ClipEditorSheet'
 import { cx } from '@/lib/cx'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
 import { useNotesGenre } from '@/features/notes/notes'
-import { GenreChips } from '@/features/notes/GenreChips'
+import { GenreSelect } from '@/features/notes/GenreSelect'
+import { usePickMode } from '@/features/notes/usePickMode'
 import { isTop } from '@/lib/rating'
 
 const VIEW_KEY = 'lara.clips.view'
@@ -66,13 +67,16 @@ export function ClipsPage() {
   }, [genreId, genres.data, list])
   const inTab = clips.data ?? []
   const [layout, setLayout] = useListLayout('lara.clips.layout')
+  // まとめて動かす（えらぶモード）
+  const bulk = useBulkClipGenre()
+  const pick = usePickMode({ unit: '件', rows: inTab, move: (ids, genre_id) => bulk.mutateAsync({ ids, genre_id }) })
 
   return (
     <>
-      <PageHeader title="ネタ帳" sub={clips.data ? `${clips.data.length}件` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => setEditorOpen(true)}>追加</Button>} />
+      <PageHeader title="ネタ帳" sub={clips.data ? `${clips.data.length}件` : undefined} actions={!pick.picking && <Button size="sm" icon={<IconPlus size={16} />} onClick={() => setEditorOpen(true)}>追加</Button>} />
       <NotesSwitch current="clips" />
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
+        {pick.top ?? <div className="flex items-center gap-2">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
             <IconSearch size={18} className="text-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="お店・メニュー・タグで探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
@@ -86,11 +90,9 @@ export function ClipsPage() {
               <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★がまだ</Chip>
             </FilterGroup>
           </FilterButton>
-        </div>
-        <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <GenreChips value={genreId} onChange={setGenreId} ideaLabel="🏠 うちでやりたい" idea={inTab.filter((c) => c.purpose === 'idea').length} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)} />
-          <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
-        </div>
+        </div>}
+        {!pick.picking && <GenreSelect value={genreId} onChange={setGenreId} unit="件" ideaLabel="🏠 うちでやりたい" idea={inTab.filter((c) => c.purpose === 'idea').length} count={(id) => (id === 'all' ? inTab.length : inTab.filter((c) => (id === 'none' ? (c.genre_id ?? null) === null : c.genre_id === id)).length)}
+          onManage={() => setManaging(true)} onBulk={list.length > 0 ? pick.start : undefined} />}
         <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />
 
         {clips.isLoading ? (
@@ -107,16 +109,17 @@ export function ClipsPage() {
               {s.title && <SectionTitle count={`${s.items.length}件`}>{s.title}</SectionTitle>}
               {layout === 'list' ? (
                 <div className="flex flex-col gap-1.5" data-testid="clip-list">
-                  {s.items.map((c) => <ClipListRow key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
+                  {s.items.map((c) => <ClipListRow key={c.id} clip={c} onToggleFavorite={toggleFav} pick={pick.pickOf(c.id)} />)}
                 </div>
               ) : (
                 <div className={cx('grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4')}>
-                  {s.items.map((c) => <ClipCard key={c.id} clip={c} onToggleFavorite={toggleFav} />)}
+                  {s.items.map((c) => <ClipCard key={c.id} clip={c} onToggleFavorite={toggleFav} pick={pick.pickOf(c.id)} />)}
                 </div>
               )}
             </section>
           ))
         )}
+        {pick.bottom}
       </div>
       <ClipEditorSheet open={editorOpen} onClose={() => setEditorOpen(false)} />
     </>
