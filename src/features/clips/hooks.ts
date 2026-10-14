@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { ClipRow } from '@/lib/supabase/database.types'
-import { deleteClip, getClip, insertClip, listClips, updateClip, type ClipInsert, type ClipUpdate } from './api'
+import { deleteClip, getClip, insertClip, listClips, updateClip, updateClipsGenre, type ClipInsert, type ClipUpdate } from './api'
 import { useHidePendingDeletes } from '@/lib/undoDelete'
 
 export function useClips(enabled = true) {
@@ -51,6 +51,19 @@ export function useUpdateClip() {
       qc.setQueryData(qk.clip(updated.id), updated)
       // 確認済みにするとトレイのバッジ（counts）が変わる
       qc.invalidateQueries({ queryKey: qk.counts })
+    },
+  })
+}
+
+/** まとめてジャンルを入れ直す。成功したら一覧と詳細のキャッシュを差し替える */
+export function useBulkClipGenre() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ ids, genre_id }: { ids: string[]; genre_id: string | null }) => updateClipsGenre(ids, genre_id),
+    onSuccess: (_r, { ids, genre_id }) => {
+      const set = new Set(ids)
+      qc.setQueryData<ClipRow[]>(qk.clips, (old) => old?.map((c) => (set.has(c.id) ? { ...c, genre_id } : c)))
+      for (const id of ids) qc.setQueryData<ClipRow | null>(qk.clip(id), (old) => (old ? { ...old, genre_id } : old))
     },
   })
 }

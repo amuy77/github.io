@@ -1,5 +1,5 @@
-import { Link } from 'react-router'
 import type { ClipRow } from '@/lib/supabase/database.types'
+import { Pressable, type Pick } from '@/features/notes/pick'
 import { ImageThumb } from '@/components/ui/ImageThumb'
 import { Tag } from '@/components/ui/Chip'
 import { RatingStars } from '@/components/ui/Rating'
@@ -27,13 +27,13 @@ function FavoriteButton({ clip, onToggle, className }: { clip: ClipRow; onToggle
 }
 
 /** ネタ帳の 1 件。付箋（idea）は黄色の紙、それ以外はサムネ付きカード */
-export function ClipCard({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFavorite?: (c: ClipRow) => void }) {
+export function ClipCard({ clip, onToggleFavorite, pick }: { clip: ClipRow; onToggleFavorite?: (c: ClipRow) => void; pick?: Pick }) {
   const cat = useGenreOf()(clip.genre_id)
   const thumb = clip.images?.[0] ? photoUrl(clip.images[0], 'thumb') : clip.preview?.image ?? null
   const isIdea = clip.type === 'idea'
   return (
-    <div className={cx('group relative overflow-hidden rounded-card border border-line bg-paper shadow-card', isIdea && 'bg-[#FFF2C2] border-mustard-300')}>
-      <Link to={paths.clip(clip.id)} className="block active:scale-[0.99]">
+    <div className={cx('group relative overflow-hidden rounded-card border border-line bg-paper shadow-card', isIdea && 'bg-[#FFF2C2] border-mustard-300', pick?.on && 'ring-2 ring-green-600')}>
+      <Pressable to={paths.clip(clip.id)} pick={pick} className="block active:scale-[0.99]">
         {isIdea ? (
           <div className="p-4">
             <div className="mb-1 flex items-center gap-1 text-[11px] font-bold text-mustard-500">💡 ひらめき</div>
@@ -53,28 +53,28 @@ export function ClipCard({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFa
         {!isIdea && cat.id && <div className="absolute left-2 top-2 rounded-chip bg-paper/90 px-1.5 py-0.5 text-[10px] font-bold shadow-card">{cat.emoji} {cat.label}</div>}
         {clip.needs_review && <span className="absolute left-2 top-8 rounded-chip bg-mustard-400 px-2 py-0.5 text-[10px] font-bold">確認待ち</span>}
         <span className="absolute bottom-2 right-2 text-[10px] text-muted">{relativeDay(clip.created_at)}</span>
-      </Link>
-      {onToggleFavorite && <FavoriteButton clip={clip} onToggle={onToggleFavorite} className="absolute right-1 top-1 size-10 bg-paper/90 shadow-card" />}
+      </Pressable>
+      {onToggleFavorite && !pick && <FavoriteButton clip={clip} onToggle={onToggleFavorite} className="absolute right-1 top-1 size-10 bg-paper/90 shadow-card" />}
     </div>
   )
 }
 
 /** ネタ帳のリスト表示の 1 行: 小さなサムネ・名前・お店・ジャンル・★。名前で探しやすいように縦に並べる */
-export function ClipListRow({ clip, onToggleFavorite }: { clip: ClipRow; onToggleFavorite?: (c: ClipRow) => void }) {
+export function ClipListRow({ clip, onToggleFavorite, pick }: { clip: ClipRow; onToggleFavorite?: (c: ClipRow) => void; pick?: Pick }) {
   const cat = useGenreOf()(clip.genre_id)
   const thumb = clip.images?.[0] ? photoUrl(clip.images[0], 'thumb') : clip.preview?.image ?? null
   const isIdea = clip.type === 'idea'
   return (
-    <div className={cx('flex items-center gap-1 rounded-[12px] border border-line bg-paper pr-1 shadow-card', isIdea && 'bg-[#FFF2C2] border-mustard-300')}>
-      <Link to={paths.clip(clip.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 active:scale-[0.995]">
+    <div className={cx('relative flex items-center gap-1 rounded-[12px] border border-line bg-paper pr-1 shadow-card', isIdea && 'bg-[#FFF2C2] border-mustard-300', pick?.on && 'ring-2 ring-green-600')}>
+      <Pressable to={paths.clip(clip.id)} pick={pick} corner="left" className={cx('flex min-w-0 flex-1 items-center gap-3 px-3 py-2 active:scale-[0.995]', pick && 'pl-11')}>
         {isIdea ? <span className="grid size-12 shrink-0 place-items-center text-xl" aria-hidden>💡</span> : <ImageThumb src={thumb} className="size-12 shrink-0 rounded-[8px]" emoji={cat.emoji} />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[14px] font-bold leading-snug">{clipTitle(clip)}{clip.needs_review && <span className="ml-1.5 rounded-chip bg-mustard-400 px-1.5 py-0.5 text-[10px] font-bold">確認待ち</span>}</p>
           <p className="truncate text-[11px] text-muted">{[cat.id ? `${cat.emoji} ${cat.label}` : '', clip.shop_name ?? clip.preview?.site_name ?? '', clip.tags.slice(0, 3).join(' ')].filter(Boolean).join(' ・ ')}</p>
           <div className="mt-0.5 flex items-center gap-1.5"><ClipPurposeBadge value={clip.purpose} /><RatingStars value={clip.rating} max={5} showHold={false} /><span className="ml-auto text-[10px] text-muted">{relativeDay(clip.created_at)}</span></div>
         </div>
-      </Link>
-      {onToggleFavorite && <FavoriteButton clip={clip} onToggle={onToggleFavorite} className="size-11 shrink-0" />}
+      </Pressable>
+      {onToggleFavorite && !pick && <FavoriteButton clip={clip} onToggle={onToggleFavorite} className="size-11 shrink-0" />}
     </div>
   )
 }

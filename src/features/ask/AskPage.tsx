@@ -80,7 +80,7 @@ export function AskPage() {
 
   return (
     <>
-      <PageHeader title="LaRa に聞く" sub="探す・提案してもらう・味の相談" back={paths.home}
+      <PageHeader title="LaRa に聞く" sub="探す・提案してもらう・味の相談" back={recipeId ? paths.recipe(recipeId) : paths.home}
         actions={msgs.length > 0 ? <Button size="sm" variant="ghost" onClick={() => setMsgs([])}>新しい相談</Button> : undefined} />
       <div className="flex flex-col gap-4 pb-28">
         {focus && (

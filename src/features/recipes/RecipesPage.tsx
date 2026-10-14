@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router'
 import { PageHeader, EmptyState, SectionTitle, Skeleton } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { Chip } from '@/components/ui/Chip'
-import { IconEdit, IconPlus, IconSearch, IconHeart } from '@/components/ui/icons'
+import { IconPlus, IconSearch, IconHeart } from '@/components/ui/icons'
 import { GenreManagerSheet } from '@/features/genres/GenreManager'
 import type { RecipeRow } from '@/lib/supabase/database.types'
 import { paths } from '@/app/routes'
 import { useGenres } from '@/features/genres/hooks'
 import { genreEmoji } from '@/features/genres/api'
-import { useRecipes, useUpdateRecipe } from './hooks'
+import { useBulkRecipeGenre, useRecipes, useUpdateRecipe } from './hooks'
 import { LayoutToggle, useListLayout } from '@/components/ui/LayoutToggle'
 import { SortSelect, sortRows } from '@/components/ui/SortSelect'
 import { FilterButton, FilterGroup } from '@/components/ui/FilterSheet'
@@ -18,7 +18,8 @@ import { familyKey, representativeOf } from './family'
 import { useListViewState, writeListView } from './listView'
 import { NotesSwitch } from '@/features/notes/NotesSwitch'
 import { useNotesGenre } from '@/features/notes/notes'
-import { GenreChips } from '@/features/notes/GenreChips'
+import { GenreSelect } from '@/features/notes/GenreSelect'
+import { usePickMode } from '@/features/notes/usePickMode'
 
 /** レシピ（ためしたい・お手本・まだ決めてない）と、ノートの「メニュー」（お店のメニュー）で同じ一覧を使う */
 export type RecipesSide = 'recipes' | 'menu'
@@ -74,13 +75,16 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
   const [layout, setLayout] = useListLayout('lara.recipes.layout')
   const total = reps.length
   const newPath = `${paths.recipeNew}?purpose=${isMenu ? 'menu' : 'idea'}`
+  // まとめて動かす（えらぶモード）。動かすのは見えている代表の版だけ
+  const bulk = useBulkRecipeGenre()
+  const pick = usePickMode({ unit: '品', rows: reps, move: (ids, genre_id) => bulk.mutateAsync({ ids, genre_id }) })
 
   return (
     <>
-      <PageHeader title={isMenu ? 'お店のメニュー' : 'レシピ'} sub={total ? `${total}品${isMenu ? '' : 'を収録'}` : undefined} actions={<Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(newPath)}>作る</Button>} />
+      <PageHeader title={isMenu ? 'お店のメニュー' : 'レシピ'} sub={total ? `${total}品${isMenu ? '' : 'を収録'}` : undefined} actions={!pick.picking && <Button size="sm" icon={<IconPlus size={16} />} onClick={() => nav(newPath)}>作る</Button>} />
       <NotesSwitch current={side} />
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
+        {pick.top ?? <div className="flex items-center gap-2">
           <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-chip border border-line bg-paper px-4 text-[14px]">
             <IconSearch size={18} className="text-muted" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="レシピ名・材料で探す" className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted/70" aria-label="検索" />
@@ -95,11 +99,9 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
               <Chip active={minRating === -1} onClick={() => setMinRating(minRating === -1 ? 0 : -1)}>★がまだ</Chip>
             </FilterGroup>
           </FilterButton>
-        </div>
-        <div className="scroll-x -mx-4 flex gap-2 px-4">
-          <GenreChips value={genreId} onChange={setGenreId} ideaLabel="🧪 ためしたい" idea={isMenu ? undefined : reps.filter((r) => r.purpose === 'idea').length} count={(id) => (id === 'all' ? total : reps.filter((r) => (id === 'none' ? r.genre_id === null : r.genre_id === id)).length)} />
-          <Chip onClick={() => setManaging(true)} icon={<IconEdit size={14} />}>ジャンルを追加・編集</Chip>
-        </div>
+        </div>}
+        {!pick.picking && <GenreSelect value={genreId} onChange={setGenreId} unit="品" ideaLabel="🧪 ためしたい" idea={isMenu ? undefined : reps.filter((r) => r.purpose === 'idea').length} count={(id) => (id === 'all' ? total : reps.filter((r) => (id === 'none' ? r.genre_id === null : r.genre_id === id)).length)}
+          onManage={() => setManaging(true)} onBulk={filtered.length > 0 ? pick.start : undefined} />}
 
         {recipes.isLoading || genres.isLoading ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="aspect-[4/5]" />)}</div>
@@ -117,17 +119,17 @@ export function RecipesPage({ side = 'recipes' }: { side?: RecipesSide }) {
               <SectionTitle count={`${s.items.length}品`}>{s.title}</SectionTitle>
               {layout === 'list' ? (
                 <div className="flex flex-col gap-1.5" data-testid="recipe-list">
-                  {s.items.map((r) => <RecipeListRow key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} />)}
+                  {s.items.map((r) => <RecipeListRow key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} pick={pick.pickOf(r.id)} />)}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-                  {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} />)}
+                  {s.items.map((r) => <RecipeCard key={r.id} recipe={r} genre={s.genre ?? null} onToggleFavorite={toggleFav} versions={famCount.get(familyKey(r)) ?? 1} pick={pick.pickOf(r.id)} />)}
                 </div>
               )}
             </section>
           ))
         )}
-        <p className="pt-2 text-center text-xs text-muted"><button type="button" className="font-bold underline underline-offset-2" onClick={() => setManaging(true)}>ジャンルの追加・編集・並び替え</button></p>
+        {pick.bottom}
         <GenreManagerSheet open={managing} onClose={() => setManaging(false)} />
       </div>
     </>

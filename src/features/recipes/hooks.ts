@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/supabase/queryKeys'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import type { RecipeRow } from '@/lib/supabase/database.types'
-import { deleteRecipe, getRecipe, insertRecipe, listRecipes, setMainRecipe, updateRecipe, type RecipeInsert, type RecipeUpdate } from './api'
+import { deleteRecipe, getRecipe, insertRecipe, listRecipes, setMainRecipe, updateRecipe, updateRecipesGenre, type RecipeInsert, type RecipeUpdate } from './api'
 import { useHidePendingDeletes } from '@/lib/undoDelete'
 
 /** 全レシピ（draft 込み）。図鑑では published だけを見せる */
@@ -53,6 +53,21 @@ export function useUpdateRecipe() {
     onSuccess: (updated) => {
       qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.map((r) => (r.id === updated.id ? updated : r)))
       qc.setQueryData(qk.recipe(updated.id), updated)
+      inv()
+    },
+  })
+}
+
+/** まとめてジャンルを入れ直す。成功したら一覧と詳細のキャッシュを差し替える */
+export function useBulkRecipeGenre() {
+  const qc = useQueryClient()
+  const inv = useInvalidateCounts()
+  return useMutation({
+    mutationFn: ({ ids, genre_id }: { ids: string[]; genre_id: string | null }) => updateRecipesGenre(ids, genre_id),
+    onSuccess: (_r, { ids, genre_id }) => {
+      const set = new Set(ids)
+      qc.setQueryData<RecipeRow[]>(qk.recipes, (old) => old?.map((r) => (set.has(r.id) ? { ...r, genre_id } : r)))
+      for (const id of ids) qc.setQueryData<RecipeRow | null>(qk.recipe(id), (old) => (old ? { ...old, genre_id } : old))
       inv()
     },
   })

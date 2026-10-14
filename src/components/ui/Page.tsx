@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { IconArrowLeft } from './icons'
 import { IconButton } from './Button'
 import { cx } from '@/lib/cx'
 
 /**
  * ページ共通ヘッダー。明朝の見出し + 右側にアクション。
- * back に文字列を渡すと、開いた元の画面があればそこへ（履歴を 1 つ戻る＝スクロール位置も戻る）、
- * 直リンクで開いたときだけその文字列の画面へ。onBack を渡すと戻るの動きを差し替えられる（未保存の確認など）
+ * back に文字列を渡すと ← は必ずその「親の画面」へ（1 つ前の画面ではない。画面を行き来したあとでも一覧に戻れる。
+ * 親の一覧のスクロール位置は AppShell が state.up を見て戻す）。来た道を戻るのはブラウザの戻るに任せる。
+ * onBack を渡すと戻るの動きを差し替えられる（未保存の確認など）
  */
 export function PageHeader({ title, sub, back, onBack, actions, className }: { title: ReactNode; sub?: ReactNode; back?: boolean | string; onBack?: () => void; actions?: ReactNode; className?: string }) {
   const nav = useNavigate()
-  const fromApp = useLocation().key !== 'default'
-  const goBack = () => { if (onBack) onBack(); else if (typeof back === 'string' && !fromApp) nav(back); else nav(-1) }
+  const goBack = () => { if (onBack) onBack(); else if (typeof back === 'string') nav(back, { state: { up: true } }); else nav(-1) }
   return (
     <header className={cx('sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-2 bg-oat-50/90 px-4 pb-2 pt-[calc(10px+var(--safe-top))] backdrop-blur', className)}>
       {(back || onBack) && <IconButton label="戻る" className="-ml-2" onClick={goBack}><IconArrowLeft /></IconButton>}
